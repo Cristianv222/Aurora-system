@@ -15,6 +15,7 @@ const Tamanos = () => {
         price_adjustment: 0,
         is_default: false
     });
+    const [editingSize, setEditingSize] = useState(null);
 
     const fetchSizes = async () => {
         try {
@@ -54,19 +55,51 @@ const Tamanos = () => {
         }));
     };
 
+    const handleEditSize = (size) => {
+        setEditingSize(size);
+        setNewSize({
+            product: size.product,
+            name: size.name,
+            price_adjustment: size.price_adjustment,
+            is_default: size.is_default
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteSize = async (id) => {
+        if (window.confirm('¿Estás seguro de eliminar este tamaño?')) {
+            try {
+                await api.delete(`/api/menu/sizes/${id}/`, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                fetchSizes();
+            } catch (err) {
+                console.error('Error deleting size:', err);
+                alert('Error al eliminar el tamaño');
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
         try {
-            await api.post('/api/menu/sizes/', newSize, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
-            });
+            if (editingSize) {
+                await api.patch(`/api/menu/sizes/${editingSize.id}/`, newSize, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+            } else {
+                await api.post('/api/menu/sizes/', newSize, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+            }
             setIsModalOpen(false);
             setNewSize({ product: '', name: '', price_adjustment: 0, is_default: false });
+            setEditingSize(null);
             fetchSizes();
         } catch (err) {
-            console.error('Error creating size:', err);
-            alert('Error al crear el tamaño. Verifique los datos.');
+            console.error('Error saving size:', err);
+            alert('Error al guardar el tamaño. Verifique los datos.');
         }
     };
 
@@ -77,7 +110,11 @@ const Tamanos = () => {
         <div>
             <div className="page-header" style={{ marginTop: '1rem' }}>
                 <h3>Gestión de Tamaños</h3>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+                <button className="btn btn-primary" onClick={() => {
+                    setEditingSize(null);
+                    setNewSize({ product: '', name: '', price_adjustment: 0, is_default: false });
+                    setIsModalOpen(true);
+                }}>
                     + Nuevo Tamaño
                 </button>
             </div>
@@ -91,6 +128,7 @@ const Tamanos = () => {
                             <th>Nombre</th>
                             <th>Ajuste de Precio</th>
                             <th>Por Defecto</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -104,6 +142,21 @@ const Tamanos = () => {
                                     <td>{size.name}</td>
                                     <td>${size.price_adjustment}</td>
                                     <td>{size.is_default ? 'Sí' : 'No'}</td>
+                                    <td>
+                                        <button
+                                            className="btn btn-sm btn-outline"
+                                            onClick={() => handleEditSize(size)}
+                                            style={{ marginRight: '5px' }}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-danger"
+                                            onClick={() => handleDeleteSize(size.id)}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -111,7 +164,7 @@ const Tamanos = () => {
                 </table>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nuevo Tamaño">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingSize ? "Editar Tamaño" : "Nuevo Tamaño"}>
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label>Producto</label>

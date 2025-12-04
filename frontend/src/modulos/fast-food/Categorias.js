@@ -14,6 +14,7 @@ const Categorias = () => {
         description: '',
         image: null
     });
+    const [editingCategory, setEditingCategory] = useState(null);
 
     const fetchCategories = async () => {
         try {
@@ -42,6 +43,30 @@ const Categorias = () => {
         setNewCategory(prev => ({ ...prev, image: e.target.files[0] }));
     };
 
+    const handleEditCategory = (category) => {
+        setEditingCategory(category);
+        setNewCategory({
+            name: category.name,
+            description: category.description,
+            image: null // Reset image input
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteCategory = async (id) => {
+        if (window.confirm('¿Estás seguro de eliminar esta categoría?')) {
+            try {
+                await api.delete(`/api/menu/categories/${id}/`, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                fetchCategories();
+            } catch (err) {
+                console.error('Error deleting category:', err);
+                alert('Error al eliminar la categoría');
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -54,23 +79,29 @@ const Categorias = () => {
         formData.append('name', newCategory.name);
         formData.append('slug', slug);
         formData.append('description', newCategory.description);
-        if (newCategory.image) {
+        if (newCategory.image instanceof File) {
             formData.append('image', newCategory.image);
         }
 
         try {
-            await api.post('/api/menu/categories/', formData, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            if (editingCategory) {
+                await api.patch(`/api/menu/categories/${editingCategory.id}/`, formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            } else {
+                await api.post('/api/menu/categories/', formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            }
             setIsModalOpen(false);
             setNewCategory({ name: '', description: '', image: null });
+            setEditingCategory(null);
             fetchCategories(); // Recargar lista
         } catch (err) {
-            console.error('Error creating category:', err);
-            alert('Error al crear la categoría. Verifique los datos.');
+            console.error('Error saving category:', err);
+            alert('Error al guardar la categoría. Verifique los datos.');
         }
     };
 
@@ -81,7 +112,11 @@ const Categorias = () => {
         <div>
             <div className="page-header" style={{ marginTop: '1rem' }}>
                 <h3>Gestión de Categorías</h3>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+                <button className="btn btn-primary" onClick={() => {
+                    setEditingCategory(null);
+                    setNewCategory({ name: '', description: '', image: null });
+                    setIsModalOpen(true);
+                }}>
                     + Nueva Categoría
                 </button>
             </div>
@@ -94,6 +129,7 @@ const Categorias = () => {
                             <th>Nombre</th>
                             <th>Descripción</th>
                             <th>Productos Activos</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -116,6 +152,21 @@ const Categorias = () => {
                                     <td>{cat.name}</td>
                                     <td>{cat.description}</td>
                                     <td>{cat.products_count || 0}</td>
+                                    <td>
+                                        <button
+                                            className="btn btn-sm btn-outline"
+                                            onClick={() => handleEditCategory(cat)}
+                                            style={{ marginRight: '5px' }}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-danger"
+                                            onClick={() => handleDeleteCategory(cat.id)}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -123,7 +174,7 @@ const Categorias = () => {
                 </table>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nueva Categoría">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCategory ? "Editar Categoría" : "Nueva Categoría"}>
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label>Nombre</label>
@@ -149,6 +200,7 @@ const Categorias = () => {
                             type="file"
                             accept="image/*"
                             onChange={handleImageChange}
+                            required={!editingCategory}
                         />
                     </div>
                     <div className="form-actions">

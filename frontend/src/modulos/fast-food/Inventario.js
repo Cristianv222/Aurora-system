@@ -24,6 +24,7 @@ const Inventario = () => {
         category: '',
         image: null
     });
+    const [editingProduct, setEditingProduct] = useState(null);
 
     const fetchProducts = async () => {
         try {
@@ -66,6 +67,32 @@ const Inventario = () => {
         setNewProduct(prev => ({ ...prev, image: e.target.files[0] }));
     };
 
+    const handleEditProduct = (product) => {
+        setEditingProduct(product);
+        setNewProduct({
+            name: product.name,
+            description: product.description,
+            price: product.price,
+            category: product.category,
+            image: null // Reset image input, keep existing if not changed
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteProduct = async (id) => {
+        if (window.confirm('¿Estás seguro de eliminar este producto?')) {
+            try {
+                await api.delete(`/api/menu/products/${id}/`, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                fetchProducts();
+            } catch (err) {
+                console.error('Error deleting product:', err);
+                alert('Error al eliminar el producto');
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -79,23 +106,29 @@ const Inventario = () => {
         formData.append('description', newProduct.description);
         formData.append('price', newProduct.price);
         formData.append('category', newProduct.category);
-        if (newProduct.image) {
+        if (newProduct.image instanceof File) {
             formData.append('image', newProduct.image);
         }
 
         try {
-            await api.post('/api/menu/products/', formData, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            if (editingProduct) {
+                await api.patch(`/api/menu/products/${editingProduct.id}/`, formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            } else {
+                await api.post('/api/menu/products/', formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            }
             setIsModalOpen(false);
             setNewProduct({ name: '', description: '', price: '', category: '', image: null });
+            setEditingProduct(null);
             fetchProducts();
         } catch (err) {
-            console.error('Error creating product:', err);
-            alert('Error al crear el producto. Verifique los datos.');
+            console.error('Error saving product:', err);
+            alert('Error al guardar el producto. Verifique los datos.');
         }
     };
 
@@ -137,7 +170,7 @@ const Inventario = () => {
                 >
                     📏 Tamaños
                 </button>
-            </div>
+            </div >
 
             {/* Contenido de Pestañas */}
             {activeTab === 'categories' && <Categorias />}
@@ -146,119 +179,143 @@ const Inventario = () => {
             {activeTab === 'sizes' && <Tamanos />}
 
             {/* Contenido de Productos */}
-            {activeTab === 'products' && (
-                <>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-                            + Nuevo Producto
-                        </button>
-                    </div>
-
-                    {loading ? <div>Cargando inventario...</div> : error ? <div className="alert alert-error">{error}</div> : (
-                        <div className="table-responsive">
-                            <table className="table">
-                                <thead>
-                                    <tr>
-                                        <th>Imagen</th>
-                                        <th>Nombre</th>
-                                        <th>Categoría</th>
-                                        <th>Precio</th>
-                                        <th>Disponible</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {products.length === 0 ? (
-                                        <tr><td colSpan="5">No hay productos registrados</td></tr>
-                                    ) : (
-                                        products.map(product => (
-                                            <tr key={product.id}>
-                                                <td>
-                                                    {product.image ? (
-                                                        <img
-                                                            src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
-                                                            alt={product.name}
-                                                            style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px' }}
-                                                        />
-                                                    ) : (
-                                                        <span style={{ color: '#888' }}>Sin imagen</span>
-                                                    )}
-                                                </td>
-                                                <td>{product.name}</td>
-                                                <td>{product.category_name || product.category}</td>
-                                                <td>${product.price}</td>
-                                                <td>{product.is_available ? 'Sí' : 'No'}</td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
+            {
+                activeTab === 'products' && (
+                    <>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+                            <button className="btn btn-primary" onClick={() => {
+                                setEditingProduct(null);
+                                setNewProduct({ name: '', description: '', price: '', category: '', image: null });
+                                setIsModalOpen(true);
+                            }}>
+                                + Nuevo Producto
+                            </button>
                         </div>
-                    )}
 
-                    <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nuevo Producto">
-                        <form onSubmit={handleSubmit}>
-                            <div className="form-group">
-                                <label>Nombre</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={newProduct.name}
-                                    onChange={handleInputChange}
-                                    required
-                                />
+                        {loading ? <div>Cargando inventario...</div> : error ? <div className="alert alert-error">{error}</div> : (
+                            <div className="table-responsive">
+                                <table className="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Imagen</th>
+                                            <th>Nombre</th>
+                                            <th>Categoría</th>
+                                            <th>Precio</th>
+                                            <th>Disponible</th>
+                                            <th>Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {products.length === 0 ? (
+                                            <tr><td colSpan="5">No hay productos registrados</td></tr>
+                                        ) : (
+                                            products.map(product => (
+                                                <tr key={product.id}>
+                                                    <td>
+                                                        {product.image ? (
+                                                            <img
+                                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
+                                                                alt={product.name}
+                                                                style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px' }}
+                                                            />
+                                                        ) : (
+                                                            <span style={{ color: '#888' }}>Sin imagen</span>
+                                                        )}
+                                                    </td>
+                                                    <td>{product.name}</td>
+                                                    <td>{product.category_name || product.category}</td>
+                                                    <td>${product.price}</td>
+                                                    <td>{product.is_available ? 'Sí' : 'No'}</td>
+                                                    <td>
+                                                        <button
+                                                            className="btn btn-sm btn-outline"
+                                                            onClick={() => handleEditProduct(product)}
+                                                            style={{ marginRight: '5px' }}
+                                                        >
+                                                            ✏️
+                                                        </button>
+                                                        <button
+                                                            className="btn btn-sm btn-danger"
+                                                            onClick={() => handleDeleteProduct(product.id)}
+                                                        >
+                                                            🗑️
+                                                        </button>
+                                                    </td>
+                                                </tr>
+
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
-                            <div className="form-group">
-                                <label>Descripción</label>
-                                <textarea
-                                    name="description"
-                                    value={newProduct.description}
-                                    onChange={handleInputChange}
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Precio</label>
-                                <input
-                                    type="number"
-                                    name="price"
-                                    value={newProduct.price}
-                                    onChange={handleInputChange}
-                                    step="0.01"
-                                    required
-                                />
-                            </div>
-                            <div className="form-group">
-                                <label>Categoría</label>
-                                <select
-                                    name="category"
-                                    value={newProduct.category}
-                                    onChange={handleInputChange}
-                                    required
-                                >
-                                    <option value="">Seleccione una categoría</option>
-                                    {categories.map(cat => (
-                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Imagen</label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleImageChange}
-                                    required
-                                />
-                            </div>
-                            <div className="form-actions">
-                                <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancelar</button>
-                                <button type="submit" className="btn btn-primary">Guardar</button>
-                            </div>
-                        </form>
-                    </Modal>
-                </>
-            )}
-        </div>
+                        )}
+
+
+                        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? "Editar Producto" : "Nuevo Producto"}>
+                            <form onSubmit={handleSubmit}>
+                                <div className="form-group">
+                                    <label>Nombre</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        value={newProduct.name}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Descripción</label>
+                                    <textarea
+                                        name="description"
+                                        value={newProduct.description}
+                                        onChange={handleInputChange}
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Precio</label>
+                                    <input
+                                        type="number"
+                                        name="price"
+                                        value={newProduct.price}
+                                        onChange={handleInputChange}
+                                        step="0.01"
+                                        required
+                                    />
+                                </div>
+                                <div className="form-group">
+                                    <label>Categoría</label>
+                                    <select
+                                        name="category"
+                                        value={newProduct.category}
+                                        onChange={handleInputChange}
+                                        required
+                                    >
+                                        <option value="">Seleccione una categoría</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>Imagen</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageChange}
+                                        required={!editingProduct}
+                                    />
+                                </div>
+                                <div className="form-actions">
+                                    <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancelar</button>
+                                    <button type="submit" className="btn btn-primary">Guardar</button>
+                                </div>
+                            </form>
+                        </Modal>
+                    </>
+                )
+            }
+        </div >
     );
 };
 

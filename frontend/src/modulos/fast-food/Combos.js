@@ -14,6 +14,7 @@ const Combos = () => {
         price: '',
         image: null
     });
+    const [editingCombo, setEditingCombo] = useState(null);
 
     const fetchCombos = async () => {
         try {
@@ -42,6 +43,31 @@ const Combos = () => {
         setNewCombo(prev => ({ ...prev, image: e.target.files[0] }));
     };
 
+    const handleEditCombo = (combo) => {
+        setEditingCombo(combo);
+        setNewCombo({
+            name: combo.name,
+            description: combo.description,
+            price: combo.price,
+            image: null // Reset image input
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteCombo = async (id) => {
+        if (window.confirm('¿Estás seguro de eliminar este combo?')) {
+            try {
+                await api.delete(`/api/menu/combos/${id}/`, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                fetchCombos();
+            } catch (err) {
+                console.error('Error deleting combo:', err);
+                alert('Error al eliminar el combo');
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -54,23 +80,29 @@ const Combos = () => {
         formData.append('slug', slug);
         formData.append('description', newCombo.description);
         formData.append('price', newCombo.price);
-        if (newCombo.image) {
+        if (newCombo.image instanceof File) {
             formData.append('image', newCombo.image);
         }
 
         try {
-            await api.post('/api/menu/combos/', formData, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            if (editingCombo) {
+                await api.patch(`/api/menu/combos/${editingCombo.id}/`, formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            } else {
+                await api.post('/api/menu/combos/', formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            }
             setIsModalOpen(false);
             setNewCombo({ name: '', description: '', price: '', image: null });
+            setEditingCombo(null);
             fetchCombos();
         } catch (err) {
-            console.error('Error creating combo:', err);
-            alert('Error al crear el combo. Verifique los datos.');
+            console.error('Error saving combo:', err);
+            alert('Error al guardar el combo. Verifique los datos.');
         }
     };
 
@@ -81,7 +113,11 @@ const Combos = () => {
         <div>
             <div className="page-header" style={{ marginTop: '1rem' }}>
                 <h3>Gestión de Combos</h3>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+                <button className="btn btn-primary" onClick={() => {
+                    setEditingCombo(null);
+                    setNewCombo({ name: '', description: '', price: '', image: null });
+                    setIsModalOpen(true);
+                }}>
                     + Nuevo Combo
                 </button>
             </div>
@@ -95,6 +131,7 @@ const Combos = () => {
                             <th>Descripción</th>
                             <th>Precio</th>
                             <th>Productos</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -118,6 +155,21 @@ const Combos = () => {
                                     <td>{combo.description}</td>
                                     <td>${combo.price}</td>
                                     <td>{combo.products_count || 0}</td>
+                                    <td>
+                                        <button
+                                            className="btn btn-sm btn-outline"
+                                            onClick={() => handleEditCombo(combo)}
+                                            style={{ marginRight: '5px' }}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-danger"
+                                            onClick={() => handleDeleteCombo(combo.id)}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -125,7 +177,7 @@ const Combos = () => {
                 </table>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nuevo Combo">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCombo ? "Editar Combo" : "Nuevo Combo"}>
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label>Nombre</label>
@@ -163,7 +215,7 @@ const Combos = () => {
                             type="file"
                             accept="image/*"
                             onChange={handleImageChange}
-                            required
+                            required={!editingCombo}
                         />
                     </div>
                     <div className="form-actions">

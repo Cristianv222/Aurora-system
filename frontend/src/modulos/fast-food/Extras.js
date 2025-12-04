@@ -14,6 +14,7 @@ const Extras = () => {
         price: '',
         image: null
     });
+    const [editingExtra, setEditingExtra] = useState(null);
 
     const fetchExtras = async () => {
         try {
@@ -42,6 +43,31 @@ const Extras = () => {
         setNewExtra(prev => ({ ...prev, image: e.target.files[0] }));
     };
 
+    const handleEditExtra = (extra) => {
+        setEditingExtra(extra);
+        setNewExtra({
+            name: extra.name,
+            description: extra.description,
+            price: extra.price,
+            image: null // Reset image input
+        });
+        setIsModalOpen(true);
+    };
+
+    const handleDeleteExtra = async (id) => {
+        if (window.confirm('¿Estás seguro de eliminar este extra?')) {
+            try {
+                await api.delete(`/api/menu/extras/${id}/`, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                fetchExtras();
+            } catch (err) {
+                console.error('Error deleting extra:', err);
+                alert('Error al eliminar el extra');
+            }
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -49,23 +75,29 @@ const Extras = () => {
         formData.append('name', newExtra.name);
         formData.append('description', newExtra.description);
         formData.append('price', newExtra.price);
-        if (newExtra.image) {
+        if (newExtra.image instanceof File) {
             formData.append('image', newExtra.image);
         }
 
         try {
-            await api.post('/api/menu/extras/', formData, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
+            if (editingExtra) {
+                await api.patch(`/api/menu/extras/${editingExtra.id}/`, formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            } else {
+                await api.post('/api/menu/extras/', formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
+                });
+            }
             setIsModalOpen(false);
             setNewExtra({ name: '', description: '', price: '', image: null });
+            setEditingExtra(null);
             fetchExtras();
         } catch (err) {
-            console.error('Error creating extra:', err);
-            alert('Error al crear el extra. Verifique los datos.');
+            console.error('Error saving extra:', err);
+            alert('Error al guardar el extra. Verifique los datos.');
         }
     };
 
@@ -76,7 +108,11 @@ const Extras = () => {
         <div>
             <div className="page-header" style={{ marginTop: '1rem' }}>
                 <h3>Gestión de Extras/Adicionales</h3>
-                <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
+                <button className="btn btn-primary" onClick={() => {
+                    setEditingExtra(null);
+                    setNewExtra({ name: '', description: '', price: '', image: null });
+                    setIsModalOpen(true);
+                }}>
                     + Nuevo Extra
                 </button>
             </div>
@@ -89,6 +125,7 @@ const Extras = () => {
                             <th>Nombre</th>
                             <th>Descripción</th>
                             <th>Precio</th>
+                            <th>Acciones</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -101,6 +138,21 @@ const Extras = () => {
                                     <td>{extra.name}</td>
                                     <td>{extra.description}</td>
                                     <td>${extra.price}</td>
+                                    <td>
+                                        <button
+                                            className="btn btn-sm btn-outline"
+                                            onClick={() => handleEditExtra(extra)}
+                                            style={{ marginRight: '5px' }}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            className="btn btn-sm btn-danger"
+                                            onClick={() => handleDeleteExtra(extra.id)}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </td>
                                 </tr>
                             ))
                         )}
@@ -108,7 +160,7 @@ const Extras = () => {
                 </table>
             </div>
 
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nuevo Extra">
+            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingExtra ? "Editar Extra" : "Nuevo Extra"}>
                 <form onSubmit={handleSubmit}>
                     <div className="form-group">
                         <label>Nombre</label>
@@ -145,6 +197,7 @@ const Extras = () => {
                             type="file"
                             accept="image/*"
                             onChange={handleImageChange}
+                            required={!editingExtra}
                         />
                     </div>
                     <div className="form-actions">
