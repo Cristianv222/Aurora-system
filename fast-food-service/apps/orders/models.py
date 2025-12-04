@@ -177,8 +177,8 @@ class Order(models.Model):
     def generate_order_number():
         """Genera un número de orden único"""
         from datetime import datetime
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        random_suffix = str(uuid.uuid4().hex[:4]).upper()
+        timestamp = datetime.now().strftime('%y%m%d%H%M%S')
+        random_suffix = str(uuid.uuid4().hex[:3]).upper()
         return f'ORD-{timestamp}-{random_suffix}'
     
     def calculate_totals(self):
@@ -208,10 +208,6 @@ class Order(models.Model):
         )
         self.estimated_prep_time = max_prep_time
     
-    def can_be_cancelled(self):
-        """Verifica si la orden puede ser cancelada"""
-        return self.status in ['pending', 'confirmed']
-    
     def can_be_modified(self):
         """Verifica si la orden puede ser modificada"""
         return self.status == 'pending'
@@ -224,7 +220,7 @@ class Order(models.Model):
             self.save()
             return True
         return False
-    
+
     def mark_as_preparing(self):
         """Marca la orden como en preparación"""
         if self.status in ['pending', 'confirmed']:
@@ -261,6 +257,10 @@ class Order(models.Model):
             self.save()
             return True
         return False
+
+    def can_be_cancelled(self):
+        """Verifica si la orden puede ser cancelada"""
+        return self.status in ['pending', 'confirmed', 'preparing']
 
 
 class OrderItem(models.Model):
@@ -332,10 +332,11 @@ class OrderItem(models.Model):
                 self.unit_price = self.size.get_final_price()
         
         # Calcular total de extras
-        extras_total = sum(extra.extra.price for extra in self.extras.all())
+        # Nota: esto requiere que la instancia ya tenga ID para acceder a m2m
+        # Se maneja mejor en señales o en el viewset
         
         # Calcular total de línea
-        self.line_total = (self.unit_price + extras_total) * self.quantity
+        self.line_total = self.unit_price * self.quantity
         
         super().save(*args, **kwargs)
         
