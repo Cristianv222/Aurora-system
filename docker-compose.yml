@@ -32,7 +32,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # Servicio de Autenticacion
   auth-service:
     build: ./auth-service
     command: >
@@ -52,6 +51,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_service_db
       - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_HOSTS=localhost,127.0.0.1,auth-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -81,6 +82,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fast_food_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,fast-food-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -110,6 +113,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotel_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,hotel-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,6 +145,8 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pool_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000
       - HOTEL_SERVICE_URL=http://hotel-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,pool-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -172,6 +179,8 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/restaurant_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000
       - HOTEL_SERVICE_URL=http://hotel-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,restaurant-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -206,6 +215,8 @@ services:
       - HOTEL_SERVICE_URL=http://hotel-service:8000
       - POOL_SERVICE_URL=http://pool-service:8000
       - RESTAURANT_SERVICE_URL=http://restaurant-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,reporting-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -241,6 +252,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/notification_service_db
       - REDIS_URL=redis://redis:6379/1
+      - ALLOWED_HOSTS=localhost,127.0.0.1,notification-service,0.0.0.0
+      - DEBUG=True
     depends_on:
       postgres:
         condition: service_healthy
@@ -250,7 +263,7 @@ services:
       - aurora-network
     restart: on-failure
 
-  # Frontend React
+  # Frontend React (sin cambios)
   frontend:
     build: ./frontend
     volumes:
