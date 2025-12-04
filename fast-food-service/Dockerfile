@@ -11,11 +11,11 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar codigo
+# Copiar código
 COPY . .
 
 # Exponer puerto
 EXPOSE 8000
 
-# Comando por defecto
-CMD ["gunicorn", "fast-food_service.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+# Comando por defecto - CORREGIDO: usa guión bajo en lugar de guión
+CMD ["gunicorn", "fast_food_service.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
