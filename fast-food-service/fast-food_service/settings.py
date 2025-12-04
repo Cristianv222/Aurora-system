@@ -142,5 +142,43 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'apps.printer': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
+}
+
+# ============================================
+# 🖨️ CONFIGURACIÓN DE EMPRESA E IMPRESIÓN
+# ============================================
+
+# Configuración de la Empresa
+COMPANY_CONFIG = {
+    'name': os.getenv('COMPANY_NAME', 'Mi Restaurante'),
+    'address': os.getenv('COMPANY_ADDRESS', 'Dirección no configurada'),
+    'phone': os.getenv('COMPANY_PHONE', '000-0000'),
+    'email': os.getenv('COMPANY_EMAIL', ''),
+    'website': os.getenv('COMPANY_WEBSITE', ''),
+    'tax_id': os.getenv('COMPANY_TAX_ID', ''),
+    'logo': os.getenv('COMPANY_LOGO', ''),  # Path relativo a MEDIA_ROOT
+}
+
+# Configuración de Impresión
+PRINTING_CONFIG = {
+    'receipt_header': os.getenv('RECEIPT_HEADER', ''),
+    'receipt_footer': os.getenv('RECEIPT_FOOTER', '¡Gracias por su compra!'),
+    'auto_print_receipt': os.getenv('AUTO_PRINT_RECEIPT', 'True') == 'True',
+    'auto_print_kitchen': os.getenv('AUTO_PRINT_KITCHEN', 'True') == 'True',
+    'auto_open_drawer_on_payment': os.getenv('AUTO_OPEN_DRAWER_ON_PAYMENT', 'True') == 'True',
+    'require_confirmation_to_open_drawer': os.getenv('REQUIRE_CONFIRMATION_TO_OPEN_DRAWER', 'False') == 'True',
+}
+
+# Cache (para rate limiting de retry)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
 }

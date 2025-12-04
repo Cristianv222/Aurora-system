@@ -12,6 +12,8 @@ PyJWT==2.8.0
 requests==2.31.0
 dj-database-url==2.1.0
 djangorestframework-simplejwt==5.3.1
-Pillow>=10.0 
 drf-yasg>=1.21 
-python-escpos==3.0a9
+python-escpos>=3.0a9
+pyusb>=1.2.1
+pyserial>=3.5
+qrcode>=7.4.2

@@ -1,8 +1,7 @@
 from django.db import models
 from django.utils import timezone
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 import uuid
-import json
 
 
 class Printer(models.Model):
@@ -21,7 +20,7 @@ class Printer(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=100, verbose_name='Nombre')
+    name = models.CharField(max_length=100, unique=True, verbose_name='Nombre')
     printer_type = models.CharField(
         max_length=20,
         choices=PRINTER_TYPES,
@@ -46,6 +45,7 @@ class Printer(models.Model):
     port = models.IntegerField(
         null=True,
         blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(65535)],
         verbose_name='Puerto',
         help_text='Puerto de red (ej: 9100 para impresoras ESC/POS)'
     )
@@ -53,12 +53,14 @@ class Printer(models.Model):
     # Configuración
     paper_width = models.IntegerField(
         default=80,
+        validators=[MinValueValidator(40), MaxValueValidator(210)],
         verbose_name='Ancho de Papel (mm)',
         help_text='58mm o 80mm típicamente'
     )
     
     characters_per_line = models.IntegerField(
         default=42,
+        validators=[MinValueValidator(20), MaxValueValidator(80)],
         verbose_name='Caracteres por Línea'
     )
     
@@ -71,18 +73,21 @@ class Printer(models.Model):
     
     cash_drawer_pin = models.IntegerField(
         default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(1)],
         verbose_name='Pin de Caja',
         help_text='0 = Pin 2, 1 = Pin 5'
     )
     
     cash_drawer_on_time = models.IntegerField(
         default=100,
+        validators=[MinValueValidator(1), MaxValueValidator(500)],
         verbose_name='Tiempo ON (ms)',
         help_text='Tiempo que el pulso está activo'
     )
     
     cash_drawer_off_time = models.IntegerField(
         default=100,
+        validators=[MinValueValidator(1), MaxValueValidator(500)],
         verbose_name='Tiempo OFF (ms)',
         help_text='Tiempo que el pulso está inactivo'
     )
@@ -107,9 +112,21 @@ class Printer(models.Model):
         verbose_name = 'Impresora'
         verbose_name_plural = 'Impresoras'
         ordering = ['name']
+        indexes = [
+            models.Index(fields=['is_active', 'is_default']),
+        ]
     
     def __str__(self):
         return f'{self.name} ({self.get_printer_type_display()})'
+    
+    def clean(self):
+        """Validación a nivel de modelo"""
+        from django.core.exceptions import ValidationError
+        
+        if self.connection_type == 'network' and not self.port:
+            raise ValidationError({
+                'port': 'El puerto es requerido para impresoras de red'
+            })
     
     def save(self, *args, **kwargs):
         # Solo puede haber una impresora por defecto
@@ -162,7 +179,7 @@ class PrintTemplate(models.Model):
     
     copies = models.IntegerField(
         default=1,
-        validators=[MinValueValidator(1)],
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
         verbose_name='Número de Copias'
     )
     
@@ -182,7 +199,17 @@ class PrintTemplate(models.Model):
         verbose_name = 'Plantilla de Impresión'
         verbose_name_plural = 'Plantillas de Impresión'
         ordering = ['template_type', 'name']
-        unique_together = ['template_type', 'is_default']
+        # ✅ CORRECCIÓN: Usar constraints en lugar de unique_together
+        constraints = [
+            models.UniqueConstraint(
+                fields=['template_type'],
+                condition=models.Q(is_default=True),
+                name='unique_default_template_per_type'
+            )
+        ]
+        indexes = [
+            models.Index(fields=['template_type', 'is_active']),
+        ]
     
     def __str__(self):
         return f'{self.name} ({self.get_template_type_display()})'
@@ -219,7 +246,8 @@ class PrintJob(models.Model):
     job_number = models.CharField(
         max_length=20,
         unique=True,
-        verbose_name='Número de Trabajo'
+        verbose_name='Número de Trabajo',
+        db_index=True
     )
     
     # Impresora utilizada
@@ -247,7 +275,9 @@ class PrintJob(models.Model):
         verbose_name='Tipo de Documento'
     )
     
-    # Relaciones opcionales con otros modelos
+    # ✅ CORRECCIÓN: Relaciones opcionales comentadas hasta que existan las apps
+    # Descomenta cuando tengas las apps 'orders' y 'payments'
+    """
     order = models.ForeignKey(
         'orders.Order',
         on_delete=models.SET_NULL,
@@ -273,6 +303,21 @@ class PrintJob(models.Model):
         blank=True,
         related_name='print_jobs',
         verbose_name='Caja Registradora'
+    )
+    """
+    
+    # Referencia genérica como alternativa temporal
+    related_model = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Modelo Relacionado',
+        help_text='Nombre del modelo relacionado (ej: Order, Payment)'
+    )
+    related_id = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='ID Relacionado',
+        help_text='ID del objeto relacionado'
     )
     
     # Contenido a imprimir (ya renderizado)
@@ -303,13 +348,14 @@ class PrintJob(models.Model):
         max_length=20,
         choices=JOB_STATUS,
         default='pending',
-        verbose_name='Estado'
+        verbose_name='Estado',
+        db_index=True
     )
     
     # Número de copias
     copies = models.IntegerField(
         default=1,
-        validators=[MinValueValidator(1)],
+        validators=[MinValueValidator(1), MaxValueValidator(10)],
         verbose_name='Copias'
     )
     
@@ -326,7 +372,7 @@ class PrintJob(models.Model):
         verbose_name='Creado por'
     )
     
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado', db_index=True)
     started_at = models.DateTimeField(null=True, blank=True, verbose_name='Iniciado')
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name='Completado')
     
@@ -335,10 +381,9 @@ class PrintJob(models.Model):
         verbose_name_plural = 'Trabajos de Impresión'
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['job_number']),
             models.Index(fields=['printer', 'status']),
-            models.Index(fields=['created_at']),
-            models.Index(fields=['order']),
+            models.Index(fields=['created_at', 'status']),
+            models.Index(fields=['document_type', 'created_at']),
         ]
     
     def __str__(self):
@@ -363,7 +408,7 @@ class PrintJob(models.Model):
         if self.status == 'pending':
             self.status = 'printing'
             self.started_at = timezone.now()
-            self.save()
+            self.save(update_fields=['status', 'started_at'])
             return True
         return False
     
@@ -372,7 +417,7 @@ class PrintJob(models.Model):
         if self.status == 'printing':
             self.status = 'completed'
             self.completed_at = timezone.now()
-            self.save()
+            self.save(update_fields=['status', 'completed_at'])
             return True
         return False
     
@@ -381,7 +426,7 @@ class PrintJob(models.Model):
         self.status = 'failed'
         self.error_message = error_message
         self.completed_at = timezone.now()
-        self.save()
+        self.save(update_fields=['status', 'error_message', 'completed_at'])
         return True
 
 
@@ -415,7 +460,8 @@ class CashDrawerEvent(models.Model):
         verbose_name='Trabajo de Impresión'
     )
     
-    # Caja registradora asociada
+    # ✅ Comentado hasta que exista la app payments
+    """
     cash_register = models.ForeignKey(
         'payments.CashRegister',
         on_delete=models.SET_NULL,
@@ -424,6 +470,7 @@ class CashDrawerEvent(models.Model):
         related_name='drawer_events',
         verbose_name='Caja Registradora'
     )
+    """
     
     # Tipo de evento
     event_type = models.CharField(
@@ -446,7 +493,7 @@ class CashDrawerEvent(models.Model):
         verbose_name='Activado por'
     )
     
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     
     class Meta:
         verbose_name = 'Evento de Caja'
@@ -454,7 +501,7 @@ class CashDrawerEvent(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['printer', 'created_at']),
-            models.Index(fields=['cash_register', 'created_at']),
+            models.Index(fields=['event_type', 'created_at']),
         ]
     
     def __str__(self):
@@ -462,46 +509,69 @@ class CashDrawerEvent(models.Model):
 
 
 class PrinterSettings(models.Model):
-    """Configuración global del sistema de impresión"""
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    """Configuración global del sistema de impresión (Singleton)"""
+    # ✅ CORRECCIÓN: Usar AutoField en lugar de UUID para singleton
+    id = models.AutoField(primary_key=True)
     
     # Logo de la empresa (imagen en base64 o ruta)
     company_logo = models.TextField(
         blank=True,
         verbose_name='Logo de la Empresa',
-        help_text='Imagen en base64 o ruta al archivo'
+        help_text='Imagen en base64 o ruta al archivo. Si está vacío, usa COMPANY_CONFIG["logo"] de settings.py'
     )
     
     # Información de la empresa
     company_name = models.CharField(
         max_length=200,
-        verbose_name='Nombre de la Empresa'
+        blank=True,
+        verbose_name='Nombre de la Empresa',
+        help_text='Si está vacío, usa COMPANY_CONFIG["name"] de settings.py'
     )
     
-    company_address = models.TextField(verbose_name='Dirección')
-    company_phone = models.CharField(max_length=50, verbose_name='Teléfono')
-    company_email = models.EmailField(blank=True, verbose_name='Email')
-    company_website = models.URLField(blank=True, verbose_name='Sitio Web')
+    company_address = models.TextField(
+        blank=True,
+        verbose_name='Dirección',
+        help_text='Si está vacío, usa COMPANY_CONFIG["address"] de settings.py'
+    )
+    
+    company_phone = models.CharField(
+        max_length=50,
+        blank=True,
+        verbose_name='Teléfono',
+        help_text='Si está vacío, usa COMPANY_CONFIG["phone"] de settings.py'
+    )
+    
+    company_email = models.EmailField(
+        blank=True,
+        verbose_name='Email',
+        help_text='Si está vacío, usa COMPANY_CONFIG["email"] de settings.py'
+    )
+    
+    company_website = models.URLField(
+        blank=True,
+        verbose_name='Sitio Web',
+        help_text='Si está vacío, usa COMPANY_CONFIG["website"] de settings.py'
+    )
     
     # Información fiscal
     tax_id = models.CharField(
         max_length=50,
         blank=True,
         verbose_name='RUC/NIT/RFC',
-        help_text='Identificación fiscal'
+        help_text='Si está vacío, usa COMPANY_CONFIG["tax_id"] de settings.py'
     )
     
     # Mensajes personalizados
     receipt_header = models.TextField(
         blank=True,
         verbose_name='Encabezado de Ticket',
-        help_text='Texto personalizado al inicio del ticket'
+        help_text='Si está vacío, usa PRINTING_CONFIG["receipt_header"] de settings.py'
     )
     
     receipt_footer = models.TextField(
         blank=True,
         verbose_name='Pie de Ticket',
-        help_text='Texto personalizado al final del ticket (ej: "Gracias por su compra")'
+        help_text='Si está vacío, usa PRINTING_CONFIG["receipt_footer"] de settings.py'
     )
     
     # Configuración de impresión automática
@@ -539,17 +609,100 @@ class PrinterSettings(models.Model):
         verbose_name_plural = 'Configuraciones de Impresión'
     
     def __str__(self):
-        return f'Configuración de {self.company_name}'
+        return f'Configuración de {self.get_company_name()}'
+    
+    def save(self, *args, **kwargs):
+        # ✅ Forzar singleton
+        self.pk = 1
+        super().save(*args, **kwargs)
+        # Eliminar cualquier otro registro
+        PrinterSettings.objects.exclude(pk=1).delete()
+    
+    # ✅ MÉTODOS PARA OBTENER VALORES (BD o settings.py)
+    
+    def get_company_name(self):
+        """Obtiene nombre de empresa (BD o settings)"""
+        if self.company_name:
+            return self.company_name
+        
+        from django.conf import settings
+        return getattr(settings, 'COMPANY_CONFIG', {}).get('name', 'Mi Empresa')
+    
+    def get_company_address(self):
+        """Obtiene dirección (BD o settings)"""
+        if self.company_address:
+            return self.company_address
+        
+        from django.conf import settings
+        return getattr(settings, 'COMPANY_CONFIG', {}).get('address', 'Dirección no configurada')
+    
+    def get_company_phone(self):
+        """Obtiene teléfono (BD o settings)"""
+        if self.company_phone:
+            return self.company_phone
+        
+        from django.conf import settings
+        return getattr(settings, 'COMPANY_CONFIG', {}).get('phone', '000-0000')
+    
+    def get_company_email(self):
+        """Obtiene email (BD o settings)"""
+        if self.company_email:
+            return self.company_email
+        
+        from django.conf import settings
+        return getattr(settings, 'COMPANY_CONFIG', {}).get('email', '')
+    
+    def get_company_website(self):
+        """Obtiene website (BD o settings)"""
+        if self.company_website:
+            return self.company_website
+        
+        from django.conf import settings
+        return getattr(settings, 'COMPANY_CONFIG', {}).get('website', '')
+    
+    def get_tax_id(self):
+        """Obtiene RUC/NIT (BD o settings)"""
+        if self.tax_id:
+            return self.tax_id
+        
+        from django.conf import settings
+        return getattr(settings, 'COMPANY_CONFIG', {}).get('tax_id', '')
+    
+    def get_company_logo(self):
+        """Obtiene logo (BD o settings)"""
+        if self.company_logo:
+            return self.company_logo
+        
+        from django.conf import settings
+        logo_path = getattr(settings, 'COMPANY_CONFIG', {}).get('logo', '')
+        
+        if logo_path and not logo_path.startswith('data:'):
+            # Es un path, convertir a path completo
+            import os
+            media_root = getattr(settings, 'MEDIA_ROOT', '')
+            if media_root and not logo_path.startswith('/'):
+                logo_path = os.path.join(media_root, logo_path)
+        
+        return logo_path
+    
+    def get_receipt_header(self):
+        """Obtiene encabezado de ticket (BD o settings)"""
+        if self.receipt_header:
+            return self.receipt_header
+        
+        from django.conf import settings
+        return getattr(settings, 'PRINTING_CONFIG', {}).get('receipt_header', '')
+    
+    def get_receipt_footer(self):
+        """Obtiene pie de ticket (BD o settings)"""
+        if self.receipt_footer:
+            return self.receipt_footer
+        
+        from django.conf import settings
+        return getattr(settings, 'PRINTING_CONFIG', {}).get('receipt_footer', '¡Gracias por su compra!')
     
     @classmethod
     def get_settings(cls):
         """Obtiene la configuración global (singleton)"""
-        settings, created = cls.objects.get_or_create(
-            pk='00000000-0000-0000-0000-000000000001',
-            defaults={
-                'company_name': 'Mi Restaurante',
-                'company_address': 'Dirección no configurada',
-                'company_phone': '000-0000',
-            }
-        )
+        settings, created = cls.objects.get_or_create(pk=1)
         return settings
