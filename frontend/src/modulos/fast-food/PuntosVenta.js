@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
 
 const PuntosVenta = () => {
-    // [Sección 1. ESTADO DE DATOS Y CARGA - CORRECCIÓN EN loading]
+    // =====================================
+    // 1. ESTADO DE DATOS Y CARGA
+    // =====================================
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [tables, setTables] = useState([]);
-    // ERROR CORREGIDO: Se cambia '= true)' a '= useState(true)'
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [processingOrder, setProcessingOrder] = useState(false);
@@ -35,7 +36,9 @@ const PuntosVenta = () => {
         city: ''
     });
 
-    // [Sección 4. EFECTOS - CARGA INICIAL DE DATOS - Sin cambios]
+    // =====================================
+    // 4. EFECTOS - CARGA INICIAL DE DATOS
+    // =====================================
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -57,7 +60,9 @@ const PuntosVenta = () => {
         fetchData();
     }, []);
 
-    // [Sección 5. LÓGICA DEL CARRITO - Sin cambios]
+    // =====================================
+    // 5. LÓGICA DEL CARRITO (Sin cambios)
+    // =====================================
     const addToCart = useCallback((product) => { /* ... lógica sin cambios ... */
         setCart(prevCart => {
             const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id);
@@ -96,7 +101,9 @@ const PuntosVenta = () => {
         });
     }, []);
 
-    // [Sección 6. CÁLCULOS DE PRECIOS - Sin cambios]
+    // =====================================
+    // 6. CÁLCULOS DE PRECIOS (Sin cambios)
+    // =====================================
     const calculateSubtotal = useMemo(() => {
         return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
     }, [cart]);
@@ -118,7 +125,9 @@ const PuntosVenta = () => {
         return (subtotal - discount).toFixed(2);
     }, [calculateSubtotal, calculateDiscountAmount]);
 
-    // [Sección 7. LÓGICA DE DESCUENTOS - Sin cambios]
+    // =====================================
+    // 7. LÓGICA DE DESCUENTOS (Sin cambios)
+    // =====================================
     const handleApplyDiscount = async () => { /* ... lógica sin cambios ... */
         if (!discountCode) return;
         try {
@@ -139,7 +148,9 @@ const PuntosVenta = () => {
         }
     };
 
-    // [Sección 8. LÓGICA DE CLIENTES - Sin cambios de lógica]
+    // =====================================
+    // 8. LÓGICA DE CLIENTES (Sin cambios de lógica)
+    // =====================================
     const searchCustomers = async (query) => { /* ... lógica sin cambios ... */
         setCustomerSearch(query);
         if (query.length < 3) {
@@ -204,7 +215,9 @@ const PuntosVenta = () => {
         }));
     };
 
-    // [Sección 9. LÓGICA DE FILTRADO Y PROCESAMIENTO - Sin cambios]
+    // =====================================
+    // 9. LÓGICA DE FILTRADO Y PROCESAMIENTO (Sin cambios)
+    // =====================================
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
             const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
@@ -257,7 +270,7 @@ const PuntosVenta = () => {
     if (loading) return <div className="p-4">Cargando POS...</div>;
 
     // =====================================
-    // 11. ESTRUCTURA PRINCIPAL DEL POS - Sin cambios de estilo después de la corrección
+    // 11. ESTRUCTURA PRINCIPAL DEL POS - Ajuste de Posición del '+' Cliente
     // =====================================
 
     return (
@@ -270,7 +283,7 @@ const PuntosVenta = () => {
 
             <div style={{ display: 'flex', height: 'calc(100% - 70px)' }}>
 
-                {/* Panel Izquierdo: Productos */}
+                {/* Panel Izquierdo: Productos - Sin cambios */}
                 <div className="w-2/3 p-4 overflow-y-auto" style={{ flex: '2', padding: '1rem', overflowY: 'auto', borderRight: '1px solid #ddd' }}>
 
                     {/* Filtros de Categoría */}
@@ -319,7 +332,6 @@ const PuntosVenta = () => {
                                         style={{
                                             width: '100%',
                                             height: '80px',
-                                            // CLAVE: object-fit: contain para mostrar la imagen completa.
                                             objectFit: 'contain',
                                             borderRadius: '4px',
                                             marginBottom: '0.25rem',
@@ -340,14 +352,14 @@ const PuntosVenta = () => {
                     </div>
                 </div>
 
-                {/* Panel Derecho: Carrito y Resumen - Sin cambios */}
-                <div className="w-1/3 bg-white border-l p-4 flex flex-col" style={{ flex: '1', backgroundColor: 'white', borderLeft: '1px solid #ddd', padding: '1rem', display: 'flex', flexDirection: 'column' }}>
+                {/* Panel Derecho: Carrito y Resumen - AJUSTE EN POSICIÓN DEL '+' CLIENTE */}
+                <div style={{ flex: '1', backgroundColor: 'white', borderLeft: '1px solid #ddd', padding: '1rem', display: 'flex', flexDirection: 'column' }}>
 
-                    {/* Selección de Mesa */}
-                    <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Mesa / Tipo de Orden</label>
+                    {/* 1. Selección de Mesa */}
+                    <div className="mb-3">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Mesa / Tipo de Orden</label>
                         <select
-                            className="w-full border rounded p-2"
+                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
                             value={selectedTable}
                             onChange={(e) => setSelectedTable(e.target.value)}
                         >
@@ -361,52 +373,66 @@ const PuntosVenta = () => {
                         </select>
                     </div>
 
-                    {/* Selección de Cliente */}
+                    {/* 2. Selección de Cliente - CORRECCIÓN DE POSICIÓN DEL '+' */}
                     <div className="mb-4 border-b pb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                        <div className="flex gap-2 mb-2">
+
+                        {/* Etiqueta */}
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Cliente</label>
+
+                        {/* Input de Búsqueda y Botón '+' Agrupados */}
+                        <div className="flex gap-2 mb-2 items-center">
+
                             <div className="relative flex-1">
                                 <input
                                     type="text"
                                     placeholder="Buscar cliente..."
-                                    className="w-full border rounded p-2"
+                                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500 transition duration-150"
                                     value={customerSearch}
                                     onChange={(e) => searchCustomers(e.target.value)}
                                 />
                                 {customers.length > 0 && (
-                                    <div className="absolute z-10 w-full bg-white border rounded shadow-lg max-h-40 overflow-y-auto mt-1">
+                                    <div className='absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto mt-1' style={{ maxHeight: '12rem' }}>
                                         {customers.map(c => (
                                             <div
                                                 key={c.id}
-                                                className="p-2 hover:bg-gray-100 cursor-pointer"
+                                                className='p-2 text-sm cursor-pointer border-b border-gray-100 last:border-b-0'
+                                                style={{ transition: 'background-color 0.2s, transform 0.1s', ':hover': { backgroundColor: '#f3f4f6', transform: 'scale(1.01)' } }}
                                                 onClick={() => {
                                                     setSelectedCustomer(c);
                                                     setCustomerSearch(`${c.first_name} ${c.last_name}`);
                                                     setCustomers([]);
                                                 }}
                                             >
-                                                {c.first_name} {c.last_name} ({c.email})
+                                                <p className='font-medium text-gray-800'>
+                                                    <span role="img" aria-label="person">👤</span> {c.first_name} {c.last_name}
+                                                </p>
+                                                <p className='text-xs text-gray-500 ml-5'>{c.email}</p>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
+
+                            {/* Botón de Agregar Cliente (Al lado del input) */}
                             <button
-                                className="bg-blue-600 text-white px-3 rounded hover:bg-blue-700"
+                                className="bg-purple-600 text-white w-10 h-10 rounded-md flex items-center justify-center text-xl font-bold hover:bg-purple-700 transition duration-150 shadow-md"
                                 onClick={() => setShowCustomerModal(true)}
+                                title="Agregar nuevo cliente"
                             >
                                 +
                             </button>
                         </div>
+
                         {selectedCustomer && (
-                            <div className="text-sm text-blue-600 flex justify-between items-center bg-blue-50 p-2 rounded">
-                                <span>Cliente: {selectedCustomer.first_name} {selectedCustomer.last_name}</span>
+                            <div className="text-sm text-purple-700 flex justify-between items-center bg-purple-100 p-2 rounded-md border border-purple-300 transition duration-300 shadow-sm">
+                                <span>Cliente Seleccionado: **{selectedCustomer.first_name} {selectedCustomer.last_name}**</span>
                                 <button
-                                    className="text-red-500 hover:text-red-700 font-bold"
+                                    className="text-red-500 hover:text-red-700 font-bold ml-2 transition duration-150"
                                     onClick={() => {
                                         setSelectedCustomer(null);
                                         setCustomerSearch('');
                                     }}
+                                    title="Quitar cliente"
                                 >
                                     ✕
                                 </button>
@@ -414,40 +440,67 @@ const PuntosVenta = () => {
                         )}
                     </div>
 
-                    <h2 className="text-xl font-bold mb-4 border-b pb-2">Orden Actual</h2>
+                    {/* 3. Título de Orden (Mejor estética) */}
+                    <h3 className="text-xl font-bold text-gray-800 mb-3 border-b pb-2">
+                        <span role="img" aria-label="cart">🛒</span> Orden Actual
+                    </h3>
 
-                    <div className="flex-1 overflow-y-auto mb-4" style={{ flex: '1', overflowY: 'auto', marginBottom: '1rem' }}>
+                    {/* 4. Lista de Items del Carrito - Botones mejorados */}
+                    <div style={{ flex: '1', overflowY: 'auto', marginBottom: '1rem' }}>
                         {cart.length === 0 ? (
-                            <p className="text-gray-500 text-center mt-10">El carrito está vacío</p>
+                            <p className="text-gray-500 text-center mt-8 p-4 bg-gray-50 rounded-lg">El carrito está vacío</p>
                         ) : (
                             cart.map((item, index) => (
-                                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                    <div>
-                                        <p style={{ fontWeight: '500' }}>{item.name}</p>
-                                        <p style={{ fontSize: '0.875rem', color: '#64748b' }}>${item.price.toFixed(2)} x {item.quantity}</p>
+                                <div
+                                    key={index}
+                                    style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: '0.5rem',
+                                        padding: '0.75rem',
+                                        backgroundColor: '#ffffff',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e5e7eb',
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                    }}
+                                >
+                                    {/* Info de Producto */}
+                                    <div className='flex-1 pr-2'>
+                                        <p style={{ fontWeight: '600', fontSize: '1rem' }}>{item.name}</p>
+                                        <p style={{ fontSize: '0.875rem', color: '#4b5563' }}>Precio Unitario: **${item.price.toFixed(2)}**</p>
                                     </div>
+
+                                    {/* Controles y Total */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+
+                                        {/* Control de Cantidad */}
+                                        <div className='flex items-center border border-gray-300 rounded-lg bg-gray-50'>
+                                            <button
+                                                className="text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-l-lg text-lg font-bold transition duration-150"
+                                                onClick={() => updateQuantity(item.product_id, -1)}
+                                                title="Reducir cantidad"
+                                            >
+                                                −
+                                            </button>
+                                            <span style={{ fontWeight: '600', width: '28px', textAlign: 'center', fontSize: '0.9rem' }}>{item.quantity}</span>
+                                            <button
+                                                className="text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-r-lg text-lg font-bold transition duration-150"
+                                                onClick={() => updateQuantity(item.product_id, 1)}
+                                                title="Aumentar cantidad"
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+
+                                        {/* Botón Eliminar */}
                                         <button
-                                            className="btn btn-secondary"
-                                            onClick={() => updateQuantity(item.product_id, -1)}
-                                            style={{ padding: '0.25rem 0.5rem' }}
-                                        >
-                                            -
-                                        </button>
-                                        <span style={{ fontWeight: '500', width: '20px', textAlign: 'center' }}>{item.quantity}</span>
-                                        <button
-                                            className="btn btn-secondary"
-                                            onClick={() => updateQuantity(item.product_id, 1)}
-                                            style={{ padding: '0.25rem 0.5rem' }}
-                                        >
-                                            +
-                                        </button>
-                                        <button
-                                            className="btn btn-danger"
+                                            className="bg-red-500 text-white w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold hover:bg-red-600 transition duration-150 shadow-md"
                                             onClick={() => removeFromCart(item.product_id)}
-                                            style={{ padding: '0.25rem 0.5rem', marginLeft: '0.5rem' }}
+                                            title="Eliminar producto"
+                                            style={{ marginLeft: '0.25rem' }} // Ajuste de margen
                                         >
-                                            Eliminar
+                                            ✕
                                         </button>
                                     </div>
                                 </div>
@@ -455,45 +508,46 @@ const PuntosVenta = () => {
                         )}
                     </div>
 
-                    {/* Descuentos */}
-                    <div className="mb-4 border-t pt-2">
+                    {/* 5. Descuentos */}
+                    <div className="mb-4 border-t pt-4">
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Código de Descuento</label>
                         <div className="flex gap-2">
                             <input
                                 type="text"
                                 placeholder="Código de Descuento"
-                                className="border rounded p-2 flex-1"
+                                className="border border-gray-300 rounded-md p-2 flex-1 focus:ring-yellow-500 focus:border-yellow-500 transition duration-150"
                                 value={discountCode}
                                 onChange={(e) => setDiscountCode(e.target.value)}
                             />
                             <button
                                 onClick={handleApplyDiscount}
-                                className="bg-gray-200 px-3 rounded hover:bg-gray-300"
+                                className="bg-yellow-400 text-gray-800 px-3 py-2 rounded-md font-semibold hover:bg-yellow-500 transition duration-150"
                             >
                                 Aplicar
                             </button>
                         </div>
                         {appliedDiscount && (
-                            <div className="text-green-600 text-sm mt-1">
-                                Descuento aplicado: {appliedDiscount.name}
+                            <div className="text-green-700 text-sm mt-2 font-medium bg-green-50 p-2 rounded-md border border-green-200 shadow-sm">
+                                Descuento aplicado: **{appliedDiscount.name}**
                             </div>
                         )}
                     </div>
 
-                    {/* Resumen de Totales y Botón de Orden */}
+                    {/* 6. Resumen de Totales y Botón de Orden - Resaltando el Total */}
                     <div style={{ borderTop: '1px solid #ddd', paddingTop: '1rem' }}>
-                        <div className="flex justify-between mb-2">
+                        <div className="flex justify-between mb-2 text-base text-gray-700">
                             <span>Subtotal:</span>
                             <span>${calculateSubtotal.toFixed(2)}</span>
                         </div>
                         {appliedDiscount && (
-                            <div className="flex justify-between mb-2 text-green-600">
-                                <span>Descuento:</span>
-                                <span>-${calculateDiscountAmount.toFixed(2)}</span>
+                            <div className="flex justify-between mb-2 text-base text-green-600 font-medium">
+                                <span>Descuento aplicado:</span>
+                                <span>- ${calculateDiscountAmount.toFixed(2)}</span>
                             </div>
                         )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 'bold' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 'bold', borderTop: '1px dashed #ccc', paddingTop: '0.5rem' }}>
                             <span>Total:</span>
-                            <span>${calculateTotal}</span>
+                            <span className='text-green-600'>${calculateTotal}</span>
                         </div>
 
                         <button
@@ -517,7 +571,7 @@ const PuntosVenta = () => {
                 </div>
             </div>
 
-            {/* Modal Crear Cliente */}
+            {/* Modal Crear Cliente - Sin cambios */}
             {
                 showCustomerModal && (
                     <div className="modal-overlay">
