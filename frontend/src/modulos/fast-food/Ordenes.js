@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-
+import { printOrderPDF } from '../../utils/printOrderPDF';
 const Ordenes = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -400,6 +400,23 @@ const Ordenes = () => {
                                     aria-label="Cerrar modal"
                                 >
                                     ×
+                                </button>
+                                <button
+                                    onClick={() => printOrderPDF(selectedOrder)}
+                                    style={{
+                                        background: '#059669',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        padding: '8px 16px',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: '500',
+                                        marginLeft: '8px'
+                                    }}
+                                    aria-label="Imprimir orden"
+                                >
+                                    Imprimir
                                 </button>
                             </div>
 
