@@ -8,8 +8,10 @@ import ServicePlaceholder from './components/ServicePlaceholder';
 import PanelFastFood from './modulos/fast-food/PanelFastFood';
 import Inventario from './modulos/fast-food/Inventario';
 import Ordenes from './modulos/fast-food/Ordenes';
+import Clientes from './modulos/fast-food/Clientes';
 import Reportes from './modulos/fast-food/Reportes';
 import PuntosVenta from './modulos/fast-food/PuntosVenta';
+import ShiftManager from './modulos/fast-food/ShiftManager';
 import Impresoras from './modulos/fast-food/Impresoras';
 import DisenoFastFood from './modulos/fast-food/DisenoFastFood';
 import './App.css';
@@ -89,6 +91,11 @@ function App() {
               <Ordenes />
             </FastFoodRoute>
           } />
+          <Route path="/fast-food/customers" element={
+            <FastFoodRoute>
+              <Clientes />
+            </FastFoodRoute>
+          } />
           <Route path="/fast-food/reports" element={
             <FastFoodRoute>
               <Reportes />
@@ -97,6 +104,11 @@ function App() {
           <Route path="/fast-food/pos" element={
             <FastFoodRoute>
               <PuntosVenta />
+            </FastFoodRoute>
+          } />
+          <Route path="/fast-food/shift" element={
+            <FastFoodRoute>
+              <ShiftManager onShiftActive={() => { }} />
             </FastFoodRoute>
           } />
           <Route path="/fast-food/printers" element={

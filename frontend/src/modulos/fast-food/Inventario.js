@@ -139,38 +139,38 @@ const Inventario = () => {
             </div>
 
             {/* Tabs de Navegación */}
-            <div className="tabs" style={{ marginBottom: '20px', borderBottom: '1px solid #ddd', display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
+            <div className="tabs" style={{ marginBottom: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
                 <button
-                    className={`btn ${activeTab === 'products' ? 'btn-primary' : 'btn-outline'}`}
+                    className={`btn ${activeTab === 'products' ? 'btn-primary' : 'btn-secondary'}`}
                     onClick={() => setActiveTab('products')}
                 >
-                    🍔 Productos
+                    Productos
                 </button>
                 <button
-                    className={`btn ${activeTab === 'categories' ? 'btn-primary' : 'btn-outline'}`}
+                    className={`btn ${activeTab === 'categories' ? 'btn-primary' : 'btn-secondary'}`}
                     onClick={() => setActiveTab('categories')}
                 >
-                    📂 Categorías
+                    Categorías
                 </button>
                 <button
-                    className={`btn ${activeTab === 'combos' ? 'btn-primary' : 'btn-outline'}`}
+                    className={`btn ${activeTab === 'combos' ? 'btn-primary' : 'btn-secondary'}`}
                     onClick={() => setActiveTab('combos')}
                 >
-                    🍟 Combos
+                    Combos
                 </button>
                 <button
-                    className={`btn ${activeTab === 'extras' ? 'btn-primary' : 'btn-outline'}`}
+                    className={`btn ${activeTab === 'extras' ? 'btn-primary' : 'btn-secondary'}`}
                     onClick={() => setActiveTab('extras')}
                 >
-                    🧀 Extras
+                    Extras
                 </button>
                 <button
-                    className={`btn ${activeTab === 'sizes' ? 'btn-primary' : 'btn-outline'}`}
+                    className={`btn ${activeTab === 'sizes' ? 'btn-primary' : 'btn-secondary'}`}
                     onClick={() => setActiveTab('sizes')}
                 >
-                    📏 Tamaños
+                    Tamaños
                 </button>
-            </div >
+            </div>
 
             {/* Contenido de Pestañas */}
             {activeTab === 'categories' && <Categorias />}
@@ -188,7 +188,7 @@ const Inventario = () => {
                                 setNewProduct({ name: '', description: '', price: '', category: '', image: null });
                                 setIsModalOpen(true);
                             }}>
-                                + Nuevo Producto
+                                Nuevo Producto
                             </button>
                         </div>
 
@@ -228,17 +228,18 @@ const Inventario = () => {
                                                     <td>{product.is_available ? 'Sí' : 'No'}</td>
                                                     <td>
                                                         <button
-                                                            className="btn btn-sm btn-outline"
+                                                            className="btn btn-secondary"
                                                             onClick={() => handleEditProduct(product)}
-                                                            style={{ marginRight: '5px' }}
+                                                            style={{ marginRight: '5px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                                                         >
-                                                            ✏️
+                                                            Editar
                                                         </button>
                                                         <button
-                                                            className="btn btn-sm btn-danger"
+                                                            className="btn btn-danger"
                                                             onClick={() => handleDeleteProduct(product.id)}
+                                                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
                                                         >
-                                                            🗑️
+                                                            Eliminar
                                                         </button>
                                                     </td>
                                                 </tr>

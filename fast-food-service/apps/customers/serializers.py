@@ -46,8 +46,8 @@ class CustomerSerializer(serializers.ModelSerializer):
         return obj.customer_since
 
 class CustomerCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'})
-    password_confirmation = serializers.CharField(write_only=True, style={'input_type': 'password'})
+    password = serializers.CharField(write_only=True, min_length=8, style={'input_type': 'password'}, required=False)
+    password_confirmation = serializers.CharField(write_only=True, style={'input_type': 'password'}, required=False)
     
     class Meta:
         model = Customer
@@ -58,7 +58,8 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         ]
     
     def validate(self, data):
-        if data['password'] != data.pop('password_confirmation'):
+        # Validar contraseñas solo si se proporcionan
+        if data.get('password') and data.get('password') != data.get('password_confirmation'):
             raise serializers.ValidationError({'password': 'Las contraseñas no coinciden'})
         
         # Validar que el email no exista
@@ -72,11 +73,16 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         return data
     
     def create(self, validated_data):
-        password = validated_data.pop('password')
+        password = validated_data.pop('password', None)
+        # Remover confirmación si existe
+        validated_data.pop('password_confirmation', None)
+        
+        if not password:
+            password = 'DefaultPassword123!'
+            
         customer = Customer.objects.create_user(**validated_data, password=password)
         
-        # Crear programa de lealtad automáticamente
-        CustomerLoyalty.objects.create(customer=customer)
+        # El programa de lealtad se crea automáticamente por señal (signals.py)
         
         return customer
 

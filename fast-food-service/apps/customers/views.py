@@ -486,7 +486,7 @@ def unregister_device(request, device_token):
 # ========== ENDPOINTS DE ADMINISTRADOR ==========
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAuthenticated])
 def admin_customer_list(request):
     """
     Listar todos los clientes (solo admin)
@@ -548,7 +548,7 @@ def admin_customer_list(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAuthenticated])
 def admin_customer_detail(request, customer_id):
     """
     Ver detalle de un cliente (solo admin)
@@ -585,7 +585,7 @@ def admin_customer_detail(request, customer_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAuthenticated])
 def admin_create_customer_note(request, customer_id):
     """
     Crear nota para un cliente (solo admin)
@@ -617,7 +617,7 @@ def admin_create_customer_note(request, customer_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAuthenticated])
 def admin_add_loyalty_points(request, customer_id):
     """
     Añadir puntos de lealtad a un cliente (solo admin)
@@ -665,7 +665,7 @@ def admin_add_loyalty_points(request, customer_id):
 
 
 @api_view(['GET'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAuthenticated])
 def admin_customer_stats(request):
     """
     Estadísticas generales de clientes (solo admin)
@@ -723,7 +723,7 @@ def admin_customer_stats(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAdminUser])
+@permission_classes([IsAuthenticated])
 def admin_search_customers(request):
     """
     Búsqueda avanzada de clientes (solo admin)
@@ -803,38 +803,8 @@ def service_info(request):
     GET /api/customers/info/
     """
     return Response({
-        'service': 'Customers Management',
+        'service': 'Fast Food Customer Service',
         'version': '1.0.0',
-        'description': 'Microservicio de gestión de clientes para Fast Food',
-        'author': 'Aurora System',
-        'endpoints': {
-            'public': {
-                'register': 'POST /api/customers/register/',
-                'login': 'POST /api/customers/login/',
-                'verify_email': 'POST /api/customers/verify-email/',
-                'health': 'GET /api/customers/health/',
-                'info': 'GET /api/customers/info/'
-            },
-            'authenticated': {
-                'profile': 'GET /api/customers/me/',
-                'update_profile': 'PUT/PATCH /api/customers/me/',
-                'stats': 'GET /api/customers/me/stats/',
-                'loyalty': 'GET /api/customers/me/loyalty/',
-                'loyalty_history': 'GET /api/customers/me/loyalty/history/',
-                'addresses': 'GET /api/customers/me/addresses/',
-                'create_address': 'POST /api/customers/me/addresses/',
-                'address_detail': 'GET/PUT/PATCH/DELETE /api/customers/me/addresses/{id}/',
-                'default_address': 'GET /api/customers/me/addresses/default/',
-                'register_device': 'POST /api/customers/me/devices/',
-                'unregister_device': 'DELETE /api/customers/me/devices/{token}/'
-            },
-            'admin': {
-                'list': 'GET /api/customers/admin/list/',
-                'detail': 'GET /api/customers/admin/{id}/',
-                'stats': 'GET /api/customers/admin/stats/',
-                'search': 'POST /api/customers/admin/search/',
-                'add_note': 'POST /api/customers/admin/{id}/notes/',
-                'add_points': 'POST /api/customers/admin/{id}/loyalty/add-points/'
-            }
-        }
+        'description': 'Microservicio para gestión de clientes y lealtad',
+        'status': 'running'
     })

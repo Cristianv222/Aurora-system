@@ -2,6 +2,24 @@ from django.db import models
 from django.utils import timezone
 import uuid
 
+from django.contrib.auth.models import BaseUserManager
+
+class CustomerManager(BaseUserManager):
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError('El email es obligatorio')
+        email = self.normalize_email(email)
+        customer = self.model(email=email, **extra_fields)
+        if password:
+            customer.set_password(password)
+        customer.save(using=self._db)
+        return customer
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('is_vip', True)
+        return self.create_user(email, password, **extra_fields)
+
 class Customer(models.Model):
     """Cliente sin autenticación - solo información de contacto para pedidos"""
     CUSTOMER_TYPES = [
@@ -59,6 +77,15 @@ class Customer(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Fecha de actualización')
     registered_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP de registro')
     
+    # Auth fields
+    password = models.CharField(max_length=128, verbose_name='Contraseña', default='')
+    last_login = models.DateTimeField(blank=True, null=True, verbose_name='Último inicio de sesión')
+    
+    objects = CustomerManager()
+    
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['first_name', 'last_name', 'phone']
+    
     class Meta:
         verbose_name = 'Cliente'
         verbose_name_plural = 'Clientes'
@@ -79,6 +106,23 @@ class Customer(models.Model):
     
     def get_short_name(self):
         return self.first_name
+
+    # Métodos de autenticación
+    @property
+    def is_anonymous(self):
+        return False
+
+    @property
+    def is_authenticated(self):
+        return True
+        
+    def check_password(self, raw_password):
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password)
+
+    def set_password(self, raw_password):
+        from django.contrib.auth.hashers import make_password
+        self.password = make_password(raw_password)
     
     def update_order_stats(self, order_amount):
         """Actualiza estadísticas después de un pedido"""
