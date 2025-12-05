@@ -112,8 +112,8 @@ const Inventario = () => {
         formData.append('description', newProduct.description);
         formData.append('price', newProduct.price);
         formData.append('category', newProduct.category);
-        formData.append('is_active', newProduct.is_active);
-        formData.append('is_available', newProduct.is_available);
+        formData.append('is_active', newProduct.is_active ? 'true' : 'false');
+        formData.append('is_available', newProduct.is_available ? 'true' : 'false');
         if (newProduct.image instanceof File) {
             formData.append('image', newProduct.image);
         }
@@ -295,6 +295,7 @@ const Inventario = () => {
                                 <div className="form-group">
                                     <label>Categoría</label>
                                     <select
+                                        className="form-control"
                                         name="category"
                                         value={newProduct.category}
                                         onChange={handleInputChange}
@@ -305,6 +306,30 @@ const Inventario = () => {
                                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                                         ))}
                                     </select>
+                                </div>
+                                <div className="form-group">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            name="is_active"
+                                            checked={newProduct.is_active}
+                                            onChange={handleInputChange}
+                                            style={{ marginRight: '8px' }}
+                                        />
+                                        Activo
+                                    </label>
+                                </div>
+                                <div className="form-group">
+                                    <label>
+                                        <input
+                                            type="checkbox"
+                                            name="is_available"
+                                            checked={newProduct.is_available}
+                                            onChange={handleInputChange}
+                                            style={{ marginRight: '8px' }}
+                                        />
+                                        Disponible
+                                    </label>
                                 </div>
                                 <div className="form-group">
                                     <label>Imagen</label>

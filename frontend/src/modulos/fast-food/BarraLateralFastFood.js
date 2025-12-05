@@ -26,19 +26,8 @@ const BarraLateralFastFood = () => {
                 <li className={isActive('/fast-food/inventory')}>
                     <Link to="/fast-food/inventory">Inventario</Link>
                 </li>
-                <li className={isActive('/fast-food/reports')}>
-                    <Link to="/fast-food/reports">Reportes</Link>
-                </li>
-                {/* Nuevas opciones añadidas desde el PanelFastFood */}
-                <li className={isActive('/fast-food/shift')}>
-                    <Link to="/fast-food/shift">Caja</Link>
-                </li>
                 <li className={isActive('/fast-food/customers')}>
                     <Link to="/fast-food/customers">Clientes</Link>
-                </li>
-                {/* Fin de nuevas opciones */}
-                <li className={isActive('/fast-food/printers')}>
-                    <Link to="/fast-food/printers">Impresoras</Link>
                 </li>
             </ul>
         </aside>

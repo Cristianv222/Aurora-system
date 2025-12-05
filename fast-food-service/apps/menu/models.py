@@ -84,10 +84,11 @@ class Product(models.Model):
     slug = models.SlugField(max_length=200, unique=True, verbose_name='Slug')
     description = models.TextField(verbose_name='Descripción')
     
-    # Imagen
     image = models.ImageField(
         upload_to=menu_item_image_path,
-        verbose_name='Imagen'
+        verbose_name='Imagen',
+        blank=True,
+        null=True
     )
     
     # Precio base (precio del tamaño regular/único)
