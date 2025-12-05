@@ -234,7 +234,8 @@ label {
   padding: var(--spacing-xl);
   border-radius: var(--radius);
   width: 100%;
-  max-width: 500px;
+  max-width: 650px;
+
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -453,3 +454,15 @@ label {
   font-weight: 700;
   color: var(--text-primary);
 }
+/* Form Group Spacing */
+.form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+

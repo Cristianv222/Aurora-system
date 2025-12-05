@@ -12,7 +12,7 @@ const PuntosVenta = () => {
     const [error, setError] = useState('');
     const [processingOrder, setProcessingOrder] = useState(false);
 
-    // [Sección 2. ESTADO DEL PUNTO DE VENTA - Sin cambios]
+    // 2. ESTADO DEL PUNTO DE VENTA
     const [cart, setCart] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
@@ -20,7 +20,7 @@ const PuntosVenta = () => {
     const [discountCode, setDiscountCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState(null);
 
-    // [Sección 3. ESTADO DE CLIENTES - Sin cambios]
+    // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [customerSearch, setCustomerSearch] = useState('');
@@ -61,9 +61,9 @@ const PuntosVenta = () => {
     }, []);
 
     // =====================================
-    // 5. LÓGICA DEL CARRITO (Sin cambios)
+    // 5. LÓGICA DEL CARRITO
     // =====================================
-    const addToCart = useCallback((product) => { /* ... lógica sin cambios ... */
+    const addToCart = useCallback((product) => {
         setCart(prevCart => {
             const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id);
             if (existingItemIndex >= 0) {
@@ -85,11 +85,11 @@ const PuntosVenta = () => {
         });
     }, []);
 
-    const removeFromCart = useCallback((productId) => { /* ... lógica sin cambios ... */
+    const removeFromCart = useCallback((productId) => {
         setCart(prevCart => prevCart.filter(item => item.product_id !== productId));
     }, []);
 
-    const updateQuantity = useCallback((productId, delta) => { /* ... lógica sin cambios ... */
+    const updateQuantity = useCallback((productId, delta) => {
         setCart(prevCart => {
             return prevCart.map(item => {
                 if (item.product_id === productId) {
@@ -102,7 +102,7 @@ const PuntosVenta = () => {
     }, []);
 
     // =====================================
-    // 6. CÁLCULOS DE PRECIOS (Sin cambios)
+    // 6. CÁLCULOS DE PRECIOS
     // =====================================
     const calculateSubtotal = useMemo(() => {
         return cart.reduce((total, item) => total + (item.price * item.quantity), 0);
@@ -126,9 +126,9 @@ const PuntosVenta = () => {
     }, [calculateSubtotal, calculateDiscountAmount]);
 
     // =====================================
-    // 7. LÓGICA DE DESCUENTOS (Sin cambios)
+    // 7. LÓGICA DE DESCUENTOS
     // =====================================
-    const handleApplyDiscount = async () => { /* ... lógica sin cambios ... */
+    const handleApplyDiscount = async () => {
         if (!discountCode) return;
         try {
             const response = await api.post('/api/pos/discounts/validate/', { code: discountCode }, {
@@ -149,9 +149,9 @@ const PuntosVenta = () => {
     };
 
     // =====================================
-    // 8. LÓGICA DE CLIENTES (Sin cambios de lógica)
+    // 8. LÓGICA DE CLIENTES
     // =====================================
-    const searchCustomers = async (query) => { /* ... lógica sin cambios ... */
+    const searchCustomers = async (query) => {
         setCustomerSearch(query);
         if (query.length < 3) {
             setCustomers([]);
@@ -167,7 +167,7 @@ const PuntosVenta = () => {
         }
     };
 
-    const handleCreateCustomer = async (e) => { /* ... lógica sin cambios ... */
+    const handleCreateCustomer = async (e) => {
         e.preventDefault();
         try {
             const response = await api.post('/api/customers/register/', newCustomer, {
@@ -216,7 +216,7 @@ const PuntosVenta = () => {
     };
 
     // =====================================
-    // 9. LÓGICA DE FILTRADO Y PROCESAMIENTO (Sin cambios)
+    // 9. LÓGICA DE FILTRADO Y PROCESAMIENTO
     // =====================================
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
@@ -226,7 +226,7 @@ const PuntosVenta = () => {
         });
     }, [products, selectedCategory, searchTerm]);
 
-    const handlePlaceOrder = async () => { /* ... lógica sin cambios ... */
+    const handlePlaceOrder = async () => {
         if (cart.length === 0) return;
         if (!selectedTable && selectedTable !== 'takeout') {
             alert('Por favor seleccione una mesa o "Para Llevar"');
@@ -266,391 +266,1049 @@ const PuntosVenta = () => {
         }
     };
 
-    // [Sección 10. RENDERIZADO CONDICIONAL - Sin cambios]
-    if (loading) return <div className="p-4">Cargando POS...</div>;
+    // 10. RENDERIZADO CONDICIONAL
+    if (loading) return (
+        <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            fontSize: '1.125rem',
+            color: '#6b7280'
+        }}>
+            Cargando sistema de punto de venta...
+        </div>
+    );
 
     // =====================================
-    // 11. ESTRUCTURA PRINCIPAL DEL POS - Ajuste de Posición del '+' Cliente
+    // 11. ESTRUCTURA PRINCIPAL DEL POS
     // =====================================
 
     return (
-        <div className="page-container" style={{ height: 'calc(100vh - 64px)', padding: 0, maxWidth: 'none' }}>
+        <div style={{
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#f9fafb',
+            overflow: 'hidden'
+        }}>
 
-            {/* Barra Superior */}
-            <div className="page-header" style={{ padding: '1rem', margin: 0 }}>
-                <h2>Punto de Venta</h2>
+            {/* Header Superior */}
+            <div style={{
+                backgroundColor: '#ffffff',
+                borderBottom: '2px solid #e5e7eb',
+                padding: '1.25rem 1.5rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+            }}>
+                <h1 style={{
+                    fontSize: '1.75rem',
+                    fontWeight: '700',
+                    color: '#111827',
+                    margin: 0,
+                    letterSpacing: '-0.025em'
+                }}>
+                    Punto de Venta
+                </h1>
             </div>
 
-            <div style={{ display: 'flex', height: 'calc(100% - 70px)' }}>
+            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-                {/* Panel Izquierdo: Productos - Sin cambios */}
-                <div className="w-2/3 p-4 overflow-y-auto" style={{ flex: '2', padding: '1rem', overflowY: 'auto', borderRight: '1px solid #ddd' }}>
+                {/* Panel Izquierdo: Catálogo de Productos */}
+                <div style={{
+                    flex: '1 1 65%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: '#ffffff',
+                    borderRight: '2px solid #e5e7eb'
+                }}>
 
-                    {/* Filtros de Categoría */}
-                    <div style={{ display: 'flex', gap: '10px', marginBottom: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                        <button
-                            className={`btn ${selectedCategory === 'all' ? 'btn-primary' : 'btn-secondary'}`}
-                            onClick={() => setSelectedCategory('all')}
-                        >
-                            Todos
-                        </button>
-                        {categories.map(cat => (
+                    {/* Barra de Filtros */}
+                    <div style={{
+                        padding: '1.25rem',
+                        borderBottom: '1px solid #e5e7eb',
+                        backgroundColor: '#fafafa'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            gap: '0.75rem',
+                            overflowX: 'auto',
+                            paddingBottom: '0.5rem'
+                        }}>
                             <button
-                                key={cat.id}
-                                className={`btn ${selectedCategory === cat.id ? 'btn-primary' : 'btn-secondary'}`}
-                                onClick={() => setSelectedCategory(cat.id)}
+                                style={{
+                                    padding: '0.625rem 1.25rem',
+                                    borderRadius: '6px',
+                                    border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
+                                    backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
+                                    color: selectedCategory === 'all' ? '#ffffff' : '#374151',
+                                    fontWeight: '600',
+                                    fontSize: '0.9375rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    whiteSpace: 'nowrap',
+                                    boxShadow: selectedCategory === 'all' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
+                                }}
+                                onClick={() => setSelectedCategory('all')}
+                                onMouseEnter={(e) => {
+                                    if (selectedCategory !== 'all') {
+                                        e.target.style.backgroundColor = '#f3f4f6';
+                                        e.target.style.borderColor = '#9ca3af';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (selectedCategory !== 'all') {
+                                        e.target.style.backgroundColor = '#ffffff';
+                                        e.target.style.borderColor = '#d1d5db';
+                                    }
+                                }}
                             >
-                                {cat.name}
+                                Todos los productos
                             </button>
-                        ))}
+                            {categories.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    style={{
+                                        padding: '0.625rem 1.25rem',
+                                        borderRadius: '6px',
+                                        border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
+                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
+                                        color: selectedCategory === cat.id ? '#ffffff' : '#374151',
+                                        fontWeight: '600',
+                                        fontSize: '0.9375rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        whiteSpace: 'nowrap',
+                                        boxShadow: selectedCategory === cat.id ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
+                                    }}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                    onMouseEnter={(e) => {
+                                        if (selectedCategory !== cat.id) {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (selectedCategory !== cat.id) {
+                                            e.target.style.backgroundColor = '#ffffff';
+                                            e.target.style.borderColor = '#d1d5db';
+                                        }
+                                    }}
+                                >
+                                    {cat.name}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     {/* Grid de Productos */}
-                    <div
-                        className="dashboard-grid"
-                        style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.75rem' }}
-                    >
-                        {filteredProducts.map(product => (
-                            <div
-                                key={product.id}
-                                className="card"
-                                style={{
-                                    padding: '0.5rem',
-                                    cursor: 'pointer',
-                                    textAlign: 'center',
-                                    transition: 'transform 0.2s',
-                                    height: 'fit-content',
-                                    borderRadius: '8px',
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                                }}
-                                onClick={() => addToCart(product)}
-                            >
-                                {product.image ? (
-                                    <img
-                                        src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
-                                        alt={product.name}
-                                        style={{
-                                            width: '100%',
-                                            height: '80px',
-                                            objectFit: 'contain',
-                                            borderRadius: '4px',
-                                            marginBottom: '0.25rem',
-                                            backgroundColor: '#f1f5f9'
-                                        }}
-                                    />
-                                ) : (
-                                    <div
-                                        style={{ width: '100%', height: '80px', backgroundColor: '#f1f5f9', borderRadius: '4px', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}
-                                    >
-                                        Sin imagen
+                    <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '1.5rem',
+                        backgroundColor: '#f9fafb'
+                    }}>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                            gap: '1rem'
+                        }}>
+                            {filteredProducts.map(product => (
+                                <div
+                                    key={product.id}
+                                    style={{
+                                        backgroundColor: '#ffffff',
+                                        borderRadius: '10px',
+                                        overflow: 'hidden',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        border: '1px solid #e5e7eb',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                    onClick={() => addToCart(product)}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                                        e.currentTarget.style.borderColor = '#3b82f6';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                                        e.currentTarget.style.borderColor = '#e5e7eb';
+                                    }}
+                                >
+                                    <div style={{
+                                        height: '120px',
+                                        backgroundColor: '#f8fafc',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0.75rem'
+                                    }}>
+                                        {product.image ? (
+                                            <img
+                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
+                                                alt={product.name}
+                                                style={{
+                                                    maxWidth: '100%',
+                                                    maxHeight: '100%',
+                                                    objectFit: 'contain'
+                                                }}
+                                            />
+                                        ) : (
+                                            <span style={{
+                                                color: '#94a3b8',
+                                                fontSize: '0.75rem',
+                                                textAlign: 'center'
+                                            }}>
+                                                Sin imagen
+                                            </span>
+                                        )}
                                     </div>
-                                )}
-                                <h3 style={{ fontSize: '0.875rem', marginBottom: '0.1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{product.name}</h3>
-                                <p style={{ color: 'var(--primary-color)', fontWeight: 'bold', fontSize: '0.85rem' }}>${product.price}</p>
-                            </div>
-                        ))}
+                                    <div style={{ padding: '0.875rem' }}>
+                                        <h3 style={{
+                                            fontSize: '0.9375rem',
+                                            fontWeight: '600',
+                                            color: '#1f2937',
+                                            marginBottom: '0.375rem',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {product.name}
+                                        </h3>
+                                        <p style={{
+                                            fontSize: '1.125rem',
+                                            fontWeight: '700',
+                                            color: '#059669',
+                                            margin: 0
+                                        }}>
+                                            ${product.price}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
-                {/* Panel Derecho: Carrito y Resumen - AJUSTE EN POSICIÓN DEL '+' CLIENTE */}
-                <div style={{ flex: '1', backgroundColor: 'white', borderLeft: '1px solid #ddd', padding: '1rem', display: 'flex', flexDirection: 'column' }}>
+                {/* Panel Derecho: Carrito y Checkout */}
+                <div style={{
+                    flex: '0 0 420px',
+                    backgroundColor: '#ffffff',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)'
+                }}>
 
-                    {/* 1. Selección de Mesa */}
-                    <div className="mb-3">
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Mesa / Tipo de Orden</label>
-                        <select
-                            className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500"
-                            value={selectedTable}
-                            onChange={(e) => setSelectedTable(e.target.value)}
-                        >
-                            <option value="">Seleccionar...</option>
-                            <option value="takeout">🥡 Para Llevar</option>
-                            {tables.map(table => (
-                                <option key={table.id} value={table.number} disabled={table.status !== 'available'}>
-                                    Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* 2. Selección de Cliente - CORRECCIÓN DE POSICIÓN DEL '+' */}
-                    <div className="mb-4 border-b pb-4">
-
-                        {/* Etiqueta */}
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Cliente</label>
-
-                        {/* Input de Búsqueda y Botón '+' Agrupados */}
-                        <div className="flex gap-2 mb-2 items-center">
-
-                            <div className="relative flex-1">
-                                <input
-                                    type="text"
-                                    placeholder="Buscar cliente..."
-                                    className="w-full border border-gray-300 rounded-md p-2 focus:ring-purple-500 focus:border-purple-500 transition duration-150"
-                                    value={customerSearch}
-                                    onChange={(e) => searchCustomers(e.target.value)}
-                                />
-                                {customers.length > 0 && (
-                                    <div className='absolute z-10 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto mt-1' style={{ maxHeight: '12rem' }}>
-                                        {customers.map(c => (
-                                            <div
-                                                key={c.id}
-                                                className='p-2 text-sm cursor-pointer border-b border-gray-100 last:border-b-0'
-                                                style={{ transition: 'background-color 0.2s, transform 0.1s', ':hover': { backgroundColor: '#f3f4f6', transform: 'scale(1.01)' } }}
-                                                onClick={() => {
-                                                    setSelectedCustomer(c);
-                                                    setCustomerSearch(`${c.first_name} ${c.last_name}`);
-                                                    setCustomers([]);
-                                                }}
-                                            >
-                                                <p className='font-medium text-gray-800'>
-                                                    <span role="img" aria-label="person">👤</span> {c.first_name} {c.last_name}
-                                                </p>
-                                                <p className='text-xs text-gray-500 ml-5'>{c.email}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Botón de Agregar Cliente (Al lado del input) */}
-                            <button
-                                className="bg-purple-600 text-white w-10 h-10 rounded-md flex items-center justify-center text-xl font-bold hover:bg-purple-700 transition duration-150 shadow-md"
-                                onClick={() => setShowCustomerModal(true)}
-                                title="Agregar nuevo cliente"
+                    {/* Información de Orden */}
+                    <div style={{
+                        padding: '1.5rem',
+                        borderBottom: '2px solid #e5e7eb',
+                        backgroundColor: '#fafafa'
+                    }}>
+                        {/* Selección de Mesa */}
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            <label style={{
+                                display: 'block',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                color: '#374151',
+                                marginBottom: '0.5rem'
+                            }}>
+                                Mesa / Tipo de Orden
+                            </label>
+                            <select
+                                style={{
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    border: '2px solid #d1d5db',
+                                    borderRadius: '8px',
+                                    fontSize: '0.9375rem',
+                                    color: '#1f2937',
+                                    backgroundColor: '#ffffff',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                value={selectedTable}
+                                onChange={(e) => setSelectedTable(e.target.value)}
+                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                             >
-                                +
-                            </button>
+                                <option value="">Seleccionar mesa...</option>
+                                <option value="takeout">Para Llevar</option>
+                                {tables.map(table => (
+                                    <option
+                                        key={table.id}
+                                        value={table.number}
+                                        disabled={table.status !== 'available'}
+                                    >
+                                        Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
 
-                        {selectedCustomer && (
-                            <div className="text-sm text-purple-700 flex justify-between items-center bg-purple-100 p-2 rounded-md border border-purple-300 transition duration-300 shadow-sm">
-                                <span>Cliente Seleccionado: **{selectedCustomer.first_name} {selectedCustomer.last_name}**</span>
+                        {/* Selección de Cliente */}
+                        <div>
+                            <label style={{
+                                display: 'block',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                color: '#374151',
+                                marginBottom: '0.5rem'
+                            }}>
+                                Cliente
+                            </label>
+
+                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                <div style={{ position: 'relative', flex: 1 }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar cliente por nombre..."
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            border: '2px solid #d1d5db',
+                                            borderRadius: '8px',
+                                            fontSize: '0.9375rem',
+                                            transition: 'all 0.2s'
+                                        }}
+                                        value={customerSearch}
+                                        onChange={(e) => searchCustomers(e.target.value)}
+                                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                    />
+                                    {customers.length > 0 && (
+                                        <div style={{
+                                            position: 'absolute',
+                                            zIndex: 10,
+                                            width: '100%',
+                                            backgroundColor: '#ffffff',
+                                            border: '2px solid #d1d5db',
+                                            borderRadius: '8px',
+                                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                                            marginTop: '0.25rem',
+                                            maxHeight: '200px',
+                                            overflowY: 'auto'
+                                        }}>
+                                            {customers.map(c => (
+                                                <div
+                                                    key={c.id}
+                                                    style={{
+                                                        padding: '0.75rem',
+                                                        cursor: 'pointer',
+                                                        borderBottom: '1px solid #f3f4f6',
+                                                        transition: 'background-color 0.15s'
+                                                    }}
+                                                    onClick={() => {
+                                                        setSelectedCustomer(c);
+                                                        setCustomerSearch(`${c.first_name} ${c.last_name}`);
+                                                        setCustomers([]);
+                                                    }}
+                                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                                                >
+                                                    <p style={{
+                                                        fontWeight: '600',
+                                                        color: '#1f2937',
+                                                        marginBottom: '0.25rem',
+                                                        fontSize: '0.9375rem'
+                                                    }}>
+                                                        {c.first_name} {c.last_name}
+                                                    </p>
+                                                    <p style={{
+                                                        fontSize: '0.8125rem',
+                                                        color: '#6b7280',
+                                                        margin: 0
+                                                    }}>
+                                                        {c.email}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <button
-                                    className="text-red-500 hover:text-red-700 font-bold ml-2 transition duration-150"
-                                    onClick={() => {
-                                        setSelectedCustomer(null);
-                                        setCustomerSearch('');
+                                    style={{
+                                        width: '44px',
+                                        height: '44px',
+                                        backgroundColor: '#8b5cf6',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '1.5rem',
+                                        fontWeight: '300',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center'
                                     }}
-                                    title="Quitar cliente"
+                                    onClick={() => setShowCustomerModal(true)}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.backgroundColor = '#7c3aed';
+                                        e.target.style.transform = 'scale(1.05)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.backgroundColor = '#8b5cf6';
+                                        e.target.style.transform = 'scale(1)';
+                                    }}
+                                    title="Agregar nuevo cliente"
                                 >
-                                    ✕
+                                    +
                                 </button>
                             </div>
-                        )}
+
+                            {selectedCustomer && (
+                                <div style={{
+                                    backgroundColor: '#f3e8ff',
+                                    border: '2px solid #c084fc',
+                                    borderRadius: '8px',
+                                    padding: '0.75rem',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <span style={{
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        color: '#6b21a8'
+                                    }}>
+                                        {selectedCustomer.first_name} {selectedCustomer.last_name}
+                                    </span>
+                                    <button
+                                        style={{
+                                            backgroundColor: 'transparent',
+                                            border: 'none',
+                                            color: '#dc2626',
+                                            fontSize: '1.125rem',
+                                            cursor: 'pointer',
+                                            padding: '0.25rem',
+                                            lineHeight: 1
+                                        }}
+                                        onClick={() => {
+                                            setSelectedCustomer(null);
+                                            setCustomerSearch('');
+                                        }}
+                                        title="Quitar cliente"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* 3. Título de Orden (Mejor estética) */}
-                    <h3 className="text-xl font-bold text-gray-800 mb-3 border-b pb-2">
-                        <span role="img" aria-label="cart">🛒</span> Orden Actual
-                    </h3>
+                    {/* Items del Carrito */}
+                    <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: '1.5rem',
+                        backgroundColor: '#fafafa'
+                    }}>
+                        <h3 style={{
+                            fontSize: '1.125rem',
+                            fontWeight: '700',
+                            color: '#111827',
+                            marginBottom: '1rem',
+                            paddingBottom: '0.75rem',
+                            borderBottom: '2px solid #e5e7eb'
+                        }}>
+                            Orden Actual
+                        </h3>
 
-                    {/* 4. Lista de Items del Carrito - Botones mejorados */}
-                    <div style={{ flex: '1', overflowY: 'auto', marginBottom: '1rem' }}>
                         {cart.length === 0 ? (
-                            <p className="text-gray-500 text-center mt-8 p-4 bg-gray-50 rounded-lg">El carrito está vacío</p>
+                            <div style={{
+                                textAlign: 'center',
+                                padding: '3rem 1rem',
+                                color: '#9ca3af',
+                                fontSize: '0.9375rem'
+                            }}>
+                                <p style={{ margin: 0 }}>No hay productos en el carrito</p>
+                                <p style={{
+                                    margin: '0.5rem 0 0 0',
+                                    fontSize: '0.8125rem'
+                                }}>
+                                    Selecciona productos para comenzar
+                                </p>
+                            </div>
                         ) : (
-                            cart.map((item, index) => (
-                                <div
-                                    key={index}
-                                    style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        marginBottom: '0.5rem',
-                                        padding: '0.75rem',
-                                        backgroundColor: '#ffffff',
-                                        borderRadius: '8px',
-                                        border: '1px solid #e5e7eb',
-                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                    }}
-                                >
-                                    {/* Info de Producto */}
-                                    <div className='flex-1 pr-2'>
-                                        <p style={{ fontWeight: '600', fontSize: '1rem' }}>{item.name}</p>
-                                        <p style={{ fontSize: '0.875rem', color: '#4b5563' }}>Precio Unitario: **${item.price.toFixed(2)}**</p>
-                                    </div>
-
-                                    {/* Controles y Total */}
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-
-                                        {/* Control de Cantidad */}
-                                        <div className='flex items-center border border-gray-300 rounded-lg bg-gray-50'>
-                                            <button
-                                                className="text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-l-lg text-lg font-bold transition duration-150"
-                                                onClick={() => updateQuantity(item.product_id, -1)}
-                                                title="Reducir cantidad"
-                                            >
-                                                −
-                                            </button>
-                                            <span style={{ fontWeight: '600', width: '28px', textAlign: 'center', fontSize: '0.9rem' }}>{item.quantity}</span>
-                                            <button
-                                                className="text-gray-600 w-8 h-8 flex items-center justify-center hover:bg-gray-200 rounded-r-lg text-lg font-bold transition duration-150"
-                                                onClick={() => updateQuantity(item.product_id, 1)}
-                                                title="Aumentar cantidad"
-                                            >
-                                                +
-                                            </button>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {cart.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        style={{
+                                            backgroundColor: '#ffffff',
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: '10px',
+                                            padding: '1rem',
+                                            display: 'flex',
+                                            gap: '1rem',
+                                            alignItems: 'center'
+                                        }}
+                                    >
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <h4 style={{
+                                                fontSize: '0.9375rem',
+                                                fontWeight: '600',
+                                                color: '#1f2937',
+                                                marginBottom: '0.25rem',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }}>
+                                                {item.name}
+                                            </h4>
+                                            <p style={{
+                                                fontSize: '0.8125rem',
+                                                color: '#6b7280',
+                                                margin: 0
+                                            }}>
+                                                ${item.price.toFixed(2)} c/u
+                                            </p>
                                         </div>
 
-                                        {/* Botón Eliminar */}
-                                        <button
-                                            className="bg-red-500 text-white w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold hover:bg-red-600 transition duration-150 shadow-md"
-                                            onClick={() => removeFromCart(item.product_id)}
-                                            title="Eliminar producto"
-                                            style={{ marginLeft: '0.25rem' }} // Ajuste de margen
-                                        >
-                                            ✕
-                                        </button>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            {/* Control de Cantidad */}
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                border: '2px solid #e5e7eb',
+                                                borderRadius: '8px',
+                                                overflow: 'hidden',
+                                                backgroundColor: '#ffffff'
+                                            }}>
+                                                <button
+                                                    style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        border: 'none',
+                                                        backgroundColor: 'transparent',
+                                                        color: '#6b7280',
+                                                        fontSize: '1.25rem',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                    onClick={() => updateQuantity(item.product_id, -1)}
+                                                    onMouseEnter={(e) => {
+                                                        e.target.style.backgroundColor = '#f3f4f6';
+                                                        e.target.style.color = '#111827';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.target.style.backgroundColor = 'transparent';
+                                                        e.target.style.color = '#6b7280';
+                                                    }}
+                                                >
+                                                    −
+                                                </button>
+                                                <span style={{
+                                                    width: '36px',
+                                                    textAlign: 'center',
+                                                    fontSize: '0.9375rem',
+                                                    fontWeight: '600',
+                                                    color: '#1f2937'
+                                                }}>
+                                                    {item.quantity}
+                                                </span>
+                                                <button
+                                                    style={{
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        border: 'none',
+                                                        backgroundColor: 'transparent',
+                                                        color: '#6b7280',
+                                                        fontSize: '1.25rem',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                    onClick={() => updateQuantity(item.product_id, 1)}
+                                                    onMouseEnter={(e) => {
+                                                        e.target.style.backgroundColor = '#f3f4f6';
+                                                        e.target.style.color = '#111827';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.target.style.backgroundColor = 'transparent';
+                                                        e.target.style.color = '#6b7280';
+                                                    }}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+
+                                            {/* Botón Eliminar */}
+                                            <button
+                                                style={{
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    backgroundColor: '#fee2e2',
+                                                    border: '2px solid #fecaca',
+                                                    borderRadius: '8px',
+                                                    color: '#dc2626',
+                                                    fontSize: '1.125rem',
+                                                    fontWeight: '600',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                                onClick={() => removeFromCart(item.product_id)}
+                                                onMouseEnter={(e) => {
+                                                    e.target.style.backgroundColor = '#dc2626';
+                                                    e.target.style.borderColor = '#dc2626';
+                                                    e.target.style.color = '#ffffff';
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.target.style.backgroundColor = '#fee2e2';
+                                                    e.target.style.borderColor = '#fecaca';
+                                                    e.target.style.color = '#dc2626';
+                                                }}
+                                                title="Eliminar producto"
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
                                     </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Sección de Descuentos y Totales */}
+                    <div style={{
+                        borderTop: '2px solid #e5e7eb',
+                        padding: '1.5rem',
+                        backgroundColor: '#ffffff'
+                    }}>
+                        {/* Código de Descuento */}
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <label style={{
+                                display: 'block',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                color: '#374151',
+                                marginBottom: '0.5rem'
+                            }}>
+                                Código de Descuento
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                    type="text"
+                                    placeholder="Ingresa el código"
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.75rem',
+                                        border: '2px solid #d1d5db',
+                                        borderRadius: '8px',
+                                        fontSize: '0.9375rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    value={discountCode}
+                                    onChange={(e) => setDiscountCode(e.target.value)}
+                                    onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                />
+                                <button
+                                    style={{
+                                        padding: '0.75rem 1.25rem',
+                                        backgroundColor: '#fbbf24',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#78350f',
+                                        fontWeight: '600',
+                                        fontSize: '0.9375rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        whiteSpace: 'nowrap'
+                                    }}
+                                    onClick={handleApplyDiscount}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.backgroundColor = '#f59e0b';
+                                        e.target.style.transform = 'scale(1.02)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.backgroundColor = '#fbbf24';
+                                        e.target.style.transform = 'scale(1)';
+                                    }}
+                                >
+                                    Aplicar
+                                </button>
+                            </div>
+                            {appliedDiscount && (
+                                <div style={{
+                                    marginTop: '0.75rem',
+                                    padding: '0.75rem',
+                                    backgroundColor: '#d1fae5',
+                                    border: '2px solid #86efac',
+                                    borderRadius: '8px',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#065f46'
+                                }}>
+                                    Descuento aplicado: {appliedDiscount.name}
                                 </div>
-                            ))
-                        )}
-                    </div>
-
-                    {/* 5. Descuentos */}
-                    <div className="mb-4 border-t pt-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Código de Descuento</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                placeholder="Código de Descuento"
-                                className="border border-gray-300 rounded-md p-2 flex-1 focus:ring-yellow-500 focus:border-yellow-500 transition duration-150"
-                                value={discountCode}
-                                onChange={(e) => setDiscountCode(e.target.value)}
-                            />
-                            <button
-                                onClick={handleApplyDiscount}
-                                className="bg-yellow-400 text-gray-800 px-3 py-2 rounded-md font-semibold hover:bg-yellow-500 transition duration-150"
-                            >
-                                Aplicar
-                            </button>
+                            )}
                         </div>
-                        {appliedDiscount && (
-                            <div className="text-green-700 text-sm mt-2 font-medium bg-green-50 p-2 rounded-md border border-green-200 shadow-sm">
-                                Descuento aplicado: **{appliedDiscount.name}**
+
+                        {/* Resumen de Totales */}
+                        <div style={{
+                            borderTop: '2px solid #e5e7eb',
+                            paddingTop: '1rem'
+                        }}>
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginBottom: '0.75rem',
+                                fontSize: '0.9375rem',
+                                color: '#6b7280'
+                            }}>
+                                <span>Subtotal</span>
+                                <span style={{ fontWeight: '600' }}>${calculateSubtotal.toFixed(2)}</span>
                             </div>
-                        )}
-                    </div>
 
-                    {/* 6. Resumen de Totales y Botón de Orden - Resaltando el Total */}
-                    <div style={{ borderTop: '1px solid #ddd', paddingTop: '1rem' }}>
-                        <div className="flex justify-between mb-2 text-base text-gray-700">
-                            <span>Subtotal:</span>
-                            <span>${calculateSubtotal.toFixed(2)}</span>
-                        </div>
-                        {appliedDiscount && (
-                            <div className="flex justify-between mb-2 text-base text-green-600 font-medium">
-                                <span>Descuento aplicado:</span>
-                                <span>- ${calculateDiscountAmount.toFixed(2)}</span>
+                            {appliedDiscount && (
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    marginBottom: '0.75rem',
+                                    fontSize: '0.9375rem',
+                                    color: '#059669',
+                                    fontWeight: '600'
+                                }}>
+                                    <span>Descuento</span>
+                                    <span>- ${calculateDiscountAmount.toFixed(2)}</span>
+                                </div>
+                            )}
+
+                            <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                paddingTop: '1rem',
+                                borderTop: '2px solid #e5e7eb',
+                                fontSize: '1.5rem',
+                                fontWeight: '700',
+                                color: '#111827'
+                            }}>
+                                <span>Total</span>
+                                <span style={{ color: '#059669' }}>${calculateTotal}</span>
                             </div>
-                        )}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', fontSize: '1.5rem', fontWeight: 'bold', borderTop: '1px dashed #ccc', paddingTop: '0.5rem' }}>
-                            <span>Total:</span>
-                            <span className='text-green-600'>${calculateTotal}</span>
                         </div>
 
+                        {/* Botón de Confirmar Pedido */}
                         <button
                             style={{
                                 width: '100%',
-                                padding: '0.75rem',
-                                borderRadius: '0.5rem',
-                                color: 'white',
-                                fontWeight: 'bold',
+                                marginTop: '1.5rem',
+                                padding: '1rem',
+                                backgroundColor: cart.length === 0 || processingOrder ? '#d1d5db' : '#059669',
+                                border: 'none',
+                                borderRadius: '10px',
+                                color: '#ffffff',
                                 fontSize: '1.125rem',
-                                backgroundColor: cart.length === 0 || processingOrder ? '#9ca3af' : '#16a34a',
+                                fontWeight: '700',
                                 cursor: cart.length === 0 || processingOrder ? 'not-allowed' : 'pointer',
-                                border: 'none'
+                                transition: 'all 0.2s',
+                                boxShadow: cart.length === 0 || processingOrder ? 'none' : '0 4px 12px rgba(5, 150, 105, 0.3)'
                             }}
                             onClick={handlePlaceOrder}
                             disabled={cart.length === 0 || processingOrder}
+                            onMouseEnter={(e) => {
+                                if (cart.length > 0 && !processingOrder) {
+                                    e.target.style.backgroundColor = '#047857';
+                                    e.target.style.transform = 'translateY(-2px)';
+                                    e.target.style.boxShadow = '0 6px 16px rgba(5, 150, 105, 0.4)';
+                                }
+                            }}
+                            onMouseLeave={(e) => {
+                                if (cart.length > 0 && !processingOrder) {
+                                    e.target.style.backgroundColor = '#059669';
+                                    e.target.style.transform = 'translateY(0)';
+                                    e.target.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+                                }
+                            }}
                         >
-                            {processingOrder ? 'Procesando...' : 'Confirmar Pedido'}
+                            {processingOrder ? 'Procesando pedido...' : 'Confirmar Pedido'}
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Modal Crear Cliente - Sin cambios */}
-            {
-                showCustomerModal && (
-                    <div className="modal-overlay">
-                        <div className="modal-content">
-                            <h3>Nuevo Cliente</h3>
-                            <form onSubmit={handleCreateCustomer}>
-                                <div className="form-group">
-                                    <label>Email</label>
+            {/* Modal de Crear Cliente */}
+            {showCustomerModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '1rem'
+                }}>
+                    <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '12px',
+                        width: '100%',
+                        maxWidth: '500px',
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+                    }}>
+                        {/* Header del Modal */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '2px solid #e5e7eb',
+                            backgroundColor: '#fafafa'
+                        }}>
+                            <h3 style={{
+                                fontSize: '1.5rem',
+                                fontWeight: '700',
+                                color: '#111827',
+                                margin: 0
+                            }}>
+                                Nuevo Cliente
+                            </h3>
+                        </div>
+
+                        {/* Formulario */}
+                        <form onSubmit={handleCreateCustomer} style={{ padding: '1.5rem' }}>
+                            {/* Email */}
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{
+                                    display: 'block',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '0.5rem'
+                                }}>
+                                    Correo Electrónico
+                                </label>
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={newCustomer.email}
+                                    onChange={handleInputChange}
+                                    required
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '2px solid #d1d5db',
+                                        borderRadius: '8px',
+                                        fontSize: '0.9375rem',
+                                        transition: 'all 0.2s',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                />
+                            </div>
+
+                            {/* Nombre y Apellido */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '1rem',
+                                marginBottom: '1.25rem'
+                            }}>
+                                <div>
+                                    <label style={{
+                                        display: 'block',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        color: '#374151',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        Nombre
+                                    </label>
                                     <input
-                                        type="email"
-                                        name="email"
-                                        value={newCustomer.email}
+                                        type="text"
+                                        name="first_name"
+                                        value={newCustomer.first_name}
                                         onChange={handleInputChange}
                                         required
-                                        className="form-control"
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            border: '2px solid #d1d5db',
+                                            borderRadius: '8px',
+                                            fontSize: '0.9375rem',
+                                            transition: 'all 0.2s',
+                                            boxSizing: 'border-box'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     />
                                 </div>
-                                <div className="row">
-                                    <div className="col-6">
-                                        <div className="form-group">
-                                            <label>Nombre</label>
-                                            <input
-                                                type="text"
-                                                name="first_name"
-                                                value={newCustomer.first_name}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="form-control"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="col-6">
-                                        <div className="form-group">
-                                            <label>Apellido</label>
-                                            <input
-                                                type="text"
-                                                name="last_name"
-                                                value={newCustomer.last_name}
-                                                onChange={handleInputChange}
-                                                required
-                                                className="form-control"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="form-group">
-                                    <label>Teléfono</label>
+                                <div>
+                                    <label style={{
+                                        display: 'block',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        color: '#374151',
+                                        marginBottom: '0.5rem'
+                                    }}>
+                                        Apellido
+                                    </label>
                                     <input
                                         type="text"
-                                        name="phone"
-                                        value={newCustomer.phone}
+                                        name="last_name"
+                                        value={newCustomer.last_name}
                                         onChange={handleInputChange}
-                                        className="form-control"
+                                        required
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            border: '2px solid #d1d5db',
+                                            borderRadius: '8px',
+                                            fontSize: '0.9375rem',
+                                            transition: 'all 0.2s',
+                                            boxSizing: 'border-box'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     />
                                 </div>
-                                <div className="form-group">
-                                    <label>Ciudad</label>
-                                    <input
-                                        type="text"
-                                        name="city"
-                                        value={newCustomer.city}
-                                        onChange={handleInputChange}
-                                        className="form-control"
-                                    />
-                                </div>
-                                <div className="modal-actions">
-                                    <button type="button" className="btn btn-secondary" onClick={() => setShowCustomerModal(false)}>
-                                        Cancelar
-                                    </button>
-                                    <button type="submit" className="btn btn-primary">
-                                        Guardar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                            </div>
+
+                            {/* Teléfono */}
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{
+                                    display: 'block',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '0.5rem'
+                                }}>
+                                    Teléfono
+                                </label>
+                                <input
+                                    type="text"
+                                    name="phone"
+                                    value={newCustomer.phone}
+                                    onChange={handleInputChange}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '2px solid #d1d5db',
+                                        borderRadius: '8px',
+                                        fontSize: '0.9375rem',
+                                        transition: 'all 0.2s',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                />
+                            </div>
+
+                            {/* Ciudad */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{
+                                    display: 'block',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '0.5rem'
+                                }}>
+                                    Ciudad
+                                </label>
+                                <input
+                                    type="text"
+                                    name="city"
+                                    value={newCustomer.city}
+                                    onChange={handleInputChange}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '2px solid #d1d5db',
+                                        borderRadius: '8px',
+                                        fontSize: '0.9375rem',
+                                        transition: 'all 0.2s',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                />
+                            </div>
+
+                            {/* Botones de Acción */}
+                            <div style={{
+                                display: 'flex',
+                                gap: '0.75rem',
+                                justifyContent: 'flex-end',
+                                borderTop: '2px solid #e5e7eb',
+                                paddingTop: '1.5rem'
+                            }}>
+                                <button
+                                    type="button"
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        backgroundColor: '#ffffff',
+                                        border: '2px solid #d1d5db',
+                                        borderRadius: '8px',
+                                        color: '#374151',
+                                        fontWeight: '600',
+                                        fontSize: '0.9375rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onClick={() => setShowCustomerModal(false)}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.backgroundColor = '#f3f4f6';
+                                        e.target.style.borderColor = '#9ca3af';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.backgroundColor = '#ffffff';
+                                        e.target.style.borderColor = '#d1d5db';
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        backgroundColor: '#8b5cf6',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#ffffff',
+                                        fontWeight: '600',
+                                        fontSize: '0.9375rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.target.style.backgroundColor = '#7c3aed';
+                                        e.target.style.transform = 'scale(1.02)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.target.style.backgroundColor = '#8b5cf6';
+                                        e.target.style.transform = 'scale(1)';
+                                    }}
+                                >
+                                    Guardar Cliente
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                )
-            }
-        </div >
+                </div>
+            )}
+        </div>
     );
 };
 

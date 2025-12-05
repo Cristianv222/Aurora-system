@@ -14,6 +14,7 @@ class Order(models.Model):
         ('ready', 'Listo'),
         ('delivering', 'En Camino'),
         ('delivered', 'Entregado'),
+        ('completed', 'Completado'),
         ('cancelled', 'Cancelado'),
         ('rejected', 'Rechazado'),
     ]
@@ -188,7 +189,7 @@ class Order(models.Model):
         self.subtotal = items_total
         
         # Calcular impuestos (ejemplo: 12%)
-        tax_rate = Decimal('0.12')
+        tax_rate = Decimal('0.00')
         self.tax_amount = self.subtotal * tax_rate
         
         # Calcular total

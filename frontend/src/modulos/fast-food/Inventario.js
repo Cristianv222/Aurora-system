@@ -22,7 +22,9 @@ const Inventario = () => {
         description: '',
         price: '',
         category: '',
-        image: null
+        image: null,
+        is_active: true,
+        is_available: true
     });
     const [editingProduct, setEditingProduct] = useState(null);
 
@@ -58,9 +60,11 @@ const Inventario = () => {
         }
     }, [activeTab]);
 
+
     const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setNewProduct(prev => ({ ...prev, [name]: value }));
+        const { name, value, type, checked } = e.target;
+        const newValue = type === 'checkbox' ? checked : value;
+        setNewProduct(prev => ({ ...prev, [name]: newValue }));
     };
 
     const handleImageChange = (e) => {
@@ -74,7 +78,9 @@ const Inventario = () => {
             description: product.description,
             price: product.price,
             category: product.category,
-            image: null // Reset image input, keep existing if not changed
+            image: null, // Reset image input, keep existing if not changed
+            is_active: product.is_active !== undefined ? product.is_active : true,
+            is_available: product.is_available !== undefined ? product.is_available : true
         });
         setIsModalOpen(true);
     };
@@ -106,13 +112,15 @@ const Inventario = () => {
         formData.append('description', newProduct.description);
         formData.append('price', newProduct.price);
         formData.append('category', newProduct.category);
+        formData.append('is_active', newProduct.is_active);
+        formData.append('is_available', newProduct.is_available);
         if (newProduct.image instanceof File) {
             formData.append('image', newProduct.image);
         }
 
         try {
             if (editingProduct) {
-                await api.patch(`/api/menu/products/${editingProduct.id}/`, formData, {
+                await api.patch(`/api/menu/products/${editingProduct.slug}/`, formData, {
                     baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
@@ -123,7 +131,7 @@ const Inventario = () => {
                 });
             }
             setIsModalOpen(false);
-            setNewProduct({ name: '', description: '', price: '', category: '', image: null });
+            setNewProduct({ name: '', description: '', price: '', category: '', image: null, is_active: true, is_available: true });
             setEditingProduct(null);
             fetchProducts();
         } catch (err) {
