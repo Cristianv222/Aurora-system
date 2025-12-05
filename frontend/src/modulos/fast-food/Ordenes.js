@@ -28,8 +28,26 @@ const Ordenes = () => {
         fetchOrders();
     }, []);
 
+    useEffect(() => {
+        const handleEscape = (e) => {
+            if (e.key === 'Escape' && showModal) {
+                closeModal();
+            }
+        };
+
+        if (showModal) {
+            document.addEventListener('keydown', handleEscape);
+            document.body.style.overflow = 'hidden';
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+            document.body.style.overflow = 'unset';
+        };
+    }, [showModal]);
+
     const handleStatusChange = async (orderNumber, newStatus, event) => {
-        event.stopPropagation(); // Prevent row click when changing status
+        event.stopPropagation();
         setUpdatingStatus(prev => ({ ...prev, [orderNumber]: true }));
         try {
             const response = await api.post(
@@ -40,7 +58,6 @@ const Ordenes = () => {
 
             console.log('Status update successful:', response.data);
 
-            // Use the response data to update local state
             setOrders(prevOrders =>
                 prevOrders.map(order =>
                     order.order_number === orderNumber
@@ -59,15 +76,19 @@ const Ordenes = () => {
 
     const handleRowClick = async (order) => {
         setShowModal(true);
-        setSelectedOrder({ ...order, loading: true }); // Show modal with loading state
+        // Usamos los datos que ya tenemos del listado
+        setSelectedOrder({ ...order, loading: true });
 
         try {
-            // Fetch full order details including items
             const response = await api.get(
                 `/api/orders/orders/${order.order_number}/`,
                 { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE }
             );
-            setSelectedOrder(response.data);
+            // Preservamos el customer_name del listado por si la respuesta no lo incluye
+            setSelectedOrder({
+                ...response.data,
+                customer_name: response.data.customer_name || order.customer_name
+            });
         } catch (err) {
             console.error('Error fetching order details:', err);
             alert('Error al cargar los detalles de la orden');
@@ -107,30 +128,25 @@ const Ordenes = () => {
         return reverseMap[statusDisplay] || statusDisplay.toLowerCase();
     };
 
-    // Smart sorting: pending orders first (oldest first - FIFO), then completed orders (newest first)
     const sortedAndFilteredOrders = orders
         .filter(order =>
             order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
         )
         .sort((a, b) => {
-            // Consider 'completado' and 'completed' as completed statuses
             const aCompleted = ['completado', 'completed'].includes(a.status_display?.toLowerCase()) ||
                 ['completed'].includes(a.status?.toLowerCase());
             const bCompleted = ['completado', 'completed'].includes(b.status_display?.toLowerCase()) ||
                 ['completed'].includes(b.status?.toLowerCase());
 
-            // If one is completed and the other isn't, non-completed comes first
             if (aCompleted !== bCompleted) {
                 return aCompleted ? 1 : -1;
             }
 
-            // For pending orders: oldest first (FIFO)
-            // For completed orders: newest first
             if (!aCompleted) {
-                return new Date(a.created_at) - new Date(b.created_at); // Oldest first
+                return new Date(a.created_at) - new Date(b.created_at);
             } else {
-                return new Date(b.created_at) - new Date(a.created_at); // Newest first
+                return new Date(b.created_at) - new Date(a.created_at);
             }
         });
 
@@ -354,49 +370,89 @@ const Ordenes = () => {
                         }}
                     >
                         {/* Modal Header */}
-                        <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
-                                    Orden {selectedOrder.order_number}
-                                </h2>
-                                <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px' }}>
-                                    {new Date(selectedOrder.created_at).toLocaleString('es-ES', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                    })}
-                                </p>
+                        <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
+                                        Orden {selectedOrder.order_number}
+                                    </h2>
+                                    <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px', marginBottom: 0 }}>
+                                        {new Date(selectedOrder.created_at).toLocaleString('es-ES', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                        })}
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={closeModal}
+                                    style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        fontSize: '24px',
+                                        cursor: 'pointer',
+                                        color: '#6b7280',
+                                        padding: '4px 8px',
+                                        lineHeight: 1
+                                    }}
+                                    aria-label="Cerrar modal"
+                                >
+                                    ×
+                                </button>
                             </div>
-                            <button
-                                onClick={closeModal}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    fontSize: '24px',
-                                    cursor: 'pointer',
-                                    color: '#6b7280',
-                                    padding: '4px 8px'
-                                }}
-                            >
-                                ×
-                            </button>
+
+                            {/* Cliente destacado en el header */}
+                            <div style={{
+                                backgroundColor: '#eff6ff',
+                                padding: '12px 16px',
+                                borderRadius: '8px',
+                                border: '1px solid #bfdbfe',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>
+                                <svg
+                                    style={{ width: '20px', height: '20px', color: '#2563eb' }}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <div>
+                                    <p style={{ margin: 0, fontSize: '12px', color: '#1e40af', fontWeight: '500' }}>Cliente</p>
+                                    <p style={{ margin: 0, fontSize: '16px', color: '#1e3a8a', fontWeight: '600' }}>
+                                        {selectedOrder.customer_name || 'Cliente Casual'}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Modal Body */}
                         <div style={{ padding: '24px' }}>
-                            {/* Customer Info */}
+                            {/* Order Info */}
                             <div style={{ marginBottom: '24px' }}>
                                 <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
-                                    Información del Cliente
+                                    Información de la Orden
                                 </h3>
                                 <div style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px' }}>
                                     <p style={{ margin: '0 0 8px 0', color: '#1f2937' }}>
-                                        <strong>Nombre:</strong> {selectedOrder.customer_name || 'Cliente Casual'}
+                                        <strong>Tipo de Orden:</strong> {selectedOrder.order_type_display}
                                     </p>
                                     <p style={{ margin: '0 0 8px 0', color: '#1f2937' }}>
-                                        <strong>Tipo de Orden:</strong> {selectedOrder.order_type_display}
+                                        <strong>Estado:</strong>{' '}
+                                        <span style={{
+                                            padding: '4px 10px',
+                                            borderRadius: '9999px',
+                                            fontSize: '12px',
+                                            fontWeight: '500',
+                                            backgroundColor: selectedOrder.status_display?.toLowerCase() === 'completado' || selectedOrder.status?.toLowerCase() === 'completed' ? '#dcfce7' : '#fef3c7',
+                                            color: selectedOrder.status_display?.toLowerCase() === 'completado' || selectedOrder.status?.toLowerCase() === 'completed' ? '#166534' : '#92400e'
+                                        }}>
+                                            {selectedOrder.status_display || getStatusDisplay(selectedOrder.status)}
+                                        </span>
                                     </p>
                                     {selectedOrder.table_number && (
                                         <p style={{ margin: '0', color: '#1f2937' }}>
@@ -412,7 +468,20 @@ const Ordenes = () => {
                                     Productos
                                 </h3>
                                 <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-                                    {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                                    {selectedOrder.loading ? (
+                                        <div style={{ padding: '32px', textAlign: 'center' }}>
+                                            <div style={{
+                                                display: 'inline-block',
+                                                width: '32px',
+                                                height: '32px',
+                                                border: '3px solid #e5e7eb',
+                                                borderTopColor: '#2563eb',
+                                                borderRadius: '50%',
+                                                animation: 'spin 1s linear infinite'
+                                            }}></div>
+                                            <p style={{ marginTop: '12px', color: '#6b7280' }}>Cargando productos...</p>
+                                        </div>
+                                    ) : selectedOrder.items && selectedOrder.items.length > 0 ? (
                                         selectedOrder.items.map((item, index) => (
                                             <div
                                                 key={index}
@@ -426,7 +495,7 @@ const Ordenes = () => {
                                             >
                                                 <div>
                                                     <p style={{ margin: 0, fontWeight: '500', color: '#1f2937' }}>
-                                                        {item.product_details?.name || 'Producto'}
+                                                        {item.product_details?.name || item.product_name || 'Producto'}
                                                     </p>
                                                     <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
                                                         Cantidad: {item.quantity} × ${item.unit_price}

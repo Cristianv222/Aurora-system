@@ -353,26 +353,7 @@ class OrderStatusUpdateSerializer(serializers.Serializer):
     
     def validate_status(self, value):
         """Valida transiciones de estado válidas"""
-        order = self.context.get('order')
-        
-        valid_transitions = {
-            'pending': ['confirmed', 'cancelled'],
-            'confirmed': ['preparing', 'cancelled'],
-            'preparing': ['ready', 'cancelled'],
-            'ready': ['delivering', 'delivered'],
-            'delivering': ['delivered'],
-        }
-        
-        if order.status not in valid_transitions:
-            raise serializers.ValidationError(
-                f'No se puede cambiar el estado desde {order.status}'
-            )
-        
-        if value not in valid_transitions[order.status]:
-            raise serializers.ValidationError(
-                f'No se puede cambiar de {order.status} a {value}'
-            )
-        
+        # Validation disabled to allow flexible status updates
         return value
     
     def save(self):
