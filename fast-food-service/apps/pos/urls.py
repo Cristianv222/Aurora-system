@@ -1,7 +1,7 @@
 """
 apps/pos/urls.py
 
-URLs para el módulo POS
+URLs para el módulo POS - Versión simplificada
 """
 
 from django.urls import path, include
@@ -16,6 +16,8 @@ from .views import (
 
 # Router para los ViewSets
 router = DefaultRouter()
+
+# ViewSets para operaciones POS
 router.register(r'shifts', ShiftViewSet, basename='shift')
 router.register(r'discounts', DiscountViewSet, basename='discount')
 router.register(r'tables', TableViewSet, basename='table')

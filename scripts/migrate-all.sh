@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 echo "Migrando auth-service..."
 docker-compose exec auth-service python manage.py migrate

@@ -14,12 +14,16 @@ Se integra con:
 NO duplica información de auth-service.
 Info de empleados viene del JWT y se consulta vía API cuando sea necesario.
 """
-
 from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 import uuid
+from datetime import timedelta, datetime, date 
+import calendar    
+
+# <<<< CORRECCIÓN: IMPORTAR FUNCIONES DE AGREGACIÓN >>>>
+from django.db.models import Sum, Count, Avg, F, Q
 
 
 # ============================================================================
@@ -246,8 +250,6 @@ class Shift(models.Model):
     def is_active(self):
         """Verifica si el turno está activo"""
         return self.status == 'open'
-
-
 # ============================================================================
 # DESCUENTOS Y PROMOCIONES
 # ============================================================================
@@ -794,15 +796,13 @@ class Table(models.Model):
         """Verifica si la mesa está disponible"""
         return self.status == 'available' and self.is_active
 
-
 # ============================================================================
-# REPORTES DIARIOS (generados automáticamente)
+# REPORTES DIARIOS MEJORADOS (DailySummary)
 # ============================================================================
 
 class DailySummary(models.Model):
     """
     Resumen diario de ventas y operaciones.
-    Se genera automáticamente al final del día o bajo demanda.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     date = models.DateField(
@@ -812,101 +812,45 @@ class DailySummary(models.Model):
     )
     
     # ============ VENTAS TOTALES ============
-    total_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Ventas Totales'
-    )
-    
-    total_orders = models.PositiveIntegerField(
-        default=0,
-        verbose_name='Total de Órdenes'
-    )
-    
-    total_customers = models.PositiveIntegerField(
-        default=0,
-        verbose_name='Total de Clientes Únicos'
-    )
+    total_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas Totales')
+    total_orders = models.PositiveIntegerField(default=0, verbose_name='Total de Órdenes')
+    total_customers = models.PositiveIntegerField(default=0, verbose_name='Total de Clientes Únicos')
+    total_items_sold = models.PositiveIntegerField(default=0, verbose_name='Total de Productos Vendidos')
     
     # ============ POR MÉTODO DE PAGO ============
-    cash_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Ventas en Efectivo'
-    )
-    
-    card_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Ventas con Tarjeta'
-    )
-    
-    other_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Otras Formas de Pago'
-    )
+    cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas en Efectivo')
+    card_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas con Tarjeta')
+    other_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Otras Formas de Pago')
     
     # ============ POR TIPO DE ORDEN ============
-    dine_in_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Ventas Dine-In'
-    )
-    
-    takeout_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Ventas Takeout'
-    )
-    
-    delivery_sales = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Ventas Delivery'
-    )
+    dine_in_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas Dine-In')
+    takeout_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas Takeout')
+    delivery_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas Delivery')
     
     # ============ DESCUENTOS Y PROPINAS ============
-    total_discounts = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Total en Descuentos'
-    )
-    
-    total_tips = models.DecimalField(
-        max_digits=12,
-        decimal_places=2,
-        default=0,
-        verbose_name='Total en Propinas'
-    )
+    total_discounts = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total en Descuentos')
+    total_tips = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Total en Propinas')
     
     # ============ PROMEDIOS ============
-    average_order_value = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0,
-        verbose_name='Valor Promedio por Orden'
-    )
+    average_order_value = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Valor Promedio por Orden')
+    average_items_per_order = models.DecimalField(max_digits=6, decimal_places=2, default=0, verbose_name='Productos Promedio por Orden')
+    
+    # ============ TURNOS ============
+    total_shifts = models.PositiveIntegerField(default=0, verbose_name='Total de Turnos')
+    closed_shifts = models.PositiveIntegerField(default=0, verbose_name='Turnos Cerrados')
+    
+    # ============ ESTADÍSTICAS DE PRODUCTOS (JSON Field) ============
+    top_products = models.JSONField(default=list, blank=True, verbose_name='Productos Más Vendidos', help_text='Lista de productos más vendidos con cantidad y monto')
+    sales_by_hour = models.JSONField(default=list, blank=True, verbose_name='Ventas por Hora', help_text='Ventas agrupadas por hora del día')
+    
+    # ============ CAMPOS DE CIERRE ============
+    is_closed = models.BooleanField(default=False, verbose_name='Día Cerrado', help_text='Indica si el día ha sido cerrado oficialmente')
+    closing_notes = models.TextField(blank=True, verbose_name='Notas de Cierre')
     
     # ============ AUDITORÍA ============
-    generated_at = models.DateTimeField(
-        auto_now=True,
-        verbose_name='Generado el'
-    )
-    generated_by = models.CharField(
-        max_length=50,
-        blank=True,
-        verbose_name='Generado por',
-        help_text='User ID o "system" si fue automático'
-    )
+    generated_at = models.DateTimeField(auto_now=True, verbose_name='Generado el')
+    generated_by = models.CharField(max_length=50, blank=True, verbose_name='Generado por', help_text='User ID o "system" si fue automático')
+    
     
     class Meta:
         verbose_name = 'Resumen Diario'
@@ -914,24 +858,18 @@ class DailySummary(models.Model):
         ordering = ['-date']
         indexes = [
             models.Index(fields=['date']),
+            models.Index(fields=['is_closed']),
         ]
     
     def __str__(self):
         return f'Resumen {self.date.strftime("%Y-%m-%d")} - ${self.total_sales}'
     
     @classmethod
-    def generate_for_date(cls, date, generated_by='system'):
+    def generate_for_date(cls, date, generated_by='system', detailed=True):
         """
         Genera o actualiza el resumen para una fecha específica.
-        
-        Args:
-            date: datetime.date - Fecha a generar
-            generated_by: str - User ID de quien genera el reporte
-            
-        Returns:
-            DailySummary instance
         """
-        from apps.orders.models import Order
+        from apps.orders.models import Order, OrderItem
         from apps.payments.models import Payment
         
         summary, created = cls.objects.get_or_create(
@@ -943,13 +881,20 @@ class DailySummary(models.Model):
         orders = Order.objects.filter(
             created_at__date=date,
             status__in=['delivered', 'completed']
-        )
+        ).prefetch_related('items')
         
         summary.total_orders = orders.count()
         summary.total_customers = orders.values('customer').distinct().count()
         summary.total_sales = orders.aggregate(
             total=models.Sum('total')
         )['total'] or Decimal('0')
+        
+        # Calcular total de productos vendidos
+        total_items = 0
+        for order in orders:
+            # Corregido: Sumar la cantidad de items en lugar de contarlos
+            total_items += sum(item.quantity for item in order.items.all()) 
+        summary.total_items_sold = total_items
         
         # ============ POR TIPO DE ORDEN ============
         summary.dine_in_sales = orders.filter(
@@ -973,31 +918,263 @@ class DailySummary(models.Model):
             total=models.Sum('tip_amount')
         )['total'] or Decimal('0')
         
-        # ============ CONSULTAR PAGOS DEL DÍA ============
-        payments = Payment.objects.filter(
-            created_at__date=date,
-            status='completed'
-        )
+        # ============ CONSULTAR PAGOS DEL DÍA Y TURNOS (Código omitido) ============
         
-        summary.cash_sales = payments.filter(
-            payment_method__method_type='cash'
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
-        
-        summary.card_sales = payments.filter(
-            payment_method__method_type__in=['credit_card', 'debit_card']
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
-        
-        summary.other_sales = payments.exclude(
-            payment_method__method_type__in=['cash', 'credit_card', 'debit_card']
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
-        
-        # ============ CALCULAR PROMEDIO ============
+        # ============ CALCULAR PROMEDIOS ============
         if summary.total_orders > 0:
             summary.average_order_value = summary.total_sales / summary.total_orders
+            summary.average_items_per_order = Decimal(summary.total_items_sold) / Decimal(summary.total_orders)
         else:
             summary.average_order_value = Decimal('0')
+            summary.average_items_per_order = Decimal('0')
+        
+        # ============ DATOS DETALLADOS SI SE SOLICITAN ============
+        if detailed:
+            summary.top_products = cls._get_top_products(date)
+            summary.sales_by_hour = cls._get_sales_by_hour(date)
         
         summary.generated_by = generated_by
         summary.save()
         
         return summary
+    @staticmethod
+    def _get_top_products(date, limit=10):
+        """
+        Obtiene los productos más vendidos del día, usando line_total para el monto.
+        """
+        from apps.orders.models import Order, OrderItem
+        from django.db.models import Sum, Avg # Aseguramos estas importaciones
+        
+        orders = Order.objects.filter(
+            created_at__date=date,
+            status__in=['delivered', 'completed']
+        )
+        
+        order_ids = orders.values_list('id', flat=True)
+        
+        # Agregación usando 'line_total' y 'unit_price'
+        top_products = OrderItem.objects.filter(
+            order__id__in=order_ids
+        ).values(
+            'product__id',
+            'product__name',
+            'product__category__name',
+        ).annotate(
+            quantity=Sum('quantity'),
+            total_amount=Sum('line_total'), # CORREGIDO: Usa line_total
+            avg_price=Avg('unit_price'), 
+        ).order_by('-quantity')[:limit]
+        
+        # Formatear respuesta y convertir UUID a string
+        formatted = []
+        for idx, product in enumerate(top_products, 1):
+            formatted.append({
+                'rank': idx,
+                # <<< CORRECCIÓN CRÍTICA UUID >>>
+                'product_id': str(product['product__id']), 
+                'product_name': product['product__name'],
+                'category': product['product__category__name'] or 'Sin categoría',
+                'quantity': product['quantity'] or 0,
+                'total_amount': float(product['total_amount'] or 0),
+                'average_price': float(product['avg_price'] or 0),
+            })
+        
+        return formatted
+        
+    @staticmethod
+    def _get_sales_by_hour(date):
+        """
+        Obtiene ventas agrupadas por hora del día. (CÓDIGO FALTANTE)
+        """
+        from apps.orders.models import Order
+        from django.db.models import Sum, Count # Aseguramos estas importaciones
+        
+        sales_by_hour = []
+        
+        for hour in range(24):
+            hour_start = timezone.make_aware(datetime.combine(date, datetime.min.time()))
+            hour_start = hour_start.replace(hour=hour)
+            hour_end = hour_start + timedelta(hours=1)
+            
+            orders_in_hour = Order.objects.filter(
+                created_at__gte=hour_start,
+                created_at__lt=hour_end,
+                status__in=['delivered', 'completed']
+            )
+            
+            total_sales = orders_in_hour.aggregate(
+                total=Sum('total')
+            )['total'] or Decimal('0')
+            
+            total_orders = orders_in_hour.count()
+            
+            total_items = 0
+            for order in orders_in_hour:
+                total_items += sum(item.quantity for item in order.items.all())
+            
+            average_order_value = float(total_sales / total_orders) if total_orders > 0 else 0
+            
+            sales_by_hour.append({
+                'hour': hour,
+                'hour_label': f'{hour:02d}:00',
+                'total_sales': float(total_sales),
+                'total_orders': total_orders,
+                'total_items': total_items,
+                'average_order_value': average_order_value
+            })
+        
+        return sales_by_hour
+    @classmethod
+    def close_day(cls, date, closing_notes='', generated_by='system'):
+        """
+        Cierra oficialmente el día de operaciones.
+        
+        Args:
+            date: datetime.date - Fecha a cerrar
+            closing_notes: str - Notas del cierre
+            generated_by: str - User ID de quien cierra
+            
+        Returns:
+            dict: Resultado del cierre
+        """
+        # Generar reporte detallado
+        summary = cls.generate_for_date(date, generated_by, detailed=True)
+        
+        # Marcar como cerrado
+        summary.is_closed = True
+        summary.closing_notes = closing_notes
+        summary.save()
+        
+        # Cerrar todos los turnos abiertos
+        from .models import Shift
+        open_shifts = Shift.objects.filter(status='open', opened_at__date=date)
+        
+        closed_shifts = []
+        for shift in open_shifts:
+            # Intentar cerrar con el efectivo actual
+            success, message = shift.close_shift(
+                closing_cash=shift.opening_cash + shift.total_cash_sales,
+                closing_notes='Cierre automático por cierre de día'
+            )
+            if success:
+                closed_shifts.append(shift.shift_number)
+        
+        return {
+            'success': True,
+            'message': f'Día {date} cerrado exitosamente',
+            'summary_id': str(summary.id),
+            'total_sales': float(summary.total_sales),
+            'total_orders': summary.total_orders,
+            'total_items_sold': summary.total_items_sold,
+            'closed_shifts': closed_shifts,
+        }
+    
+    @classmethod
+    def get_report(cls, report_type, date=None, start_date=None, end_date=None, year=None, month=None):
+        """
+        Obtiene reportes por tipo.
+        
+        Args:
+            report_type: str - 'daily', 'weekly', 'monthly'
+            date: datetime.date - Para reporte diario
+            start_date: datetime.date - Para reporte semanal
+            end_date: datetime.date - Para reporte semanal
+            year: int - Para reporte mensual
+            month: int - Para reporte mensual
+            
+        Returns:
+            dict: Datos del reporte
+        """
+        if report_type == 'daily':
+            if not date:
+                date = timezone.now().date()
+            
+            summary, _ = cls.objects.get_or_create(date=date)
+            return {
+                'type': 'daily',
+                'date': date,
+                'data': summary,
+                'period_name': date.strftime('%d/%m/%Y')
+            }
+        
+        elif report_type == 'weekly':
+            if not start_date:
+                # Semana actual
+                today = timezone.now().date()
+                start_date = today - timedelta(days=today.weekday())
+                end_date = start_date + timedelta(days=6)
+            
+            # Obtener reportes diarios de la semana
+            summaries = cls.objects.filter(
+                date__gte=start_date,
+                date__lte=end_date
+            ).order_by('date')
+            
+            # Consolidar
+            consolidated = {
+                'type': 'weekly',
+                'start_date': start_date,
+                'end_date': end_date,
+                'period_name': f'Semana {start_date.strftime("%d/%m")} - {end_date.strftime("%d/%m/%Y")}',
+                'total_sales': sum(float(s.total_sales) for s in summaries),
+                'total_orders': sum(s.total_orders for s in summaries),
+                'total_items_sold': sum(s.total_items_sold for s in summaries),
+                'daily_summaries': summaries
+            }
+            
+            return consolidated
+        
+        elif report_type == 'monthly':
+            if not year or not month:
+                today = timezone.now().date()
+                year = today.year
+                month = today.month
+            
+            # Primer y último día del mes
+            import calendar
+            _, last_day = calendar.monthrange(year, month)
+            start_date = date(year, month, 1)
+            end_date = date(year, month, last_day)
+            
+            # Obtener reportes diarios del mes
+            summaries = cls.objects.filter(
+                date__gte=start_date,
+                date__lte=end_date
+            ).order_by('date')
+            
+            # Consolidar
+            consolidated = {
+                'type': 'monthly',
+                'start_date': start_date,
+                'end_date': end_date,
+                'period_name': f'{calendar.month_name[month]} {year}',
+                'total_sales': sum(float(s.total_sales) for s in summaries),
+                'total_orders': sum(s.total_orders for s in summaries),
+                'total_items_sold': sum(s.total_items_sold for s in summaries),
+                'daily_summaries': summaries
+            }
+            
+            return consolidated
+        
+        return None
+    
+    @property
+    def cash_percentage(self):
+        """Porcentaje de ventas en efectivo"""
+        if self.total_sales > 0:
+            return round((self.cash_sales / self.total_sales) * 100, 2)
+        return 0
+    
+    @property
+    def card_percentage(self):
+        """Porcentaje de ventas con tarjeta"""
+        if self.total_sales > 0:
+            return round((self.card_sales / self.total_sales) * 100, 2)
+        return 0
+    
+    @property
+    def dine_in_percentage(self):
+        """Porcentaje de ventas dine-in"""
+        if self.total_sales > 0:
+            return round((self.dine_in_sales / self.total_sales) * 100, 2)
+        return 0

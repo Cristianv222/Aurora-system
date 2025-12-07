@@ -240,28 +240,37 @@ class TableAdmin(admin.ModelAdmin):
 @admin.register(DailySummary)
 class DailySummaryAdmin(admin.ModelAdmin):
     """Admin para resúmenes diarios"""
+    
+    # Lista actualizada de columnas a mostrar en el listado de registros
     list_display = [
         'date',
-        'total_orders',
-        'total_customers',
         'total_sales',
+        'total_orders',
+        'total_items_sold', # <-- Campo que causaba el UndefinedColumn
         'average_order_value',
+        'cash_sales',       # <-- Nuevos campos de pago
+        'dine_in_sales',    # <-- Nuevos campos de tipo
         'total_discounts',
         'generated_at',
     ]
-    list_filter = ['date', 'generated_at']
+    
+    list_filter = ['date', 'is_closed', 'generated_at'] # Agregué 'is_closed'
     search_fields = ['date']
     
     fieldsets = (
-        ('Fecha', {
-            'fields': ('date',)
+        ('Fecha y Estado', { # Modificado el título para incluir el estado
+            'fields': ('date', 'is_closed', 'closing_notes')
         }),
-        ('Totales Generales', {
+        ('Totales Generales y Promedios', {
             'fields': (
                 'total_sales',
                 'total_orders',
+                'total_items_sold',
                 'total_customers',
                 'average_order_value',
+                'average_items_per_order', # <-- Agregado
+                'total_shifts',
+                'closed_shifts',
             )
         }),
         ('Por Método de Pago', {
@@ -284,14 +293,21 @@ class DailySummaryAdmin(admin.ModelAdmin):
                 'total_tips',
             )
         }),
+        ('Datos Detallados (JSON)', {
+            'fields': ('top_products', 'sales_by_hour'),
+            'classes': ('collapse',), # Opcional: para que se colapse por defecto
+        }),
         ('Auditoría', {
             'fields': ('generated_at', 'generated_by')
         }),
     )
     
+    # Campos que Django no debe permitir editar
     readonly_fields = [
+        'is_closed', # También solo de lectura
         'total_sales',
         'total_orders',
+        'total_items_sold',
         'total_customers',
         'cash_sales',
         'card_sales',
@@ -302,7 +318,13 @@ class DailySummaryAdmin(admin.ModelAdmin):
         'total_discounts',
         'total_tips',
         'average_order_value',
+        'average_items_per_order',
+        'total_shifts',
+        'closed_shifts',
+        'top_products',
+        'sales_by_hour',
         'generated_at',
+        'generated_by',
     ]
     
     def has_add_permission(self, request):

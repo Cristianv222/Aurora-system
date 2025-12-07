@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 echo "Iniciando Aurora System en modo desarrollo..."
 docker-compose up -d

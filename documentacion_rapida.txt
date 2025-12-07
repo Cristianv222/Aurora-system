@@ -1,0 +1,2018 @@
+📚 DOCUMENTACIÓN RÁPIDA DEL PROYECTO 🚀
+======================================
+
+Directorio Raíz Analizado: .
+
+## 1. 📂 Estructura de Directorios
+├── ./
+    ├── docker-compose.yml
+    ├── documentador.py
+    ├── .git/
+        ├── hooks/
+        ├── info/
+        ├── logs/
+            ├── refs/
+                ├── heads/
+                ├── remotes/
+                    ├── origin/
+        ├── objects/
+            ├── info/
+            ├── pack/
+        ├── refs/
+            ├── heads/
+            ├── remotes/
+                ├── origin/
+            ├── tags/
+    ├── auth-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── authentication/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── roles/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── management/
+                    ├── __init__.py
+                    ├── commands/
+                        ├── create_initial_data.py
+                        ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── __init__.py
+            ├── users/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── __init__.py
+        ├── auth_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+        ├── core/
+            ├── exceptions.py
+            ├── middleware.py
+            ├── utils.py
+            ├── __init__.py
+    ├── fast-food-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── customers/
+                ├── admin.py
+                ├── apps.py
+                ├── models.py
+                ├── serializers.py
+                ├── signals.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── 0002_customer_last_login_customer_password.py
+                    ├── __init__.py
+            ├── kitchen/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── menu/
+                ├── admin.py
+                ├── filters.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── 0002_alter_product_image.py
+                    ├── __init__.py
+            ├── orders/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── 0002_alter_order_status_and_more.py
+                    ├── __init__.py
+            ├── payments/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── __init__.py
+            ├── pos/
+                ├── admin.py
+                ├── models.py
+                ├── permissions.py
+                ├── report_utils.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── __init__.py
+            ├── printer/
+                ├── admin.py
+                ├── apps.py
+                ├── models.py
+                ├── print_manager.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── utils.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── 0001_initial.py
+                    ├── __init__.py
+            ├── reports/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+        ├── core/
+            ├── authentication.py
+            ├── exceptions.py
+            ├── middleware.py
+            ├── permissions.py
+            ├── utils.py
+            ├── __init__.py
+            ├── utils/
+                ├── service_client.py
+                ├── __init__.py
+        ├── fast-food_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+        ├── media/
+            ├── menu/
+                ├── categories/
+                ├── items/
+    ├── frontend/
+        ├── Dockerfile
+        ├── package-lock.json
+        ├── package.json
+        ├── public/
+        ├── src/
+            ├── App.js
+            ├── index.js
+            ├── components/
+                ├── ServicePlaceholder.js
+                ├── UserForm.js
+                ├── UserList.js
+            ├── comun/
+                ├── BarraLateral.js
+                ├── BarraNavegacion.js
+                ├── Diseno.js
+                ├── Modal.js
+            ├── context/
+                ├── AuthContext.js
+            ├── modulos/
+                ├── fast-food/
+                    ├── BarraLateralFastFood.js
+                    ├── Categorias.js
+                    ├── Clientes.js
+                    ├── Combos.js
+                    ├── DisenoFastFood.js
+                    ├── Extras.js
+                    ├── Impresoras.js
+                    ├── Inventario.js
+                    ├── Ordenes.js
+                    ├── PanelFastFood.js
+                    ├── PuntosVenta.js
+                    ├── Reportes.js
+                    ├── ShiftManager.js
+                    ├── Tamanos.js
+                ├── login/
+                    ├── Login.js
+                ├── usuarios/
+                    ├── FormularioUsuario.js
+                    ├── ListaUsuarios.js
+            ├── services/
+                ├── api.js
+            ├── styles/
+            ├── utils/
+                ├── printOrderPDF.js
+    ├── hotel-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── checkin/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── guests/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── reports/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── reservations/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── rooms/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── services/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+        ├── core/
+            ├── exceptions.py
+            ├── middleware.py
+            ├── utils.py
+            ├── __init__.py
+        ├── hotel_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+    ├── notification-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── email/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── push/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── sms/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+        ├── core/
+            ├── exceptions.py
+            ├── middleware.py
+            ├── utils.py
+            ├── __init__.py
+        ├── notification_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+    ├── pool-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── access/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── customers/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── lockers/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── pricing/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── reports/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+        ├── core/
+            ├── exceptions.py
+            ├── middleware.py
+            ├── utils.py
+            ├── __init__.py
+        ├── pool_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+    ├── reporting-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── analytics/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── consolidation/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── dashboards/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── exports/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── integrations/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+        ├── core/
+            ├── authentication.py
+            ├── exceptions.py
+            ├── middleware.py
+            ├── permissions.py
+            ├── utils.py
+            ├── __init__.py
+            ├── utils/
+                ├── service_client.py
+                ├── __init__.py
+        ├── reporting_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+    ├── restaurant-service/
+        ├── Dockerfile
+        ├── manage.py
+        ├── apps/
+            ├── customers/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── kitchen/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── menu/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── orders/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── payments/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── pos/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── printer/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── reports/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── reservations/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+            ├── tables/
+                ├── admin.py
+                ├── models.py
+                ├── serializers.py
+                ├── tests.py
+                ├── urls.py
+                ├── views.py
+                ├── __init__.py
+                ├── migrations/
+                    ├── __init__.py
+        ├── core/
+            ├── authentication.py
+            ├── exceptions.py
+            ├── middleware.py
+            ├── permissions.py
+            ├── utils.py
+            ├── __init__.py
+            ├── utils/
+                ├── service_client.py
+                ├── __init__.py
+        ├── restaurant_service/
+            ├── asgi.py
+            ├── settings.py
+            ├── urls.py
+            ├── wsgi.py
+            ├── __init__.py
+    ├── scripts/
+    ├── shared/
+        ├── middleware/
+            ├── jwt_auth_middleware.py
+            ├── permissions.py
+        ├── utils/
+            ├── service_client.py
+
+==================================================
+
+## 2. 📝 Resumen del Código (Backend Python/Django)
+
+### Archivo: \documentadorpy
+    - **generar_documentacion**:
+      > Genera un archivo de documentación básica del proyecto.  with open(output_file, 'w', encoding='utf-8') as f: f.write("📚 DOCUMENTACIÓN RÁPIDA DEL PROYECTO 🚀 ") f.write("======================================  ") f.write(f"Directorio Raíz Analizado: {root_dir}  ")  # 1. Análisis de Estructura de Directorios f.write("## 1. 📂 Estructura de Directorios ") analizar_estructura(root_dir, f) f.write(" " + "="*50 + "  ")  # 2. Resumen de Código (Métodos y Docstrings) f.write("## 2. 📝 Resumen del Código (Backend Python/Django) ") analizar_codigo(root_dir, f) f.write(" " + "="*50 + "  ")  # 3. Archivos Clave de Configuración (Docker, Django, React) f.write("## 3. ⚙️ Archivos Clave de Configuración ") mostrar_archivos_clave(root_dir, f)  print(f" ✅ Documentación generada con éxito en: {output_file}")   def analizar_estructura(startpath, file_handle): Recorre la estructura de directorios e imprime en el archivo.
+    - **analizar_estructura**:
+      > Recorre la estructura de directorios e imprime en el archivo. for root, dirs, files in os.walk(startpath): # Ignorar directorios comunes que no aportan valor a la estructura principal if 'node_modules' in dirs: dirs.remove('node_modules') if '__pycache__' in dirs: dirs.remove('__pycache__')  level = root.replace(startpath, '').count(os.sep) indent = ' ' * 4 * level file_handle.write(f"{indent}├── {os.path.basename(root)}/ ") sub_indent = ' ' * 4 * (level + 1)  # Muestra los archivos más importantes en el nivel actual important_files = [f for f in files if f.endswith(('.py', '.js', '.jsx', '.ts', '.tsx', '.yml', '.json')) or f in CONFIG_FILES]  for f_name in important_files: file_handle.write(f"{sub_indent}├── {f_name} ")   def analizar_codigo(startpath, file_handle): Busca archivos Python y extrae métodos/docstrings.
+    - **analizar_codigo**:
+      > Busca archivos Python y extrae métodos/docstrings. for root, _, files in os.walk(startpath): for file in files: if file.endswith('.py') and 'migrations' not in root: filepath = os.path.join(root, file) try: with open(filepath, 'r', encoding='utf-8') as f: content = f.readlines()  methods_found = []  for i, line in enumerate(content): line = line.strip()  # Buscar definición de función/método if any(line.startswith(keyword) for keyword in METHOD_KEYWORDS): method_name = line.split('(')[0].replace('def', '').replace('async', '').strip() docstring = ""  # Buscar Docstring (bloque de comentario triple) inmediatamente después if i + 1 < len(content): next_line = content[i+1].strip() if next_line.startswith('') or next_line.startswith(""): docstring_lines = [next_line.replace('', '').replace("", '')] for j in range(i + 2, len(content)): docstring_line = content[j].strip() docstring_lines.append(docstring_line) if docstring_line.endswith('') or docstring_line.endswith(""): docstring = " ".join(docstring_lines).strip() # Limpiar el delimitador final de la docstring docstring = docstring.replace('', '').replace("", '').replace('\ ', ' ') break  methods_found.append(f"    - **{method_name}**:       > {docstring if docstring else 'Sin Docstring / Descripción no encontrada.'} ")  if methods_found: file_handle.write(f" ### Archivo: {filepath.replace(startpath, '')} ") file_handle.write("".join(methods_found))  except Exception as e: file_handle.write(f" ### Error al leer {filepath}: {e} ")   def mostrar_archivos_clave(startpath, file_handle): Muestra el contenido de archivos de configuración clave.
+    - **mostrar_archivos_clave**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\authentication\serializerspy
+    - **get_token**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **create**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\authentication\viewspy
+    - **register_view**:
+      > Registro de nuevo usuario serializer = RegisterSerializer(data=request.data) if serializer.is_valid(): user = serializer.save()  # Generar tokens para el usuario recién creado refresh = RefreshToken.for_user(user)  return Response({ 'message': 'Usuario creado exitosamente', 'user': UserSerializer(user).data, 'tokens': { 'refresh': str(refresh), 'access': str(refresh.access_token), } }, status=status.HTTP_201_CREATED)  return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)   @api_view(['POST']) @permission_classes([AllowAny]) def verify_token_view(request): Verificar si un token JWT es válido
+    - **verify_token_view**:
+      > Verificar si un token JWT es válido serializer = VerifyTokenSerializer(data=request.data) if not serializer.is_valid(): return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  token = serializer.validated_data['token']  try: # Decodificar el token access_token = AccessToken(token)  # Extraer datos del token user_id = access_token['user_id']  return Response({ 'valid': True, 'user_id': user_id, 'username': access_token.get('username'), 'email': access_token.get('email'), 'full_name': access_token.get('full_name'), 'role': access_token.get('role'), 'role_id': access_token.get('role_id'), 'is_staff': access_token.get('is_staff'), 'is_superuser': access_token.get('is_superuser'), }, status=status.HTTP_200_OK)  except TokenError as e: return Response({ 'valid': False, 'error': str(e) }, status=status.HTTP_401_UNAUTHORIZED) except Exception as e: return Response({ 'valid': False, 'error': 'Token inválido' }, status=status.HTTP_401_UNAUTHORIZED)   @api_view(['GET']) @permission_classes([IsAuthenticated]) def current_user_view(request): Obtener información del usuario actual
+    - **current_user_view**:
+      > Obtener información del usuario actual serializer = UserSerializer(request.user) return Response(serializer.data)   @api_view(['POST']) @permission_classes([IsAuthenticated]) def logout_view(request): Logout - Invalidar refresh token
+    - **logout_view**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\roles\adminpy
+    - **user_count**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\roles\modelspy
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\roles\serializerspy
+    - **validate_permissions**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\roles\viewspy
+    - **get_serializer_class**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_permissions**:
+      > Solo admins pueden crear, actualizar y eliminar roles 
+    - **choices**:
+      > Obtener lista de roles disponibles para select/dropdown GET /api/roles/choices/ 
+    - **users**:
+      > Obtener usuarios con este rol GET /api/roles/{id}/users/ 
+    - **by_service**:
+      > Agrupar permisos por servicio GET /api/permissions/by_service/ 
+
+### Archivo: \auth-service\apps\roles\management\commands\create_initial_datapy
+    - **handle**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\users\modelspy
+    - **create_user**:
+      > Sin Docstring / Descripción no encontrada.
+    - **create_superuser**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_full_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_permission**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\users\serializerspy
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **create**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \auth-service\apps\users\viewspy
+    - **get_serializer_class**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_permissions**:
+      > Solo admins pueden crear, actualizar y eliminar usuarios 
+    - **get_queryset**:
+      > Los usuarios normales solo pueden ver su propio perfil Los admins pueden ver todos los usuarios 
+    - **me**:
+      > Endpoint para obtener el perfil del usuario actual GET /api/users/me/ 
+    - **change_password**:
+      > Cambiar contraseña de un usuario POST /api/users/{id}/change_password/ 
+    - **activate**:
+      > Activar un usuario POST /api/users/{id}/activate/ 
+    - **deactivate**:
+      > Desactivar un usuario POST /api/users/{id}/deactivate/ 
+    - **staff**:
+      > Listar solo usuarios staff GET /api/users/staff/ 
+    - **by_role**:
+      > Filtrar usuarios por rol GET /api/users/by_role/?role=ADMIN_FAST_FOOD 
+
+### Archivo: \fast-food-service\apps\customers\adminpy
+    - **full_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **total_spent_display**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_add_permission**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_add_permission**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_change_permission**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\customers\appspy
+    - **ready**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\customers\modelspy
+    - **create_user**:
+      > Sin Docstring / Descripción no encontrada.
+    - **create_superuser**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_full_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_short_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_anonymous**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_authenticated**:
+      > Sin Docstring / Descripción no encontrada.
+    - **check_password**:
+      > Sin Docstring / Descripción no encontrada.
+    - **set_password**:
+      > Sin Docstring / Descripción no encontrada.
+    - **update_order_stats**:
+      > Actualiza estadísticas después de un pedido self.total_orders += 1 self.total_spent += order_amount self.last_order_date = timezone.now() self.average_order_value = self.total_spent / self.total_orders if self.total_orders > 0 else 0 self.save(update_fields=['total_orders', 'total_spent', 'last_order_date', 'average_order_value'])  def calculate_loyalty_points(self): Calcula puntos de lealtad basados en compras
+    - **calculate_loyalty_points**:
+      > Calcula puntos de lealtad basados en compras return int(self.total_spent * 10)  # 10 puntos por cada dólar gastado  @property def customer_since(self): Días desde que es cliente
+    - **customer_since**:
+      > Días desde que es cliente if self.created_at: return (timezone.now() - self.created_at).days return 0  @property def days_since_last_order(self): Días desde el último pedido
+    - **days_since_last_order**:
+      > Días desde el último pedido if self.last_order_date: return (timezone.now() - self.last_order_date).days return None   class CustomerAddress(models.Model): Direcciones adicionales del cliente
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **update_tier**:
+      > Actualiza el tier basado en puntos old_tier = self.current_tier  if self.points_balance >= 15000: self.current_tier = 'platinum' self.discount_rate = 15 self.free_delivery = True self.priority_service = True elif self.points_balance >= 5000: self.current_tier = 'gold' self.discount_rate = 10 self.free_delivery = True self.priority_service = False elif self.points_balance >= 1000: self.current_tier = 'silver' self.discount_rate = 5 self.free_delivery = False self.priority_service = False else: self.current_tier = 'bronze' self.discount_rate = 0 self.free_delivery = False self.priority_service = False  # Calcular progreso al siguiente tier self.calculate_next_tier_progress()  # Si cambió de tier, registrar fecha if old_tier != self.current_tier: self.tier_achieved_date = timezone.now()  def calculate_next_tier_progress(self): Calcula progreso al siguiente tier
+    - **calculate_next_tier_progress**:
+      > Calcula progreso al siguiente tier if self.current_tier == 'platinum': self.next_tier_progress = 100 elif self.current_tier == 'gold': self.next_tier_progress = min(100, (self.points_balance / 15000) * 100) elif self.current_tier == 'silver': self.next_tier_progress = min(100, (self.points_balance / 5000) * 100) else:  # bronze self.next_tier_progress = min(100, (self.points_balance / 1000) * 100)  def add_points(self, points, reason=''): Añade puntos al programa de lealtad
+    - **add_points**:
+      > Añade puntos al programa de lealtad self.points_balance += points self.total_points_earned += points self.update_tier() self.save()  # Crear historial CustomerLoyaltyHistory.objects.create( loyalty=self, transaction_type='earn', points_change=points, balance_after=self.points_balance, reason=reason )   class CustomerLoyaltyHistory(models.Model): Historial de cambios en puntos de lealtad
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\customers\serializerspy
+    - **get_full_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_loyalty_points**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_customer_since_days**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **create**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_created_by_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_customer_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_next_tier_name**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_next_tier_points_needed**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate_query**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\customers\signalspy
+    - **create_customer_loyalty**:
+      > Crear automáticamente programa de lealtad cuando se crea un cliente 
+    - **update_vip_status**:
+      > Actualizar automáticamente estado VIP basado en gastos 
+
+### Archivo: \fast-food-service\apps\customers\viewspy
+    - **register_customer**:
+      > Endpoint público para registro de nuevos clientes POST /api/customers/register/ 
+    - **login_customer**:
+      > Endpoint público para login de clientes POST /api/customers/login/ 
+    - **verify_email**:
+      > Endpoint público para verificar email POST /api/customers/verify-email/ 
+    - **get_customer_profile**:
+      > Obtener perfil del cliente autenticado GET /api/customers/me/ 
+    - **update_customer_profile**:
+      > Actualizar perfil del cliente autenticado PUT/PATCH /api/customers/me/ 
+    - **get_customer_stats**:
+      > Obtener estadísticas personales del cliente GET /api/customers/me/stats/ 
+    - **get_customer_loyalty**:
+      > Obtener información de lealtad del cliente GET /api/customers/me/loyalty/ 
+    - **get_loyalty_history**:
+      > Obtener historial de puntos de lealtad GET /api/customers/me/loyalty/history/ 
+    - **get_customer_addresses**:
+      > Obtener todas las direcciones del cliente GET /api/customers/me/addresses/ 
+    - **create_customer_address**:
+      > Crear una nueva dirección para el cliente POST /api/customers/me/addresses/ 
+    - **customer_address_detail**:
+      > Operaciones CRUD en una dirección específica GET /api/customers/me/addresses/{id}/ PUT /api/customers/me/addresses/{id}/ PATCH /api/customers/me/addresses/{id}/ DELETE /api/customers/me/addresses/{id}/ 
+    - **get_ault_address**:
+      > Obtener dirección por defecto del cliente GET /api/customers/me/addresses/default/ GET /api/customers/me/addresses/default/{type}/ 
+    - **register_device**:
+      > Registrar dispositivo para notificaciones push POST /api/customers/me/devices/ 
+    - **unregister_device**:
+      > Desregistrar dispositivo DELETE /api/customers/me/devices/{token}/ 
+    - **admin_customer_list**:
+      > Listar todos los clientes (solo admin) GET /api/customers/admin/list/ 
+    - **admin_customer_detail**:
+      > Ver detalle de un cliente (solo admin) GET /api/customers/admin/{id}/ 
+    - **admin_create_customer_note**:
+      > Crear nota para un cliente (solo admin) POST /api/customers/admin/{id}/notes/ 
+    - **admin_add_loyalty_points**:
+      > Añadir puntos de lealtad a un cliente (solo admin) POST /api/customers/admin/{id}/loyalty/add-points/ 
+    - **admin_customer_stats**:
+      > Estadísticas generales de clientes (solo admin) GET /api/customers/admin/stats/ 
+    - **admin_search_customers**:
+      > Búsqueda avanzada de clientes (solo admin) POST /api/customers/admin/search/ 
+    - **health_check**:
+      > Health check del servicio de clientes GET /api/customers/health/ 
+    - **service_info**:
+      > Información del servicio GET /api/customers/info/ 
+
+### Archivo: \fast-food-service\apps\menu\adminpy
+    - **products_count**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\menu\modelspy
+    - **menu_item_image_path**:
+      > Genera la ruta para las imágenes de items del menú ext = filename.split('.')[-1] filename = f'{instance.id}.{ext}' return os.path.join('menu', 'items', filename)  def category_image_path(instance, filename): Genera la ruta para las imágenes de categorías
+    - **category_image_path**:
+      > Genera la ruta para las imágenes de categorías ext = filename.split('.')[-1] filename = f'{instance.id}.{ext}' return os.path.join('menu', 'categories', filename)   class Category(models.Model): Categorías dinámicas del menú
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_available_now**:
+      > Verifica disponibilidad return self.is_active and self.is_available   class Size(models.Model): Tamaños disponibles para productos (Small, Medium, Large)
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_final_price**:
+      > Calcula el precio final del tamaño return self.product.price + self.price_adjustment   class Extra(models.Model): Extras/Adicionales para los productos (Queso extra, Bacon, etc.)
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\menu\serializerspy
+    - **get_products_count**:
+      > Cuenta productos activos en la categoría return obj.products.filter(is_active=True, is_available=True).count()   class SizeSerializer(serializers.ModelSerializer): Serializer para tamaños de productos
+    - **get_final_price**:
+      > Calcula el precio final del tamaño return float(obj.get_final_price())   class ExtraSerializer(serializers.ModelSerializer): Serializer para extras
+    - **get_has_sizes**:
+      > Indica si el producto tiene tamaños return obj.sizes.filter(is_active=True).exists()  def get_has_extras(self, obj): Indica si el producto tiene extras
+    - **get_has_extras**:
+      > Indica si el producto tiene extras return obj.extras.filter(is_active=True).exists()   class ProductDetailSerializer(serializers.ModelSerializer): Serializer completo para detalle de productos
+    - **get_is_available_now**:
+      > Verifica si está disponible ahora return obj.is_available_now()   class ProductCreateUpdateSerializer(serializers.ModelSerializer): Serializer para crear/actualizar productos
+    - **validate_price**:
+      > Valida que el precio sea positivo if value < 0: raise serializers.ValidationError("El precio debe ser mayor o igual a 0") return value   class ComboProductSerializer(serializers.ModelSerializer): Serializer para productos de combo
+    - **get_products_count**:
+      > Cuenta productos en el combo return obj.combo_products.count()   class ComboDetailSerializer(serializers.ModelSerializer): Serializer detallado para combos
+    - **get_total_individual_price**:
+      > Calcula precio si se compraran los productos por separado total = sum( cp.product.price * cp.quantity for cp in obj.combo_products.all() ) return float(total)  def get_savings(self, obj): Calcula el ahorro del combo
+    - **get_savings**:
+      > Calcula el ahorro del combo individual_price = self.get_total_individual_price(obj) savings = individual_price - float(obj.price) return round(savings, 2)   class ComboCreateUpdateSerializer(serializers.ModelSerializer): Serializer para crear/actualizar combos
+    - **create**:
+      > Crea combo con productos incluidos combo_products_data = validated_data.pop('combo_products', []) combo = Combo.objects.create(**validated_data)  for product_data in combo_products_data: product_id = product_data.pop('product_id') ComboProduct.objects.create( combo=combo, product_id=product_id, **product_data )  return combo  def update(self, instance, validated_data): Actualiza combo y sus productos
+    - **update**:
+      > Actualiza combo y sus productos combo_products_data = validated_data.pop('combo_products', None)  # Actualizar campos del combo for attr, value in validated_data.items(): setattr(instance, attr, value) instance.save()  # Actualizar productos del combo si se proporcionaron if combo_products_data is not None: instance.combo_products.all().delete() for product_data in combo_products_data: product_id = product_data.pop('product_id') ComboProduct.objects.create( combo=instance, product_id=product_id, **product_data )  return instance   class SizeCreateUpdateSerializer(serializers.ModelSerializer): Serializer para crear/actualizar tamaños
+    - **create**:
+      > Crea extra y asocia productos product_ids = validated_data.pop('product_ids', []) extra = Extra.objects.create(**validated_data)  if product_ids: extra.products.set(product_ids)  return extra  def update(self, instance, validated_data): Actualiza extra y sus productos asociados
+    - **update**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\menu\viewspy
+    - **test_auth_view**:
+      > Vista de prueba para verificar que la autenticación JWT funciona GET /api/menu/test-auth/ 
+    - **test_staff_view**:
+      > Vista de prueba que requiere permisos de staff GET /api/menu/test-staff/ 
+    - **health_check**:
+      > Health check endpoint (sin autenticación) GET /api/menu/health/ 
+    - **get_queryset**:
+      > Optimiza queries con prefetch queryset = super().get_queryset()  # Si es listado público, solo mostrar activas if self.action == 'list' and not self.request.user.is_authenticated: queryset = queryset.filter(is_active=True)  return queryset  @action(detail=True, methods=['get']) def products(self, request, slug=None): Obtiene todos los productos de una categoría
+    - **products**:
+      > Obtiene todos los productos de una categoría category = self.get_object() products = category.products.filter( is_active=True, is_available=True ).select_related('category').prefetch_related('sizes', 'extras')  serializer = ProductListSerializer(products, many=True) return Response(serializer.data)  @action(detail=False, methods=['get']) def featured(self, request): Obtiene categorías destacadas con productos destacados
+    - **featured**:
+      > Obtiene categorías destacadas con productos destacados categories = self.get_queryset().filter( is_active=True, products__is_featured=True ).distinct()  serializer = self.get_serializer(categories, many=True) return Response(serializer.data)   class ProductViewSet(viewsets.ModelViewSet): 
+    - **get_queryset**:
+      > Optimiza queries y filtra según contexto queryset = super().get_queryset().select_related('category').prefetch_related( 'sizes', 'extras' )  # Filtros adicionales por query params min_price = self.request.query_params.get('min_price') max_price = self.request.query_params.get('max_price')  if min_price: queryset = queryset.filter(price__gte=min_price) if max_price: queryset = queryset.filter(price__lte=max_price)  # Si es listado público, solo mostrar activos y disponibles if self.action == 'list' and not self.request.user.is_authenticated: queryset = queryset.filter(is_active=True, is_available=True)  return queryset  def get_serializer_class(self): Retorna el serializer apropiado según la acción
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado según la acción if self.action == 'list': return ProductListSerializer elif self.action in ['create', 'update', 'partial_update']: return ProductCreateUpdateSerializer return ProductDetailSerializer  @action(detail=False, methods=['get']) def featured(self, request): Obtiene productos destacados
+    - **featured**:
+      > Obtiene productos destacados products = self.get_queryset().filter( is_featured=True, is_active=True, is_available=True )[:10]  serializer = ProductListSerializer(products, many=True) return Response(serializer.data)  @action(detail=False, methods=['get']) def new(self, request): Obtiene productos nuevos
+    - **new**:
+      > Obtiene productos nuevos products = self.get_queryset().filter( is_new=True, is_active=True, is_available=True ).order_by('-created_at')[:10]  serializer = ProductListSerializer(products, many=True) return Response(serializer.data)  @action(detail=True, methods=['get']) def sizes(self, request, slug=None): Obtiene tamaños disponibles del producto
+    - **sizes**:
+      > Obtiene tamaños disponibles del producto product = self.get_object() sizes = product.sizes.filter(is_active=True).order_by('display_order')  serializer = SizeSerializer(sizes, many=True) return Response(serializer.data)  @action(detail=True, methods=['get']) def extras(self, request, slug=None): Obtiene extras disponibles del producto
+    - **extras**:
+      > Obtiene extras disponibles del producto product = self.get_object() extras = product.extras.filter(is_active=True).order_by('display_order')  serializer = ExtraSerializer(extras, many=True) return Response(serializer.data)  @action(detail=False, methods=['get']) def search(self, request): Búsqueda avanzada de productos
+    - **search**:
+      > Búsqueda avanzada de productos query = request.query_params.get('q', '')  if not query: return Response( {'error': 'El parámetro "q" es requerido'}, status=status.HTTP_400_BAD_REQUEST )  products = self.get_queryset().filter( Q(name__icontains=query) | Q(description__icontains=query) | Q(ingredients__icontains=query) | Q(category__name__icontains=query) ).distinct()  serializer = ProductListSerializer(products, many=True) return Response(serializer.data)   class SizeViewSet(viewsets.ModelViewSet): 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().select_related('product')  def get_serializer_class(self): Retorna el serializer apropiado
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado if self.action in ['create', 'update', 'partial_update']: return SizeCreateUpdateSerializer return SizeSerializer  @action(detail=False, methods=['get']) def by_product(self, request): Obtiene tamaños de un producto específico
+    - **by_product**:
+      > Obtiene tamaños de un producto específico product_id = request.query_params.get('product_id')  if not product_id: return Response( {'error': 'El parámetro "product_id" es requerido'}, status=status.HTTP_400_BAD_REQUEST )  sizes = self.get_queryset().filter( product_id=product_id, is_active=True )  serializer = SizeSerializer(sizes, many=True) return Response(serializer.data)   class ExtraViewSet(viewsets.ModelViewSet): 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().prefetch_related('products')  def get_serializer_class(self): Retorna el serializer apropiado
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado if self.action in ['create', 'update', 'partial_update']: return ExtraCreateUpdateSerializer return ExtraSerializer  @action(detail=False, methods=['get']) def by_product(self, request): Obtiene extras disponibles para un producto específico
+    - **by_product**:
+      > Obtiene extras disponibles para un producto específico product_id = request.query_params.get('product_id')  if not product_id: return Response( {'error': 'El parámetro "product_id" es requerido'}, status=status.HTTP_400_BAD_REQUEST )  extras = self.get_queryset().filter( products__id=product_id, is_active=True )  serializer = ExtraSerializer(extras, many=True) return Response(serializer.data)  @action(detail=True, methods=['post']) def add_products(self, request, pk=None): Asocia productos a un extra
+    - **add_products**:
+      > Asocia productos a un extra extra = self.get_object() product_ids = request.data.get('product_ids', [])  if not product_ids: return Response( {'error': 'Se requiere una lista de product_ids'}, status=status.HTTP_400_BAD_REQUEST )  extra.products.add(*product_ids)  serializer = self.get_serializer(extra) return Response(serializer.data)  @action(detail=True, methods=['post']) def remove_products(self, request, pk=None): Desasocia productos de un extra
+    - **remove_products**:
+      > Desasocia productos de un extra extra = self.get_object() product_ids = request.data.get('product_ids', [])  if not product_ids: return Response( {'error': 'Se requiere una lista de product_ids'}, status=status.HTTP_400_BAD_REQUEST )  extra.products.remove(*product_ids)  serializer = self.get_serializer(extra) return Response(serializer.data)   class ComboViewSet(viewsets.ModelViewSet): 
+    - **get_queryset**:
+      > Optimiza queries queryset = super().get_queryset().prefetch_related( Prefetch( 'combo_products', queryset=ComboProduct.objects.select_related('product') ) )  # Filtros adicionales min_price = self.request.query_params.get('min_price') max_price = self.request.query_params.get('max_price')  if min_price: queryset = queryset.filter(price__gte=min_price) if max_price: queryset = queryset.filter(price__lte=max_price)  # Si es listado público, solo mostrar activos if self.action == 'list' and not self.request.user.is_authenticated: queryset = queryset.filter(is_active=True)  return queryset  def get_serializer_class(self): Retorna el serializer apropiado
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado if self.action == 'list': return ComboListSerializer elif self.action in ['create', 'update', 'partial_update']: return ComboCreateUpdateSerializer return ComboDetailSerializer  @action(detail=False, methods=['get']) def featured(self, request): Obtiene combos destacados
+    - **featured**:
+      > Obtiene combos destacados combos = self.get_queryset().filter( is_featured=True, is_active=True )[:10]  serializer = ComboListSerializer(combos, many=True) return Response(serializer.data)  @action(detail=True, methods=['get']) def products(self, request, slug=None): Obtiene productos incluidos en el combo
+    - **products**:
+      > Obtiene productos incluidos en el combo combo = self.get_object() combo_products = combo.combo_products.all().select_related('product')  # Retornar información detallada de los productos data = [] for cp in combo_products: data.append({ 'id': cp.id, 'product': ProductListSerializer(cp.product).data, 'quantity': cp.quantity, 'is_selectable': cp.is_selectable, 'display_order': cp.display_order })  return Response(data)  @action(detail=False, methods=['get']) def calculate_savings(self, request): Calcula ahorro de todos los combos
+    - **calculate_savings**:
+      > Calcula ahorro de todos los combos combos = self.get_queryset().filter(is_active=True)  data = [] for combo in combos: individual_price = sum( cp.product.price * cp.quantity for cp in combo.combo_products.all() ) savings = individual_price - combo.price savings_percentage = (savings / individual_price * 100) if individual_price > 0 else 0  data.append({ 'id': combo.id, 'name': combo.name, 'combo_price': float(combo.price), 'individual_price': float(individual_price), 'savings': float(savings), 'savings_percentage': round(savings_percentage, 2) })  return Response(data)   class MenuViewSet(viewsets.ViewSet): 
+    - **full**:
+      > Obtiene el menú completo con todas las categorías y productos 
+    - **summary**:
+      > Obtiene un resumen del menú (solo categorías con conteos) 
+
+### Archivo: \fast-food-service\apps\orders\modelspy
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_order_number**:
+      > Genera un número de orden único from datetime import datetime timestamp = datetime.now().strftime('%y%m%d%H%M%S') random_suffix = str(uuid.uuid4().hex[:3]).upper() return f'ORD-{timestamp}-{random_suffix}'  def calculate_totals(self): Calcula los totales de la orden
+    - **calculate_totals**:
+      > Calcula los totales de la orden # Calcular subtotal de items items_total = sum(item.line_total for item in self.items.all()) self.subtotal = items_total  # Calcular impuestos (ejemplo: 12%) tax_rate = Decimal('0.00') self.tax_amount = self.subtotal * tax_rate  # Calcular total self.total = ( self.subtotal + self.tax_amount + self.delivery_fee + self.tip_amount - self.discount_amount )  def calculate_estimated_time(self): Calcula el tiempo estimado basado en los items
+    - **calculate_estimated_time**:
+      > Calcula el tiempo estimado basado en los items max_prep_time = max( (item.product.prep_time for item in self.items.all()), default=15 ) self.estimated_prep_time = max_prep_time  def can_be_modified(self): Verifica si la orden puede ser modificada
+    - **can_be_modified**:
+      > Verifica si la orden puede ser modificada return self.status == 'pending'  def mark_as_confirmed(self): Marca la orden como confirmada
+    - **mark_as_confirmed**:
+      > Marca la orden como confirmada if self.status == 'pending': self.status = 'confirmed' self.confirmed_at = timezone.now() self.save() return True return False  def mark_as_preparing(self): Marca la orden como en preparación
+    - **mark_as_preparing**:
+      > Marca la orden como en preparación if self.status in ['pending', 'confirmed']: self.status = 'preparing' self.save() return True return False  def mark_as_ready(self): Marca la orden como lista
+    - **mark_as_ready**:
+      > Marca la orden como lista if self.status == 'preparing': self.status = 'ready' self.ready_at = timezone.now() self.save() return True return False  def mark_as_delivered(self): Marca la orden como entregada
+    - **mark_as_delivered**:
+      > Marca la orden como entregada if self.status in ['ready', 'delivering']: self.status = 'delivered' self.delivered_at = timezone.now() self.save() return True return False  def mark_as_cancelled(self, reason=''): Cancela la orden
+    - **mark_as_cancelled**:
+      > Cancela la orden if self.can_be_cancelled(): self.status = 'cancelled' self.cancelled_at = timezone.now() if reason: self.notes = f'{self.notes} Cancelación: {reason}'.strip() self.save() return True return False  def can_be_cancelled(self): Verifica si la orden puede ser cancelada
+    - **can_be_cancelled**:
+      > Verifica si la orden puede ser cancelada return self.status in ['pending', 'confirmed', 'preparing']   class OrderItem(models.Model): Items de la orden
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_total_with_extras**:
+      > Calcula el total incluyendo extras extras_total = sum(extra.extra.price for extra in self.extras.all()) return (self.unit_price + extras_total) * self.quantity   class OrderItemExtra(models.Model): Extras agregados a un item de la orden
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\orders\serializerspy
+    - **get_total_with_extras**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate_product_id**:
+      > Valida que el producto exista y esté disponible from apps.menu.models import Product try: product = Product.objects.get(id=value) if not product.is_available_now(): raise serializers.ValidationError('Este producto no está disponible') return value except Product.DoesNotExist: raise serializers.ValidationError('Producto no encontrado')  def validate_size_id(self, value): Valida que el tamaño exista si se proporciona
+    - **validate_size_id**:
+      > Valida que el tamaño exista si se proporciona if value: from apps.menu.models import Size try: size = Size.objects.get(id=value) if not size.is_active: raise serializers.ValidationError('Este tamaño no está disponible') return value except Size.DoesNotExist: raise serializers.ValidationError('Tamaño no encontrado') return value  def validate_extra_ids(self, value): Valida que los extras existan
+    - **validate_extra_ids**:
+      > Valida que los extras existan if value: from apps.menu.models import Extra extras = Extra.objects.filter(id__in=value, is_active=True) if extras.count() != len(value): raise serializers.ValidationError('Uno o más extras no son válidos') return value   class DeliveryInfoSerializer(serializers.ModelSerializer): Serializer para información de delivery
+    - **get_items_count**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_can_be_cancelled**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_can_be_modified**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate_customer_id**:
+      > Valida que el cliente exista if value: from apps.customers.models import Customer try: Customer.objects.get(id=value) return value except Customer.DoesNotExist: raise serializers.ValidationError('Cliente no encontrado') return value  def validate_items(self, value): Valida que haya al menos un item
+    - **validate_items**:
+      > Valida que haya al menos un item if not value: raise serializers.ValidationError('Debe agregar al menos un item') return value  def validate(self, data): Validaciones cruzadas
+    - **validate**:
+      > Validaciones cruzadas # Si es delivery, debe tener información de entrega if data.get('order_type') == 'delivery' and not data.get('delivery_info'): raise serializers.ValidationError({ 'delivery_info': 'La información de delivery es requerida para este tipo de orden' })  # Si es dine-in, debería tener número de mesa if data.get('order_type') == 'dine_in' and not data.get('table_number'): raise serializers.ValidationError({ 'table_number': 'El número de mesa es requerido para este tipo de orden' })  return data  @transaction.atomic def create(self, validated_data): Crea la orden con todos sus items
+    - **create**:
+      > Crea la orden con todos sus items from apps.menu.models import Product, Size, Extra  items_data = validated_data.pop('items') delivery_info_data = validated_data.pop('delivery_info', None)  # Crear la orden order = Order.objects.create(**validated_data)  # Crear los items for item_data in items_data: product = Product.objects.get(id=item_data['product_id']) size = None if item_data.get('size_id'): size = Size.objects.get(id=item_data['size_id'])  extra_ids = item_data.pop('extra_ids', [])  # Crear el item order_item = OrderItem.objects.create( order=order, product=product, size=size, quantity=item_data['quantity'], notes=item_data.get('notes', '') )  # Agregar extras if extra_ids: extras = Extra.objects.filter(id__in=extra_ids) for extra in extras: OrderItemExtra.objects.create( order_item=order_item, extra=extra )  # Crear información de delivery si aplica if delivery_info_data: DeliveryInfo.objects.create( order=order, **delivery_info_data )  # Calcular tiempo estimado order.calculate_estimated_time()  # Recalcular totales order.calculate_totals() order.save()  return order   class OrderUpdateSerializer(serializers.ModelSerializer): Serializer para actualizar órdenes
+    - **validate**:
+      > Validar que la orden pueda ser modificada if not self.instance.can_be_modified(): raise serializers.ValidationError( 'Esta orden no puede ser modificada en su estado actual' ) return data  def update(self, instance, validated_data): Actualiza la orden y recalcula totales
+    - **update**:
+      > Actualiza la orden y recalcula totales for attr, value in validated_data.items(): setattr(instance, attr, value)  instance.calculate_totals() instance.save()  return instance   class OrderStatusUpdateSerializer(serializers.Serializer): Serializer para actualizar el estado de una orden
+    - **validate_status**:
+      > Valida transiciones de estado válidas # Validation disabled to allow flexible status updates return value  def save(self): Actualiza el estado y crea historial
+    - **save**:
+      > Actualiza el estado y crea historial order = self.context.get('order') new_status = self.validated_data['status'] old_status = order.status  # Crear entrada en historial OrderStatusHistory.objects.create( order=order, from_status=old_status, to_status=new_status, notes=self.validated_data.get('notes', ''), changed_by=self.validated_data.get('changed_by', '') )  # Actualizar orden según el nuevo estado if new_status == 'confirmed': order.mark_as_confirmed() elif new_status == 'preparing': order.mark_as_preparing() elif new_status == 'ready': order.mark_as_ready() elif new_status == 'delivered': order.mark_as_delivered() elif new_status == 'cancelled': order.mark_as_cancelled(self.validated_data.get('notes', '')) else: order.status = new_status order.save()  return order   class OrderCancelSerializer(serializers.Serializer): Serializer para cancelar órdenes
+    - **validate**:
+      > Valida que la orden pueda ser cancelada order = self.context.get('order') if not order.can_be_cancelled(): raise serializers.ValidationError( 'Esta orden no puede ser cancelada en su estado actual' ) return data  def save(self): Cancela la orden
+    - **save**:
+      > Cancela la orden order = self.context.get('order') reason = self.validated_data['reason']  old_status = order.status order.mark_as_cancelled(reason)  # Crear entrada en historial OrderStatusHistory.objects.create( order=order, from_status=old_status, to_status='cancelled', notes=f'Cancelado: {reason}' )  return order   class OrderStatsSerializer(serializers.Serializer): Serializer para estadísticas de órdenes
+
+### Archivo: \fast-food-service\apps\orders\viewspy
+    - **health_check**:
+      > Health check endpoint (sin autenticación) GET /api/orders/health/ 
+    - **get_queryset**:
+      > Optimiza queries con prefetch y filtros adicionales queryset = super().get_queryset().select_related( 'customer' ).prefetch_related( Prefetch('items', queryset=OrderItem.objects.select_related('product', 'size')), 'items__extras', 'delivery_info', 'status_history' )  # Filtros adicionales por query params date_from = self.request.query_params.get('date_from') date_to = self.request.query_params.get('date_to') min_total = self.request.query_params.get('min_total') max_total = self.request.query_params.get('max_total')  if date_from: try: date_from = datetime.fromisoformat(date_from) queryset = queryset.filter(created_at__gte=date_from) except ValueError: pass  if date_to: try: date_to = datetime.fromisoformat(date_to) queryset = queryset.filter(created_at__lte=date_to) except ValueError: pass  if min_total: queryset = queryset.filter(total__gte=min_total) if max_total: queryset = queryset.filter(total__lte=max_total)  return queryset  def get_serializer_class(self): Retorna el serializer apropiado según la acción
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado según la acción if self.action == 'list': return OrderListSerializer elif self.action == 'create': return OrderCreateSerializer elif self.action in ['update', 'partial_update']: return OrderUpdateSerializer return OrderDetailSerializer  def create(self, request, *args, **kwargs): Crea una nueva orden
+    - **create**:
+      > Crea una nueva orden serializer = self.get_serializer(data=request.data) serializer.is_valid(raise_exception=True) order = serializer.save()  # Retornar con el serializer de detalle detail_serializer = OrderDetailSerializer(order) return Response( detail_serializer.data, status=status.HTTP_201_CREATED )  @action(detail=True, methods=['post']) def update_status(self, request, order_number=None): 
+    - **update_status**:
+      > Actualiza el estado de una orden POST /api/orders/{order_number}/update_status/ Body: {"status": "confirmed", "notes": "...", "changed_by": "..."} 
+    - **cancel**:
+      > Cancela una orden POST /api/orders/{order_number}/cancel/ Body: {"reason": "Cliente canceló"} 
+    - **confirm**:
+      > Confirma una orden pendiente POST /api/orders/{order_number}/confirm/ 
+    - **start_preparing**:
+      > Marca orden como en preparación POST /api/orders/{order_number}/start_preparing/ 
+    - **mark_ready**:
+      > Marca orden como lista POST /api/orders/{order_number}/mark_ready/ 
+    - **mark_delivered**:
+      > Marca orden como entregada POST /api/orders/{order_number}/mark_delivered/ 
+    - **pending**:
+      > Obtiene órdenes pendientes GET /api/orders/pending/ 
+    - **preparing**:
+      > Obtiene órdenes en preparación GET /api/orders/preparing/ 
+    - **ready**:
+      > Obtiene órdenes listas GET /api/orders/ready/ 
+    - **active**:
+      > Obtiene todas las órdenes activas (no completadas ni canceladas) GET /api/orders/active/ 
+    - **today**:
+      > Obtiene órdenes de hoy GET /api/orders/today/ 
+    - **by_customer**:
+      > Obtiene órdenes de un cliente específico GET /api/orders/by_customer/?customer_id=xxx 
+    - **by_table**:
+      > Obtiene órdenes de una mesa específica GET /api/orders/by_table/?table_number=5 
+    - **stats**:
+      > Obtiene estadísticas de órdenes GET /api/orders/stats/?date_from=...&date_to=... 
+    - **sales_by_period**:
+      > Obtiene ventas agrupadas por período GET /api/orders/sales_by_period/?period=day&date_from=...&date_to=... period: day, week, month 
+    - **recent_completed**:
+      > Obtiene órdenes completadas recientes (últimas 24 horas) GET /api/orders/recent_completed/ 
+    - **history**:
+      > Obtiene el historial de cambios de estado de una orden GET /api/orders/{order_number}/history/ 
+    - **receipt**:
+      > Obtiene información formateada para recibo/ticket GET /api/orders/{order_number}/receipt/ 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().select_related('order')  @action(detail=True, methods=['post']) def assign_driver(self, request, pk=None): 
+    - **assign_driver**:
+      > Asigna un repartidor al delivery POST /api/deliveries/{id}/assign_driver/ Body: {"driver_name": "...", "driver_phone": "..."} 
+    - **mark_picked_up**:
+      > Marca el delivery como recogido POST /api/deliveries/{id}/mark_picked_up/ 
+    - **mark_delivered**:
+      > Marca el delivery como entregado POST /api/deliveries/{id}/mark_delivered/ 
+
+### Archivo: \fast-food-service\apps\payments\modelspy
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_ault**:
+      > Obtiene la moneda por defecto del sistema return cls.objects.filter(is_default=True, is_active=True).first()   class ExchangeRate(models.Model): Tasas de cambio entre monedas
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **convert**:
+      > Convierte un monto de una moneda a otra  Args: amount: Monto a convertir from_currency_code: Código de moneda origen (ej: 'USD') to_currency_code: Código de moneda destino (ej: 'COP')  Returns: Monto convertido  Raises: ValueError: Si no existe tasa de cambio 
+    - **get_rate**:
+      > Obtiene la tasa de cambio activa entre dos monedas  Returns: Decimal: Tasa de cambio o None si no existe 
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_available_for_amount**:
+      > Verifica si el método está disponible para un monto específico if not self.is_active: return False  if self.minimum_amount and amount < self.minimum_amount: return False  if self.maximum_amount and amount > self.maximum_amount: return False  return True   class Payment(models.Model): Pago de una orden
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_payment_number**:
+      > Genera un número de pago único from datetime import datetime timestamp = datetime.now().strftime('%Y%m%d%H%M%S') random_suffix = str(uuid.uuid4().hex[:4]).upper() return f'PAY-{timestamp}-{random_suffix}'  def mark_as_completed(self): Marca el pago como completado
+    - **mark_as_completed**:
+      > Marca el pago como completado if self.status in ['pending', 'processing']: self.status = 'completed' self.completed_at = timezone.now() self.save()  # Actualizar estado de pago de la orden self.order.payment_status = 'paid' self.order.save()  return True return False  def mark_as_failed(self, reason=''): Marca el pago como fallido
+    - **mark_as_failed**:
+      > Marca el pago como fallido self.status = 'failed' if reason: self.notes = f'{self.notes} Fallo: {reason}'.strip() self.save()  # Actualizar estado de pago de la orden self.order.payment_status = 'failed' self.order.save()  return True  def get_amount_in_currency(self, target_currency_code): 
+    - **get_amount_in_currency**:
+      > Convierte el monto del pago a otra moneda  Args: target_currency_code: Código de moneda destino  Returns: Monto convertido 
+    - **process_refund**:
+      > Procesa un reembolso if self.status != 'completed': return False, 'Solo se pueden reembolsar pagos completados'  refund_amount = amount if amount else self.amount  if refund_amount > self.amount: return False, 'El monto de reembolso no puede ser mayor al pago'  # Crear registro de reembolso refund = Refund.objects.create( payment=self, amount=refund_amount, currency=self.currency, reason=reason )  # Actualizar estado del pago if refund_amount == self.amount: self.status = 'refunded' else: self.status = 'partially_refunded'  self.save()  return True, refund   class SplitPayment(models.Model): División de pagos (cuando una orden se paga con múltiples métodos)
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_refund_number**:
+      > Genera un número de reembolso único from datetime import datetime timestamp = datetime.now().strftime('%Y%m%d%H%M%S') random_suffix = str(uuid.uuid4().hex[:4]).upper() return f'REF-{timestamp}-{random_suffix}'  def mark_as_completed(self): Marca el reembolso como completado
+    - **mark_as_completed**:
+      > Marca el reembolso como completado if self.status in ['pending', 'processing']: self.status = 'completed' self.completed_at = timezone.now() self.save() return True return False   class CashRegister(models.Model): Caja registradora / Turno de caja
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **calculate_totals**:
+      > Calcula los totales de la caja from django.db.models import Sum, Count  # Obtener pagos completados de esta caja payments = self.payments.filter(status='completed')  # Totales por método de pago self.total_cash = payments.filter( payment_method__method_type='cash' ).aggregate(total=Sum('amount'))['total'] or 0  self.total_card = payments.filter( payment_method__method_type__in=['credit_card', 'debit_card'] ).aggregate(total=Sum('amount'))['total'] or 0  self.total_other = payments.exclude( payment_method__method_type__in=['cash', 'credit_card', 'debit_card'] ).aggregate(total=Sum('amount'))['total'] or 0  # Total general self.total_sales = self.total_cash + self.total_card + self.total_other  # Contar transacciones self.transaction_count = payments.count()  # Efectivo esperado self.expected_cash = self.opening_cash + self.total_cash  def close_register(self, closing_cash, closing_notes=''): Cierra la caja registradora
+    - **close_register**:
+      > Cierra la caja registradora if self.status == 'closed': return False, 'La caja ya está cerrada'  # Calcular totales self.calculate_totals()  # Registrar efectivo final self.closing_cash = closing_cash self.cash_difference = self.closing_cash - self.expected_cash self.closing_notes = closing_notes  # Cerrar caja self.status = 'closed' self.closed_at = timezone.now() self.save()  return True, 'Caja cerrada exitosamente'   class CashMovement(models.Model): Movimientos de efectivo en caja (entradas/salidas)
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\payments\serializerspy
+    - **validate**:
+      > Validar que solo haya una moneda por defecto if data.get('is_default'): # Si ya existe otra moneda por defecto, dar advertencia existing_default = Currency.objects.filter( is_default=True ).exclude(pk=self.instance.pk if self.instance else None).first()  if existing_default: # El save() del modelo ya maneja esto, pero informamos pass  return data   class ExchangeRateSerializer(serializers.ModelSerializer): Serializer para tasas de cambio
+    - **validate**:
+      > Validar que las monedas sean diferentes if data['from_currency'] == data['to_currency']: raise serializers.ValidationError( 'Las monedas de origen y destino deben ser diferentes' ) return data   class CurrencyConversionSerializer(serializers.Serializer): Serializer para convertir montos entre monedas
+    - **validate_from_currency**:
+      > Validar que la moneda de origen exista if not Currency.objects.filter(code=value, is_active=True).exists(): raise serializers.ValidationError(f'La moneda {value} no existe o no está activa') return value  def validate_to_currency(self, value): Validar que la moneda de destino exista
+    - **validate_to_currency**:
+      > Validar que la moneda de destino exista if not Currency.objects.filter(code=value, is_active=True).exists(): raise serializers.ValidationError(f'La moneda {value} no existe o no está activa') return value  def convert(self): Realiza la conversión
+    - **convert**:
+      > Realiza la conversión amount = self.validated_data['amount'] from_currency = self.validated_data['from_currency'] to_currency = self.validated_data['to_currency']  try: converted_amount = ExchangeRate.convert(amount, from_currency, to_currency) rate = ExchangeRate.get_rate(from_currency, to_currency)  return { 'original_amount': float(amount), 'from_currency': from_currency, 'to_currency': to_currency, 'exchange_rate': float(rate) if rate else None, 'converted_amount': float(converted_amount), } except ValueError as e: raise serializers.ValidationError(str(e))   class PaymentMethodSerializer(serializers.ModelSerializer): Serializer para métodos de pago
+    - **get_amount_in_ault_currency**:
+      > Convierte el monto a la moneda por defecto default_currency = Currency.get_default() if not default_currency or obj.currency.code == default_currency.code: return float(obj.amount)  try: converted = obj.get_amount_in_currency(default_currency.code) return float(converted) except ValueError: return None   class PaymentCreateSerializer(serializers.Serializer): Serializer para crear pagos
+    - **validate_order_id**:
+      > Validar que la orden exista from apps.orders.models import Order try: order = Order.objects.get(id=value) # Validar que la orden no esté ya pagada if order.payment_status == 'paid': raise serializers.ValidationError('Esta orden ya está pagada') return value except Order.DoesNotExist: raise serializers.ValidationError('Orden no encontrada')  def validate_payment_method_id(self, value): Validar que el método de pago exista y esté activo
+    - **validate_payment_method_id**:
+      > Validar que el método de pago exista y esté activo try: method = PaymentMethod.objects.get(id=value) if not method.is_active: raise serializers.ValidationError('Este método de pago no está disponible') return value except PaymentMethod.DoesNotExist: raise serializers.ValidationError('Método de pago no encontrado')  def validate_currency_code(self, value): Validar que la moneda exista y esté activa
+    - **validate_currency_code**:
+      > Validar que la moneda exista y esté activa try: currency = Currency.objects.get(code=value) if not currency.is_active: raise serializers.ValidationError('Esta moneda no está activa') return value except Currency.DoesNotExist: raise serializers.ValidationError('Moneda no encontrada')  def validate_cash_register_id(self, value): Validar que la caja registradora exista y esté abierta
+    - **validate_cash_register_id**:
+      > Validar que la caja registradora exista y esté abierta if value: try: register = CashRegister.objects.get(id=value) if register.status != 'open': raise serializers.ValidationError('La caja registradora no está abierta') return value except CashRegister.DoesNotExist: raise serializers.ValidationError('Caja registradora no encontrada') return value  @transaction.atomic def create(self, validated_data): Crea el pago con conversión de moneda si es necesario
+    - **create**:
+      > Crea el pago con conversión de moneda si es necesario from apps.orders.models import Order  order = Order.objects.get(id=validated_data['order_id']) payment_method = PaymentMethod.objects.get(id=validated_data['payment_method_id']) currency = Currency.objects.get(code=validated_data['currency_code'])  # Obtener moneda por defecto (moneda de la orden) default_currency = Currency.get_default()  # Monto a pagar (puede ser diferente al total de la orden si es pago parcial) amount = validated_data.get('amount') if not amount: # Si no se especifica monto, usar el total de la orden if currency.code == default_currency.code: amount = order.total else: # Convertir el total de la orden a la moneda del pago amount = ExchangeRate.convert( order.total, default_currency.code, currency.code )  # Calcular tasa de cambio y monto original if currency.code == default_currency.code: # No hay conversión exchange_rate = Decimal('1.0000') original_amount = amount else: # Obtener tasa de cambio exchange_rate = ExchangeRate.get_rate(default_currency.code, currency.code) # Calcular monto original (en moneda de la orden) original_amount = ExchangeRate.convert( amount, currency.code, default_currency.code )  # Crear el pago payment = Payment.objects.create( order=order, payment_method=payment_method, currency=currency, amount=amount, amount_received=validated_data.get('amount_received', 0), original_amount=original_amount, original_currency=default_currency, exchange_rate=exchange_rate, notes=validated_data.get('notes', ''), card_last_four=validated_data.get('card_last_four', ''), card_brand=validated_data.get('card_brand', ''), cash_register_id=validated_data.get('cash_register_id'), status='pending' )  return payment   class RefundSerializer(serializers.ModelSerializer): Serializer para reembolsos
+    - **validate_payment_id**:
+      > Validar que el pago exista y esté completado try: payment = Payment.objects.get(id=value) if payment.status != 'completed': raise serializers.ValidationError( 'Solo se pueden reembolsar pagos completados' ) return value except Payment.DoesNotExist: raise serializers.ValidationError('Pago no encontrado')  def validate(self, data): Validar el monto del reembolso
+    - **validate**:
+      > Validar el monto del reembolso payment = Payment.objects.get(id=data['payment_id']) amount = data.get('amount', payment.amount)  if amount > payment.amount: raise serializers.ValidationError( 'El monto de reembolso no puede ser mayor al pago' )  # Verificar reembolsos previos previous_refunds = payment.refunds.filter( status='completed' ).aggregate(total=models.Sum('amount'))['total'] or 0  if previous_refunds + amount > payment.amount: raise serializers.ValidationError( 'El monto total de reembolsos excede el monto del pago' )  data['amount'] = amount return data  @transaction.atomic def create(self, validated_data): Crea el reembolso
+    - **create**:
+      > Crea el reembolso payment = Payment.objects.get(id=validated_data['payment_id'])  success, result = payment.process_refund( amount=validated_data.get('amount'), reason=validated_data['reason'] )  if not success: raise serializers.ValidationError(result)  # Actualizar campo approved_by si se proporcionó if validated_data.get('approved_by'): result.approved_by = validated_data['approved_by'] result.save()  return result   class CashRegisterSerializer(serializers.ModelSerializer): Serializer para cajas registradoras
+    - **validate_currency_code**:
+      > Validar que la moneda exista try: Currency.objects.get(code=value, is_active=True) return value except Currency.DoesNotExist: raise serializers.ValidationError('Moneda no encontrada o inactiva')  def create(self, validated_data): Crea y abre una caja registradora
+    - **create**:
+      > Crea y abre una caja registradora currency = Currency.objects.get(code=validated_data['currency_code'])  cash_register = CashRegister.objects.create( register_number=validated_data['register_number'], cashier_name=validated_data['cashier_name'], currency=currency, opening_cash=validated_data['opening_cash'], opening_notes=validated_data.get('opening_notes', ''), status='open' )  return cash_register   class CashRegisterCloseSerializer(serializers.Serializer): Serializer para cerrar caja registradora
+    - **validate_closing_cash**:
+      > Validar que el monto sea positivo if value < 0: raise serializers.ValidationError('El monto no puede ser negativo') return value   class CashMovementSerializer(serializers.ModelSerializer): Serializer para movimientos de efectivo
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\payments\viewspy
+    - **health_check**:
+      > Health check endpoint (sin autenticación) GET /api/payments/health/ 
+    - **active**:
+      > Obtiene monedas activas GET /api/payments/currencies/active/ 
+    - **ault**:
+      > Obtiene la moneda por defecto GET /api/payments/currencies/default/ 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().select_related('from_currency', 'to_currency')  def get_serializer_class(self): Retorna el serializer apropiado
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado if self.action in ['create', 'update', 'partial_update']: return ExchangeRateCreateUpdateSerializer return ExchangeRateSerializer  @action(detail=False, methods=['get']) def active(self, request): 
+    - **active**:
+      > Obtiene tasas de cambio activas GET /api/payments/exchange-rates/active/ 
+    - **get_rate**:
+      > Obtiene la tasa de cambio entre dos monedas GET /api/payments/exchange-rates/get_rate/?from=USD&to=COP 
+    - **convert**:
+      > Convierte un monto entre dos monedas POST /api/payments/exchange-rates/convert/ Body: {"amount": 100, "from_currency": "USD", "to_currency": "COP"} 
+    - **update_rate**:
+      > Actualiza o crea una tasa de cambio POST /api/payments/exchange-rates/update_rate/ Body: { "from_currency_code": "USD", "to_currency_code": "COP", "rate": 4250.00, "source": "Manual", "updated_by": "Admin" } 
+    - **active**:
+      > Obtiene métodos de pago activos GET /api/payments/payment-methods/active/ 
+    - **by_type**:
+      > Obtiene métodos de pago por tipo GET /api/payments/payment-methods/by_type/?type=cash 
+    - **get_queryset**:
+      > Optimiza queries queryset = super().get_queryset().select_related( 'order', 'payment_method', 'currency', 'original_currency', 'cash_register' )  # Filtros adicionales date_from = self.request.query_params.get('date_from') date_to = self.request.query_params.get('date_to')  if date_from: try: date_from = datetime.fromisoformat(date_from) queryset = queryset.filter(created_at__gte=date_from) except ValueError: pass  if date_to: try: date_to = datetime.fromisoformat(date_to) queryset = queryset.filter(created_at__lte=date_to) except ValueError: pass  return queryset  def get_serializer_class(self): Retorna el serializer apropiado
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado if self.action == 'list': return PaymentListSerializer elif self.action == 'create': return PaymentCreateSerializer return PaymentDetailSerializer  def create(self, request, *args, **kwargs): Crea un nuevo pago
+    - **create**:
+      > Crea un nuevo pago serializer = self.get_serializer(data=request.data) serializer.is_valid(raise_exception=True) payment = serializer.save()  # Retornar con el serializer de detalle detail_serializer = PaymentDetailSerializer(payment) return Response( detail_serializer.data, status=status.HTTP_201_CREATED )  @action(detail=True, methods=['post']) def complete(self, request, payment_number=None): 
+    - **complete**:
+      > Marca un pago como completado POST /api/payments/payments/{payment_number}/complete/ 
+    - **fail**:
+      > Marca un pago como fallido POST /api/payments/payments/{payment_number}/fail/ Body: {"reason": "..."} 
+    - **refund**:
+      > Procesa un reembolso POST /api/payments/payments/{payment_number}/refund/ Body: {"amount": 10.00, "reason": "...", "approved_by": "..."} 
+    - **by_order**:
+      > Obtiene pagos de una orden GET /api/payments/payments/by_order/?order_id=xxx 
+    - **completed**:
+      > Obtiene pagos completados GET /api/payments/payments/completed/ 
+    - **pending**:
+      > Obtiene pagos pendientes GET /api/payments/payments/pending/ 
+    - **today**:
+      > Obtiene pagos de hoy GET /api/payments/payments/today/ 
+    - **stats**:
+      > Obtiene estadísticas de pagos GET /api/payments/payments/stats/?date_from=...&date_to=...&currency=USD 
+    - **convert_to**:
+      > Convierte el monto del pago a otra moneda GET /api/payments/payments/{payment_number}/convert_to/?currency=COP 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().select_related('payment', 'currency')  @action(detail=True, methods=['post']) def complete(self, request, refund_number=None): 
+    - **complete**:
+      > Marca un reembolso como completado POST /api/payments/refunds/{refund_number}/complete/ 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().select_related('currency')  def get_serializer_class(self): Retorna el serializer apropiado
+    - **get_serializer_class**:
+      > Retorna el serializer apropiado if self.action == 'create': return CashRegisterOpenSerializer return CashRegisterSerializer  def create(self, request, *args, **kwargs): Abre una nueva caja registradora
+    - **create**:
+      > Abre una nueva caja registradora serializer = self.get_serializer(data=request.data) serializer.is_valid(raise_exception=True) cash_register = serializer.save()  detail_serializer = CashRegisterSerializer(cash_register) return Response( detail_serializer.data, status=status.HTTP_201_CREATED )  @action(detail=True, methods=['post']) def close(self, request, pk=None): 
+    - **close**:
+      > Cierra una caja registradora POST /api/payments/cash-registers/{id}/close/ Body: {"closing_cash": 500.00, "closing_notes": "..."} 
+    - **open_registers**:
+      > Obtiene cajas abiertas GET /api/payments/cash-registers/open_registers/ 
+    - **today**:
+      > Obtiene cajas de hoy GET /api/payments/cash-registers/today/ 
+    - **summary**:
+      > Obtiene resumen de la caja GET /api/payments/cash-registers/{id}/summary/ 
+    - **get_queryset**:
+      > Optimiza queries return super().get_queryset().select_related('cash_register')  @action(detail=False, methods=['get']) def by_register(self, request): 
+    - **by_register**:
+      > Obtiene movimientos de una caja específica GET /api/payments/cash-movements/by_register/?register_id=xxx 
+
+### Archivo: \fast-food-service\apps\pos\adminpy
+    - **status_badge**:
+      > Badge de estado con colores colors = { 'open': 'green', 'closed': 'gray', 'suspended': 'orange', } return format_html( '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px;">{}</span>', colors.get(obj.status, 'gray'), obj.get_status_display() ) status_badge.short_description = 'Estado'   @admin.register(Discount) class DiscountAdmin(admin.ModelAdmin): Admin para descuentos
+    - **is_active_badge**:
+      > Badge de activo/inactivo if obj.is_active: return format_html( '<span style="background-color: green; color: white; padding: 3px 10px; border-radius: 3px;">Activo</span>' ) return format_html( '<span style="background-color: red; color: white; padding: 3px 10px; border-radius: 3px;">Inactivo</span>' ) is_active_badge.short_description = 'Estado'   @admin.register(DiscountUsage) class DiscountUsageAdmin(admin.ModelAdmin): Admin para uso de descuentos
+    - **status_badge**:
+      > Badge de estado con colores colors = { 'available': 'green', 'occupied': 'red', 'reserved': 'orange', 'cleaning': 'blue', 'maintenance': 'gray', } return format_html( '<span style="background-color: {}; color: white; padding: 3px 10px; border-radius: 3px;">{}</span>', colors.get(obj.status, 'gray'), obj.get_status_display() ) status_badge.short_description = 'Estado'   @admin.register(DailySummary) class DailySummaryAdmin(admin.ModelAdmin): Admin para resúmenes diarios
+    - **has_add_permission**:
+      > No permitir agregar manualmente return False  def has_delete_permission(self, request, obj=None): Solo admins pueden eliminar
+    - **has_delete_permission**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\pos\modelspy
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_shift_number**:
+      > Genera un número de turno único from datetime import datetime timestamp = datetime.now().strftime('%Y%m%d%H%M%S') random_suffix = str(uuid.uuid4().hex[:3]).upper() return f'SHF-{timestamp}-{random_suffix}'  def close_shift(self, closing_cash, closing_notes=''): Cierra el turno y calcula totales
+    - **close_shift**:
+      > Cierra el turno y calcula totales if self.status == 'closed': return False, 'El turno ya está cerrado'  from apps.payments.models import Payment  # Pagos completados durante este turno payments = Payment.objects.filter( cash_register=self.cash_register, created_at__gte=self.opened_at, status='completed' )  # Totales por método de pago self.total_cash_sales = payments.filter( payment_method__method_type='cash' ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')  self.total_card_sales = payments.filter( payment_method__method_type__in=['credit_card', 'debit_card'] ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')  self.total_other_sales = payments.exclude( payment_method__method_type__in=['cash', 'credit_card', 'debit_card'] ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')  self.total_sales = self.total_cash_sales + self.total_card_sales + self.total_other_sales self.total_transactions = payments.count()  # Calcular diferencia de caja expected_cash = self.opening_cash + self.total_cash_sales self.closing_cash = closing_cash self.cash_difference = self.closing_cash - expected_cash self.closing_notes = closing_notes  # Cerrar turno self.status = 'closed' self.closed_at = timezone.now() self.save()  return True, 'Turno cerrado exitosamente'  @property def duration(self): Duración del turno en horas
+    - **duration**:
+      > Duración del turno en horas if self.closed_at: delta = self.closed_at - self.opened_at else: delta = timezone.now() - self.opened_at return delta.total_seconds() / 3600  @property def is_active(self): Verifica si el turno está activo
+    - **is_active**:
+      > Verifica si el turno está activo return self.status == 'open'   # ============================================================================ # DESCUENTOS Y PROMOCIONES # ============================================================================  class Discount(models.Model): 
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_valid**:
+      > Verifica si el descuento es válido actualmente.  Args: for_customer: Customer instance (opcional) para validar usos por cliente  Returns: tuple: (bool, str) - (es_válido, mensaje) 
+    - **calculate_discount**:
+      > Calcula el monto del descuento a aplicar.  Args: amount: Monto sobre el cual calcular el descuento  Returns: Decimal: Monto del descuento 
+    - **use_discount**:
+      > Incrementa el contador de usos self.current_uses += 1 self.save(update_fields=['current_uses'])  def applies_to_product(self, product): 
+    - **applies_to_product**:
+      > Verifica si el descuento aplica a un producto específico.  Args: product: Product instance  Returns: bool: True si aplica 
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **occupy**:
+      > Marca la mesa como ocupada y asigna una orden.  Args: order: Order instance waiter_id: UUID del mesero waiter_name: Nombre del mesero  Returns: tuple: (bool, str) - (éxito, mensaje) 
+    - **free**:
+      > Libera la mesa (marca como disponible).  Returns: tuple: (bool, str) - (éxito, mensaje) 
+    - **set_cleaning**:
+      > Marca la mesa para limpieza self.status = 'cleaning' self.save()  def set_maintenance(self): Marca la mesa en mantenimiento
+    - **set_maintenance**:
+      > Marca la mesa en mantenimiento self.status = 'maintenance' self.save()  @property def is_available(self): Verifica si la mesa está disponible
+    - **is_available**:
+      > Verifica si la mesa está disponible return self.status == 'available' and self.is_active   # ============================================================================ # REPORTES DIARIOS MEJORADOS (solo este modelo de reportes) # ============================================================================  class DailySummary(models.Model): 
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_for_date**:
+      > Genera o actualiza el resumen para una fecha específica.  Args: date: datetime.date - Fecha a generar generated_by: str - User ID de quien genera el reporte detailed: bool - Si incluye datos detallados (top productos, ventas por hora)  Returns: DailySummary instance 
+    - **_get_top_products**:
+      > Obtiene los productos más vendidos del día.  Args: date: datetime.date - Fecha a consultar limit: int - Número máximo de productos a devolver  Returns: list: Lista de diccionarios con datos de productos 
+    - **_get_sales_by_hour**:
+      > Obtiene ventas agrupadas por hora del día.  Args: date: datetime.date - Fecha a consultar  Returns: list: Lista de diccionarios con ventas por hora 
+    - **close_day**:
+      > Cierra oficialmente el día de operaciones.  Args: date: datetime.date - Fecha a cerrar closing_notes: str - Notas del cierre generated_by: str - User ID de quien cierra  Returns: dict: Resultado del cierre 
+    - **get_report**:
+      > Obtiene reportes por tipo.  Args: report_type: str - 'daily', 'weekly', 'monthly' date: datetime.date - Para reporte diario start_date: datetime.date - Para reporte semanal end_date: datetime.date - Para reporte semanal year: int - Para reporte mensual month: int - Para reporte mensual  Returns: dict: Datos del reporte 
+    - **cash_percentage**:
+      > Porcentaje de ventas en efectivo if self.total_sales > 0: return round((self.cash_sales / self.total_sales) * 100, 2) return 0  @property def card_percentage(self): Porcentaje de ventas con tarjeta
+    - **card_percentage**:
+      > Porcentaje de ventas con tarjeta if self.total_sales > 0: return round((self.card_sales / self.total_sales) * 100, 2) return 0  @property def dine_in_percentage(self): Porcentaje de ventas dine-in
+    - **dine_in_percentage**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\pos\permissionspy
+    - **has_object_permission**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_permission**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_permission**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_permission**:
+      > Sin Docstring / Descripción no encontrada.
+    - **has_permission**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\pos\report_utilspy
+    - **generate_daily_report**:
+      > Genera reporte detallado para un día específico.  Args: target_date: datetime.date - Fecha del reporte (hoy si es None) generated_by: str - User ID de quien genera el reporte  Returns: SalesReport instance 
+    - **_generate_top_products**:
+      > Genera ranking de productos más vendidos from apps.orders.models import OrderItem  # Obtener todos los items de las órdenes order_ids = orders.values_list('id', flat=True) order_items = OrderItem.objects.filter(order__id__in=order_ids)  # Agrupar por producto usando aggregate de Django from django.db.models import Sum, Avg, F from decimal import Decimal  product_stats = order_items.values( 'product__id', 'product__name', 'product__category__name' ).annotate( total_quantity=Sum('quantity'), total_amount=Sum(F('price') * F('quantity'), output_field=models.DecimalField()), avg_price=Avg('price') ).order_by('-total_quantity')  #Crear registros con ranking TopProductsReport.objects.filter(sales_report=report).delete()  for idx, stats in enumerate(product_stats[:20]): TopProductsReport.objects.create( sales_report=report, product_id=stats['product__id'], product_name=stats['product__name'], category_name=stats['product__category__name'] or 'Sin Categoría', quantity_sold=stats['total_quantity'], total_amount=stats['total_amount'] or Decimal('0'), average_price=stats['avg_price'] or Decimal('0'), rank_by_quantity=idx + 1, rank_by_amount=idx + 1 ) @staticmethod def _generate_sales_by_hour(report, target_date): Genera ventas agrupadas por hora
+    - **_generate_sales_by_hour**:
+      > Genera ventas agrupadas por hora from .models import SalesByHour from apps.orders.models import Order  SalesByHour.objects.filter(sales_report=report).delete()  # Consultar órdenes por hora for hour in range(24): hour_start = timezone.make_aware(datetime.combine(target_date, datetime.min.time())) hour_start = hour_start.replace(hour=hour) hour_end = hour_start + timedelta(hours=1)  orders_in_hour = Order.objects.filter( created_at__gte=hour_start, created_at__lt=hour_end, status__in=['delivered', 'completed'] )  total_sales = orders_in_hour.aggregate( total=Sum('total') )['total'] or Decimal('0')  total_orders = orders_in_hour.count()  total_items = 0 for order in orders_in_hour: total_items += order.items.count()  average_order_value = total_sales / total_orders if total_orders > 0 else Decimal('0')  SalesByHour.objects.create( sales_report=report, hour=hour, hour_label=f'{hour:02d}:00', total_sales=total_sales, total_orders=total_orders, total_items=total_items, average_order_value=average_order_value )  @staticmethod def generate_weekly_report(start_date=None, generated_by='system'): Genera reporte semanal
+    - **generate_weekly_report**:
+      > Genera reporte semanal if start_date is None: start_date = timezone.now().date() - timedelta(days=timezone.now().weekday())  end_date = start_date + timedelta(days=6)  # Obtener reportes diarios de la semana daily_reports = SalesReport.objects.filter( report_type='daily', start_date__gte=start_date, end_date__lte=end_date )  # Crear reporte semanal weekly_report, created = SalesReport.objects.get_or_create( report_type='weekly', start_date=start_date, end_date=end_date, defaults={ 'period_name': f'Semana {start_date.strftime("%d/%m")} - {end_date.strftime("%d/%m/%Y")}', 'generated_by': generated_by } )  # Consolidar datos if daily_reports.exists(): weekly_report.total_sales = daily_reports.aggregate( total=Sum('total_sales') )['total'] or Decimal('0')  weekly_report.total_orders = daily_reports.aggregate( total=Sum('total_orders') )['total'] or 0  weekly_report.total_items_sold = daily_reports.aggregate( total=Sum('total_items_sold') )['total'] or 0  weekly_report.save()  return weekly_report  @staticmethod def generate_monthly_report(year=None, month=None, generated_by='system'): Genera reporte mensual
+    - **generate_monthly_report**:
+      > Genera reporte mensual now = timezone.now() if year is None: year = now.year if month is None: month = now.month  start_date = date(year, month, 1) _, last_day = calendar.monthrange(year, month) end_date = date(year, month, last_day)  # Obtener reportes diarios del mes daily_reports = SalesReport.objects.filter( report_type='daily', start_date__gte=start_date, end_date__lte=end_date )  # Crear reporte mensual monthly_report, created = SalesReport.objects.get_or_create( report_type='monthly', start_date=start_date, end_date=end_date, defaults={ 'period_name': f'{calendar.month_name[month]} {year}', 'generated_by': generated_by } )  # Consolidar datos if daily_reports.exists(): monthly_report.total_sales = daily_reports.aggregate( total=Sum('total_sales') )['total'] or Decimal('0')  monthly_report.total_orders = daily_reports.aggregate( total=Sum('total_orders') )['total'] or 0  monthly_report.total_items_sold = daily_reports.aggregate( total=Sum('total_items_sold') )['total'] or 0  monthly_report.save()  return monthly_report  @staticmethod def generate_shift_report(target_date=None): Genera reporte consolidado de turnos por día
+    - **generate_shift_report**:
+      > Genera reporte consolidado de turnos por día if target_date is None: target_date = timezone.now().date()  from .models import Shift, ShiftReport  # Consultar turnos del día shifts = Shift.objects.filter(opened_at__date=target_date)  # Crear reporte report, created = ShiftReport.objects.get_or_create( date=target_date, defaults={ 'total_shifts': shifts.count(), 'open_shifts': shifts.filter(status='open').count(), 'closed_shifts': shifts.filter(status='closed').count(), } )  # Calcular ventas por turno closed_shifts = shifts.filter(status='closed') if closed_shifts.exists(): report.total_sales = closed_shifts.aggregate( total=Sum('total_sales') )['total'] or Decimal('0')  report.average_sales_per_shift = report.total_sales / closed_shifts.count()  report.total_cash_difference = closed_shifts.aggregate( total=Sum('cash_difference') )['total'] or Decimal('0')  report.shifts_with_difference = closed_shifts.filter( cash_difference__gt=0 ).count()  # Empleados únicos report.total_employees = shifts.values('user_id').distinct().count()  report.save()  return report  @staticmethod def close_day(target_date=None, generated_by='system'): 
+    - **close_day**:
+      > Cierra el día de operaciones. Genera reporte final y marca como cerrado.  Args: target_date: datetime.date - Fecha a cerrar generated_by: str - User ID de quien cierra  Returns: dict: Resultado del cierre 
+
+### Archivo: \fast-food-service\apps\pos\serializerspy
+    - **get_duration_hours**:
+      > Duración del turno en horas return round(obj.duration, 2)   class ShiftCreateSerializer(serializers.ModelSerializer): Serializer para crear turno (abrir turno)
+    - **validate_cash_register**:
+      > Validar que la caja esté disponible # Verificar si hay un turno abierto en esta caja if Shift.objects.filter(cash_register=value, status='open').exists(): raise serializers.ValidationError( 'Ya existe un turno abierto en esta caja registradora' ) return value  def create(self, validated_data): Crear turno con info del usuario del JWT
+    - **create**:
+      > Crear turno con info del usuario del JWT request = self.context.get('request')  # Extraer info del usuario del JWT validated_data['user_id'] = str(request.user.id) validated_data['user_name'] = request.user.get_full_name() validated_data['user_role'] = getattr(request.user, 'role', {}).get('name', '') if hasattr(request.user, 'role') else ''  return super().create(validated_data)   class ShiftCloseSerializer(serializers.Serializer): Serializer para cerrar turno
+    - **get_is_currently_valid**:
+      > Verifica si el descuento es válido ahora is_valid, _ = obj.is_valid() return is_valid  def get_applicable_products_count(self, obj): Cantidad de productos aplicables
+    - **get_applicable_products_count**:
+      > Cantidad de productos aplicables return obj.applicable_products.count()  def get_applicable_categories_count(self, obj): Cantidad de categorías aplicables
+    - **get_applicable_categories_count**:
+      > Cantidad de categorías aplicables return obj.applicable_categories.count()  def get_usage_percentage(self, obj): Porcentaje de uso si tiene límite
+    - **get_usage_percentage**:
+      > Porcentaje de uso si tiene límite if obj.max_uses: return round((obj.current_uses / obj.max_uses) * 100, 2) return None   class DiscountCreateUpdateSerializer(serializers.ModelSerializer): Serializer para crear/actualizar descuentos
+    - **validate_code**:
+      > Validar que el código sea único (case-insensitive) if self.instance: # Actualización: excluir el propio registro if Discount.objects.exclude(pk=self.instance.pk).filter(code__iexact=value).exists(): raise serializers.ValidationError('Ya existe un descuento con este código') else: # Creación if Discount.objects.filter(code__iexact=value).exists(): raise serializers.ValidationError('Ya existe un descuento con este código') return value.upper()  def validate(self, data): Validaciones cruzadas
+    - **validate**:
+      > Validaciones cruzadas # Validar fechas if data.get('valid_from') and data.get('valid_until'): if data['valid_from'] >= data['valid_until']: raise serializers.ValidationError({ 'valid_until': 'La fecha de fin debe ser posterior a la fecha de inicio' })  # Validar valor del descuento según tipo if data.get('discount_type') == 'percentage': if data.get('discount_value', 0) > 100: raise serializers.ValidationError({ 'discount_value': 'El porcentaje no puede ser mayor a 100' })  # Validar que tenga productos o categorías si aplica if data.get('apply_to') in ['product', 'category']: products = data.get('applicable_products', []) categories = data.get('applicable_categories', [])  if data['apply_to'] == 'product' and not products: raise serializers.ValidationError({ 'applicable_products': 'Debe seleccionar al menos un producto' })  if data['apply_to'] == 'category' and not categories: raise serializers.ValidationError({ 'applicable_categories': 'Debe seleccionar al menos una categoría' })  return data  def create(self, validated_data): Crear descuento con info del usuario
+    - **create**:
+      > Crear descuento con info del usuario request = self.context.get('request') if request and request.user: validated_data['created_by'] = str(request.user.id) return super().create(validated_data)   class DiscountValidateSerializer(serializers.Serializer): Serializer para validar un descuento
+    - **get_customer_name**:
+      > Nombre del cliente if obj.customer: return obj.customer.get_full_name() return None   # ============================================================================ # TABLE SERIALIZERS # ============================================================================  class TableSerializer(serializers.ModelSerializer): Serializer para mesas
+    - **validate_number**:
+      > Validar que el número sea único if self.instance: if Table.objects.exclude(pk=self.instance.pk).filter(number=value).exists(): raise serializers.ValidationError('Ya existe una mesa con este número') else: if Table.objects.filter(number=value).exists(): raise serializers.ValidationError('Ya existe una mesa con este número') return value   class TableOccupySerializer(serializers.Serializer): Serializer para ocupar una mesa
+    - **get_date_formatted**:
+      > Fecha formateada return obj.date.strftime('%Y-%m-%d')  def get_cash_percentage(self, obj): Porcentaje de ventas en efectivo
+    - **get_cash_percentage**:
+      > Porcentaje de ventas en efectivo return obj.cash_percentage  def get_card_percentage(self, obj): Porcentaje de ventas con tarjeta
+    - **get_card_percentage**:
+      > Porcentaje de ventas con tarjeta return obj.card_percentage  def get_dine_in_percentage(self, obj): Porcentaje de ventas dine-in
+    - **get_dine_in_percentage**:
+      > Porcentaje de ventas dine-in return obj.dine_in_percentage   class DailySummaryGenerateSerializer(serializers.Serializer): Serializer para generar reporte diario
+    - **validate**:
+      > Validar combinación de parámetros report_type = data.get('report_type')  if report_type == 'daily': if not data.get('date'): from django.utils import timezone data['date'] = timezone.now().date()  elif report_type == 'weekly': if not data.get('start_date'): # Por defecto, semana actual from django.utils import timezone today = timezone.now().date() data['start_date'] = today - timedelta(days=today.weekday()) data['end_date'] = data['start_date'] + timedelta(days=6)  elif report_type == 'monthly': if not data.get('year') or not data.get('month'): from django.utils import timezone today = timezone.now().date() data['year'] = today.year data['month'] = today.month  return data  class CloseDaySerializer(serializers.Serializer): Serializer para cerrar el día
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\pos\viewspy
+    - **get_serializer_class**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **create**:
+      > Sin Docstring / Descripción no encontrada.
+    - **close**:
+      > Sin Docstring / Descripción no encontrada.
+    - **current**:
+      > Sin Docstring / Descripción no encontrada.
+    - **by_date**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_serializer_class**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **active**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_serializer_class**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **occupy**:
+      > Sin Docstring / Descripción no encontrada.
+    - **free**:
+      > Sin Docstring / Descripción no encontrada.
+    - **available**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate**:
+      > Generar o actualizar reporte diario. POST /api/pos/daily-summaries/generate/ 
+    - **get_report**:
+      > Obtener reporte por tipo (diario, semanal, mensual). POST /api/pos/daily-summaries/get_report/ 
+    - **today**:
+      > Reporte del día actual. GET /api/pos/daily-summaries/today/ 
+    - **close_day**:
+      > Cerrar el día de operaciones. POST /api/pos/daily-summaries/close_day/ 
+    - **range**:
+      > Obtener reportes en un rango de fechas. GET /api/pos/daily-summaries/range/?start_date=2025-01-01&end_date=2025-01-31 
+    - **dashboard**:
+      > Dashboard con estadísticas rápidas. GET /api/pos/daily-summaries/dashboard/ 
+    - **top_products**:
+      > Productos más vendidos en los últimos 30 días. GET /api/pos/daily-summaries/top_products/ 
+
+### Archivo: \fast-food-service\apps\printer\appspy
+    - **ready**:
+      > Ejecutar código cuando Django inicia 
+
+### Archivo: \fast-food-service\apps\printer\modelspy
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **clean**:
+      > Validación a nivel de modelo from django.core.exceptions import ValidationError  if self.connection_type == 'network' and not self.port: raise ValidationError({ 'port': 'El puerto es requerido para impresoras de red' })  def save(self, *args, **kwargs): # Solo puede haber una impresora por defecto if self.is_default: Printer.objects.filter(is_default=True).exclude(pk=self.pk).update(is_default=False) super().save(*args, **kwargs)  @classmethod def get_default(cls): Obtiene la impresora por defecto
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_ault**:
+      > Obtiene la impresora por defecto return cls.objects.filter(is_default=True, is_active=True).first()   class PrintTemplate(models.Model): Plantillas de impresión
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_job_number**:
+      > Genera un número de trabajo único from datetime import datetime timestamp = datetime.now().strftime('%Y%m%d%H%M%S') random_suffix = str(uuid.uuid4().hex[:4]).upper() return f'PRINT-{timestamp}-{random_suffix}'  def mark_as_printing(self): Marca el trabajo como en impresión
+    - **mark_as_printing**:
+      > Marca el trabajo como en impresión if self.status == 'pending': self.status = 'printing' self.started_at = timezone.now() self.save(update_fields=['status', 'started_at']) return True return False  def mark_as_completed(self): Marca el trabajo como completado
+    - **mark_as_completed**:
+      > Marca el trabajo como completado if self.status == 'printing': self.status = 'completed' self.completed_at = timezone.now() self.save(update_fields=['status', 'completed_at']) return True return False  def mark_as_failed(self, error_message=''): Marca el trabajo como fallido
+    - **mark_as_failed**:
+      > Marca el trabajo como fallido self.status = 'failed' self.error_message = error_message self.completed_at = timezone.now() self.save(update_fields=['status', 'error_message', 'completed_at']) return True   class CashDrawerEvent(models.Model): Historial de aperturas de caja registradora
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **save**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_company_name**:
+      > Obtiene nombre de empresa (BD o settings) if self.company_name: return self.company_name  from django.conf import settings return getattr(settings, 'COMPANY_CONFIG', {}).get('name', 'Mi Empresa')  def get_company_address(self): Obtiene dirección (BD o settings)
+    - **get_company_address**:
+      > Obtiene dirección (BD o settings) if self.company_address: return self.company_address  from django.conf import settings return getattr(settings, 'COMPANY_CONFIG', {}).get('address', 'Dirección no configurada')  def get_company_phone(self): Obtiene teléfono (BD o settings)
+    - **get_company_phone**:
+      > Obtiene teléfono (BD o settings) if self.company_phone: return self.company_phone  from django.conf import settings return getattr(settings, 'COMPANY_CONFIG', {}).get('phone', '000-0000')  def get_company_email(self): Obtiene email (BD o settings)
+    - **get_company_email**:
+      > Obtiene email (BD o settings) if self.company_email: return self.company_email  from django.conf import settings return getattr(settings, 'COMPANY_CONFIG', {}).get('email', '')  def get_company_website(self): Obtiene website (BD o settings)
+    - **get_company_website**:
+      > Obtiene website (BD o settings) if self.company_website: return self.company_website  from django.conf import settings return getattr(settings, 'COMPANY_CONFIG', {}).get('website', '')  def get_tax_id(self): Obtiene RUC/NIT (BD o settings)
+    - **get_tax_id**:
+      > Obtiene RUC/NIT (BD o settings) if self.tax_id: return self.tax_id  from django.conf import settings return getattr(settings, 'COMPANY_CONFIG', {}).get('tax_id', '')  def get_company_logo(self): Obtiene logo (BD o settings)
+    - **get_company_logo**:
+      > Obtiene logo (BD o settings) if self.company_logo: return self.company_logo  from django.conf import settings logo_path = getattr(settings, 'COMPANY_CONFIG', {}).get('logo', '')  if logo_path and not logo_path.startswith('data:'): # Es un path, convertir a path completo import os media_root = getattr(settings, 'MEDIA_ROOT', '') if media_root and not logo_path.startswith('/'): logo_path = os.path.join(media_root, logo_path)  return logo_path  def get_receipt_header(self): Obtiene encabezado de ticket (BD o settings)
+    - **get_receipt_header**:
+      > Obtiene encabezado de ticket (BD o settings) if self.receipt_header: return self.receipt_header  from django.conf import settings return getattr(settings, 'PRINTING_CONFIG', {}).get('receipt_header', '')  def get_receipt_footer(self): Obtiene pie de ticket (BD o settings)
+    - **get_receipt_footer**:
+      > Obtiene pie de ticket (BD o settings) if self.receipt_footer: return self.receipt_footer  from django.conf import settings return getattr(settings, 'PRINTING_CONFIG', {}).get('receipt_footer', '¡Gracias por su compra!')  @classmethod def get_settings(cls): Obtiene la configuración global (singleton)
+    - **get_settings**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\printer\print_managerpy
+    - **get_printer_driver**:
+      > Obtiene el driver de impresión según la configuración  Args: printer: Objeto Printer del modelo  Returns: Objeto escpos printer (Network, Usb, Serial, Dummy)  Raises: ConnectionError: Si no puede conectar ValueError: Si tipo de conexión no es válido 
+    - **print_job**:
+      > Ejecuta un trabajo de impresión  Args: print_job: Objeto PrintJob del modelo  Returns: tuple: (success: bool, message: str) 
+    - **_handle_cash_drawer**:
+      > Maneja la apertura de caja registradora  Args: escpos_printer: Driver de la impresora printer: Objeto Printer del modelo print_job: Objeto PrintJob del modelo 
+    - **open_cash_drawer**:
+      > Abre la caja registradora directamente (sin imprimir)  Args: printer: Objeto Printer del modelo  Returns: tuple: (success: bool, message: str) 
+    - **test_connection**:
+      > Prueba de conexión a impresora (antes de guardarla)  Args: connection_type: Tipo de conexión ('network', 'usb', 'serial', 'bluetooth') connection_string: String de conexión (IP, ruta, etc.) port: Puerto de red (opcional)  Returns: tuple: (success: bool, message: str) 
+    - **check_connection**:
+      > Verifica el estado actual de conexión de una impresora  Args: printer: Objeto Printer del modelo  Returns: str: Estado ('online', 'offline', 'configured', 'error') 
+    - **print_test_page**:
+      > Imprime una página de prueba simple  Args: printer: Objeto Printer del modelo user: Usuario que solicita la prueba  Returns: tuple: (success: bool, message: str) 
+
+### Archivo: \fast-food-service\apps\printer\serializerspy
+    - **get_status**:
+      > Obtiene el estado de conexión de la impresora from .print_manager import PrinterManager return PrinterManager.check_connection(obj)  def validate_name(self, value): Validar que el nombre no esté vacío
+    - **validate_name**:
+      > Validar que el nombre no esté vacío if not value or not value.strip(): raise serializers.ValidationError("El nombre no puede estar vacío") return value.strip()  def validate_connection_string(self, value): Validar cadena de conexión
+    - **validate_connection_string**:
+      > Validar cadena de conexión if not value or not value.strip(): raise serializers.ValidationError("La cadena de conexión no puede estar vacía") return value.strip()  def validate(self, data): Validaciones a nivel de objeto
+    - **validate**:
+      > Validaciones a nivel de objeto connection_type = data.get('connection_type', self.instance.connection_type if self.instance else 'usb')  # ✅ Validar puerto para conexiones de red if connection_type == 'network': port = data.get('port', self.instance.port if self.instance else None) if not port: raise serializers.ValidationError({ 'port': 'El puerto es requerido para impresoras de red' }) if not (1 <= port <= 65535): raise serializers.ValidationError({ 'port': 'El puerto debe estar entre 1 y 65535' })  # ✅ Validar paper_width paper_width = data.get('paper_width', self.instance.paper_width if self.instance else 80) if paper_width not in [58, 80]: raise serializers.ValidationError({ 'paper_width': 'El ancho de papel debe ser 58mm o 80mm' })  return data   class PrintJobSerializer(serializers.ModelSerializer): printer_name = serializers.CharField(source='printer.name', read_only=True) printer_type = serializers.CharField(source='printer.printer_type', read_only=True) status_display = serializers.CharField(source='get_status_display', read_only=True) document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)  class Meta: model = PrintJob fields = [ 'id', 'job_number', 'printer', 'printer_name', 'printer_type', 'document_type', 'document_type_display', 'content', 'data', 'open_cash_drawer', 'cash_drawer_opened', 'status', 'status_display', 'copies', 'error_message', 'created_by', 'created_at', 'started_at', 'completed_at', 'related_model', 'related_id' ] read_only_fields = [ 'id', 'job_number', 'status', 'status_display', 'error_message', 'started_at', 'completed_at', 'cash_drawer_opened', 'printer_name', 'printer_type', 'document_type_display' ]  def create(self, validated_data): Crear trabajo de impresión con usuario actual
+    - **create**:
+      > Crear trabajo de impresión con usuario actual request = self.context.get('request') if request and hasattr(request, 'user') and request.user.is_authenticated: validated_data['created_by'] = request.user.username  # Generar job_number automáticamente validated_data['job_number'] = PrintJob.generate_job_number()  return super().create(validated_data)  def validate_copies(self, value): Validar número de copias
+    - **validate_copies**:
+      > Validar número de copias if value < 1: raise serializers.ValidationError("Debe ser al menos 1 copia") if value > 10: raise serializers.ValidationError("Máximo 10 copias permitidas") return value  def validate_content(self, value): Validar que hay contenido
+    - **validate_content**:
+      > Validar que hay contenido if not value or not value.strip(): raise serializers.ValidationError("El contenido no puede estar vacío") return value   class CashDrawerEventSerializer(serializers.ModelSerializer): printer_name = serializers.CharField(source='printer.name', read_only=True) event_type_display = serializers.CharField(source='get_event_type_display', read_only=True)  class Meta: model = CashDrawerEvent fields = [ 'id', 'printer', 'printer_name', 'print_job', 'event_type', 'event_type_display', 'success', 'notes', 'triggered_by', 'created_at' ] read_only_fields = ['id', 'created_at', 'printer_name', 'event_type_display']   class PrinterSettingsSerializer(serializers.ModelSerializer): class Meta: model = PrinterSettings fields = [ 'id', 'company_logo', 'company_name', 'company_address', 'company_phone', 'company_email', 'company_website', 'tax_id', 'receipt_header', 'receipt_footer', 'auto_print_receipt', 'auto_print_kitchen', 'auto_open_drawer_on_payment', 'require_confirmation_to_open_drawer', 'created_at', 'updated_at' ] read_only_fields = ['id', 'created_at', 'updated_at']  def validate_company_name(self, value): Validar nombre de empresa
+    - **validate_company_name**:
+      > Validar nombre de empresa if not value or not value.strip(): raise serializers.ValidationError("El nombre de la empresa es requerido") return value.strip()  def validate_company_logo(self, value): Validar formato del logo
+    - **validate_company_logo**:
+      > Validar formato del logo if not value: return value  # Verificar que sea base64 válido o path if value.startswith('data:image'): # Validar formato base64 try: header, data = value.split(',', 1) if 'base64' not in header: raise serializers.ValidationError("El logo debe estar en formato base64") except ValueError: raise serializers.ValidationError("Formato de logo inválido") elif not (value.startswith('/') or value.startswith('./')): # Si no es path, debe ser base64 puro import base64 try: base64.b64decode(value) except Exception: raise serializers.ValidationError( "El logo debe ser base64 válido o un path de archivo" )  return value   class PrintRequestSerializer(serializers.Serializer): Serializer para solicitudes de impresión directa
+    - **validate_printer_id**:
+      > Validar que la impresora existe y está activa try: printer = Printer.objects.get(pk=value, is_active=True) return value except Printer.DoesNotExist: raise serializers.ValidationError('Impresora no encontrada o inactiva')  def validate_content(self, value): Validar contenido
+    - **validate_content**:
+      > Validar contenido if not value or not value.strip(): raise serializers.ValidationError('El contenido no puede estar vacío')  # Validar longitud máxima (prevenir abuse) if len(value) > 50000:  # ~50KB raise serializers.ValidationError('El contenido es demasiado largo')  return value.strip()  def validate(self, data): Validaciones a nivel de objeto
+    - **validate**:
+      > Validaciones a nivel de objeto # Obtener el objeto printer completo try: printer = Printer.objects.get(pk=data['printer_id'], is_active=True) data['printer'] = printer except Printer.DoesNotExist: raise serializers.ValidationError({ 'printer_id': 'Impresora no encontrada o inactiva' })  # Validar que si quiere abrir caja, la impresora tenga caja if data.get('open_cash_drawer') and not printer.has_cash_drawer: raise serializers.ValidationError({ 'open_cash_drawer': 'Esta impresora no tiene caja registradora configurada' })  return data   class TestConnectionSerializer(serializers.Serializer): Serializer para pruebas de conexión
+    - **validate_connection_string**:
+      > Validar cadena de conexión if not value or not value.strip(): raise serializers.ValidationError('La cadena de conexión no puede estar vacía') return value.strip()  def validate(self, data): Validaciones a nivel de objeto
+    - **validate**:
+      > Validaciones a nivel de objeto connection_type = data.get('connection_type') port = data.get('port') connection_string = data.get('connection_string')  # ✅ Validar puerto requerido para red if connection_type == 'network': if not port: raise serializers.ValidationError({ 'port': 'El puerto es requerido para conexiones de red' })  # ✅ Validar formato de IP import socket try: socket.inet_aton(connection_string) except socket.error: raise serializers.ValidationError({ 'connection_string': 'Dirección IP inválida' })  # ✅ Validar que el puerto no sea común de otros servicios if port: forbidden_ports = [ 22,    # SSH 80,    # HTTP 443,   # HTTPS 3306,  # MySQL 5432,  # PostgreSQL 8000,  # Django dev 8080,  # HTTP alt ] if port in forbidden_ports: raise serializers.ValidationError({ 'port': f'El puerto {port} es usado por otros servicios. ' f'Use puertos típicos de impresoras (9100, 9101, etc.)' })  return data   class ReceiptDataSerializer(serializers.Serializer): Serializer para validar datos de tickets de venta
+    - **validate_items**:
+      > Validar estructura de items required_fields = ['name', 'quantity', 'price', 'total']  for i, item in enumerate(value): for field in required_fields: if field not in item: raise serializers.ValidationError( f"El item {i+1} debe tener el campo '{field}'" )  # Validar tipos try: qty = float(item['quantity']) price = float(item['price']) total = float(item['total'])  if qty <= 0: raise serializers.ValidationError( f"El item {i+1} tiene cantidad inválida" ) if price < 0: raise serializers.ValidationError( f"El item {i+1} tiene precio inválido" ) except (ValueError, TypeError): raise serializers.ValidationError( f"El item {i+1} tiene valores numéricos inválidos" )  return value  def validate(self, data): Validaciones cruzadas
+    - **validate**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\printer\utilspy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_settings**:
+      > Obtiene configuración global from .models import PrinterSettings return PrinterSettings.get_settings()  def render(self): Renderiza la plantilla con los datos
+    - **render**:
+      > Renderiza la plantilla con los datos try: # Añadir datos comunes a todas las plantillas context = self.prepare_context()  # Usar Django templates engine django_engine = engines['django'] template_obj = django_engine.from_string(self.template.content)  rendered = template_obj.render(context)  # Procesar comandos especiales ESC/POS si es necesario if self.template.template_type in ['receipt', 'order_kitchen', 'order_bar']: rendered = self.add_escpos_commands(rendered)  return rendered  except Exception as e: logger.error(f"Error al renderizar plantilla: {str(e)}") raise  def prepare_context(self): Prepara el contexto con todos los datos necesarios
+    - **prepare_context**:
+      > Prepara el contexto con todos los datos necesarios context = { **self.data, 'company': { 'name': self.settings.company_name, 'address': self.settings.company_address, 'phone': self.settings.company_phone, 'email': self.settings.company_email, 'website': self.settings.company_website, 'tax_id': self.settings.tax_id, }, 'header': self.settings.receipt_header, 'footer': self.settings.receipt_footer, 'now': datetime.now(), 'settings': { 'print_logo': self.template.print_logo, 'print_qr': self.template.print_qr, 'auto_cut': self.template.auto_cut, } }  # Generar QR si está activado if self.template.print_qr: context['qr_code'] = self.generate_qr()  return context  def generate_qr(self): Genera código QR con datos de la transacción
+    - **generate_qr**:
+      > Genera código QR con datos de la transacción qr_data = { 'company': self.settings.company_name, 'document_type': self.template.template_type, 'timestamp': datetime.now().isoformat(), }  # Añadir datos específicos según tipo de documento if 'order_number' in self.data: qr_data['order_number'] = self.data['order_number'] if 'total' in self.data: qr_data['total'] = self.data['total']  qr_text = json.dumps(qr_data)  qr = qrcode.QRCode( version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=3, border=2, ) qr.add_data(qr_text) qr.make(fit=True)  img = qr.make_image(fill_color="black", back_color="white")  # Convertir a base64 para plantillas HTML buffered = BytesIO() img.save(buffered, format="PNG") img_str = base64.b64encode(buffered.getvalue()).decode()  return f"data:image/png;base64,{img_str}"  def add_escpos_commands(self, content): Añade comandos ESC/POS al contenido para impresoras térmicas
+    - **add_escpos_commands**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\apps\printer\viewspy
+    - **get_permissions**:
+      > Sin Docstring / Descripción no encontrada.
+    - **test_print**:
+      > Prueba de impresión simple printer = self.get_object()  try: # Usar el método mejorado del PrinterManager success, message = PrinterManager.print_test_page( printer, user=request.user.username if request.user.is_authenticated else 'system' )  if success: return Response({ 'status': 'success', 'message': message }) else: return Response({ 'status': 'error', 'message': message }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  except Exception as e: logger.error(f"Error en prueba de impresión: {str(e)}") return Response({ 'status': 'error', 'message': str(e) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  @action(detail=True, methods=['post']) def test_cash_drawer(self, request, pk=None): Prueba de apertura de caja registradora
+    - **test_cash_drawer**:
+      > Prueba de apertura de caja registradora printer = self.get_object()  try: success, message = PrinterManager.open_cash_drawer(printer)  if success: # Registrar evento CashDrawerEvent.objects.create( printer=printer, event_type='test', success=True, notes='Prueba manual de caja registradora', triggered_by=request.user.username if request.user.is_authenticated else 'system' )  return Response({ 'status': 'success', 'message': message }) else: return Response({ 'status': 'error', 'message': message }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  except Exception as e: logger.error(f"Error en prueba de caja: {str(e)}") return Response({ 'status': 'error', 'message': str(e) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  @action(detail=False, methods=['post']) def test_connection(self, request): Prueba de conexión a impresora
+    - **test_connection**:
+      > Prueba de conexión a impresora serializer = TestConnectionSerializer(data=request.data) if not serializer.is_valid(): return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  data = serializer.validated_data  try: success, message = PrinterManager.test_connection( data['connection_type'], data['connection_string'], data.get('port') )  return Response({ 'success': success, 'message': message })  except Exception as e: return Response({ 'success': False, 'message': str(e) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  @action(detail=False, methods=['get']) def default(self, request): Obtener impresora por defecto
+    - **ault**:
+      > Obtener impresora por defecto printer = Printer.get_default() if printer: serializer = self.get_serializer(printer) return Response(serializer.data) return Response({'detail': 'No hay impresora por defecto'}, status=status.HTTP_404_NOT_FOUND)   class PrintJobViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet): API para historial de trabajos de impresión
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **retry**:
+      > Reintentar un trabajo fallido print_job = self.get_object()  if print_job.status != 'failed': return Response({ 'error': 'Solo se pueden reintentar trabajos fallidos' }, status=status.HTTP_400_BAD_REQUEST)  # ✅ CORRECCIÓN: Rate limiting para evitar spam cache_key = f'print_retry_{print_job.id}_{request.user.id}' if cache.get(cache_key): return Response({ 'error': 'Debe esperar 30 segundos antes de reintentar' }, status=status.HTTP_429_TOO_MANY_REQUESTS)  try: print_job.status = 'pending' print_job.error_message = '' print_job.save(update_fields=['status', 'error_message'])  # Reimprimir success, message = PrinterManager.print_job(print_job)  if success: return Response({ 'status': 'success', 'message': 'Trabajo reimpreso exitosamente', 'job_id': str(print_job.id) }) else: print_job.mark_as_failed(message) return Response({ 'status': 'error', 'message': message }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)  except Exception as e: logger.error(f"Error al reintentar impresión: {str(e)}") return Response({ 'status': 'error', 'message': str(e) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) finally: # Establecer rate limit de 30 segundos cache.set(cache_key, True, 30)   class CashDrawerEventViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet): API para historial de eventos de caja
+    - **get_queryset**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get_object**:
+      > Sin Docstring / Descripción no encontrada.
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **generate_receipt_content**:
+      > Genera el contenido formateado para el ticket  Args: printer: Objeto Printer order_data: Diccionario con datos de la orden print_logo: Boolean para incluir logo (default: True)  Returns: tuple: (content: str, logo_path: str|None) 
+    - **_process_logo_for_thermal**:
+      > Procesa el logo para impresoras térmicas  Args: logo_data: Base64 string o path de la imagen printer: Objeto Printer  Returns: str: Path temporal de la imagen procesada (o None si falla) 
+    - **_wrap_text**:
+      > Divide texto largo en múltiples líneas  Args: text: Texto a dividir max_width: Ancho máximo en caracteres  Returns: list: Lista de líneas 
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **print_status**:
+      > Estado del sistema de impresión try: from django.db.models import Count, Q  # Estadísticas básicas total_jobs = PrintJob.objects.count() pending_jobs = PrintJob.objects.filter(status='pending').count() today_jobs = PrintJob.objects.filter( created_at__date=timezone.now().date() ).count()  # Impresoras activas active_printers = Printer.objects.filter(is_active=True) printer_status = {}  for printer in active_printers: printer_status[printer.name] = { 'status': PrinterManager.check_connection(printer), 'type': printer.printer_type, 'connection': printer.connection_type }  return Response({ 'system': 'online', 'printers_active': active_printers.count(), 'jobs_total': total_jobs, 'jobs_pending': pending_jobs, 'jobs_today': today_jobs, 'printers': printer_status, 'default_printer': Printer.get_default().name if Printer.get_default() else None })  except Exception as e: return Response({ 'system': 'error', 'error': str(e) }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)   @api_view(['POST']) @permission_classes([IsAuthenticated]) def open_cash_drawer(request): Abrir caja registradora manualmente
+    - **open_cash_drawer**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\core\authenticationpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_anonymous**:
+      > Sin Docstring / Descripción no encontrada.
+    - **authenticate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **authenticate_header**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\core\middlewarepy
+    - **process_request**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\core\permissionspy
+    - **require_authentication**:
+      > Decorador para requerir autenticación en una vista 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_permission**:
+      > Decorador para requerir un permiso específico Uso: @require_permission('fast_food.manage_menu') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_staff**:
+      > Decorador para requerir que el usuario sea staff 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_role**:
+      > Decorador para requerir un rol específico Uso: @require_role('ADMIN_FAST_FOOD') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \fast-food-service\core\utils\service_clientpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **_make_request**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get**:
+      > Sin Docstring / Descripción no encontrada.
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **put**:
+      > Sin Docstring / Descripción no encontrada.
+    - **patch**:
+      > Sin Docstring / Descripción no encontrada.
+    - **delete**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \reporting-service\apps\consolidation\viewspy
+    - **test_consolidated_view**:
+      > Vista de prueba para reportes consolidados return Response({ 'message': 'Acceso a reportes consolidados exitoso', 'user': request.username, 'role': request.user_role })   @api_view(['GET']) def health_check(request): Health check
+    - **health_check**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \reporting-service\apps\dashboards\viewspy
+    - **test_auth**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \reporting-service\core\authenticationpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_anonymous**:
+      > Sin Docstring / Descripción no encontrada.
+    - **authenticate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **authenticate_header**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \reporting-service\core\middlewarepy
+    - **process_request**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \reporting-service\core\permissionspy
+    - **require_authentication**:
+      > Decorador para requerir autenticación en una vista 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_permission**:
+      > Decorador para requerir un permiso específico Uso: @require_permission('fast_food.manage_menu') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_staff**:
+      > Decorador para requerir que el usuario sea staff 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_role**:
+      > Decorador para requerir un rol específico Uso: @require_role('ADMIN_FAST_FOOD') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \reporting-service\core\utils\service_clientpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **_make_request**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get**:
+      > Sin Docstring / Descripción no encontrada.
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **put**:
+      > Sin Docstring / Descripción no encontrada.
+    - **patch**:
+      > Sin Docstring / Descripción no encontrada.
+    - **delete**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \restaurant-service\apps\menu\viewspy
+    - **test_auth_view**:
+      > Vista de prueba autenticación return Response({ 'message': 'Autenticación exitosa en restaurant-service', 'user_id': request.user_id, 'username': request.username, 'email': request.user_email, 'role': request.user_role })   @api_view(['GET']) def health_check(request): Health check
+    - **health_check**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \restaurant-service\core\authenticationpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **__str__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **is_anonymous**:
+      > Sin Docstring / Descripción no encontrada.
+    - **authenticate**:
+      > Sin Docstring / Descripción no encontrada.
+    - **authenticate_header**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \restaurant-service\core\middlewarepy
+    - **process_request**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \restaurant-service\core\permissionspy
+    - **require_authentication**:
+      > Decorador para requerir autenticación en una vista 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_permission**:
+      > Decorador para requerir un permiso específico Uso: @require_permission('fast_food.manage_menu') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_staff**:
+      > Decorador para requerir que el usuario sea staff 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_role**:
+      > Decorador para requerir un rol específico Uso: @require_role('ADMIN_FAST_FOOD') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \restaurant-service\core\utils\service_clientpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **_make_request**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get**:
+      > Sin Docstring / Descripción no encontrada.
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **put**:
+      > Sin Docstring / Descripción no encontrada.
+    - **patch**:
+      > Sin Docstring / Descripción no encontrada.
+    - **delete**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \shared\middleware\jwt_auth_middlewarepy
+    - **process_request**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \shared\middleware\permissionspy
+    - **require_authentication**:
+      > Decorador para requerir autenticación en una vista 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_permission**:
+      > Decorador para requerir un permiso específico Uso: @require_permission('fast_food.manage_menu') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_staff**:
+      > Decorador para requerir que el usuario sea staff 
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+    - **require_role**:
+      > Decorador para requerir un rol específico Uso: @require_role('ADMIN_FAST_FOOD') 
+    - **decorator**:
+      > Sin Docstring / Descripción no encontrada.
+    - **wrapper**:
+      > Sin Docstring / Descripción no encontrada.
+
+### Archivo: \shared\utils\service_clientpy
+    - **__init__**:
+      > Sin Docstring / Descripción no encontrada.
+    - **_make_request**:
+      > Sin Docstring / Descripción no encontrada.
+    - **get**:
+      > Sin Docstring / Descripción no encontrada.
+    - **post**:
+      > Sin Docstring / Descripción no encontrada.
+    - **put**:
+      > Sin Docstring / Descripción no encontrada.
+    - **patch**:
+      > Sin Docstring / Descripción no encontrada.
+    - **delete**:
+      > Sin Docstring / Descripción no encontrada.
+
+==================================================
+
+## 3. ⚙️ Archivos Clave de Configuración
+
+### Contenido de `docker-compose.yml` (Docker/Microservicios)
+```yaml
+services:
+# Base de datos PostgreSQL
+postgres:
+image: postgres:15
+environment:
+POSTGRES_USER: postgres
+POSTGRES_PASSWORD: postgres
+POSTGRES_MULTIPLE_DATABASES: auth_service_db,fast_food_service_db,hotel_service_db,pool_service_db,restaurant_service_db,reporting_service_db,notification_service_db
+volumes:
+- postgres-data:/var/lib/postgresql/data
+- ./scripts/create-multiple-postgresql-databases.sh:/docker-entrypoint-initdb.d/create-multiple-postgresql-databases.sh
+ports:
+- "5432:5432"
+networks:
+- aurora-network
+healthcheck:
+test: ["CMD-SHELL", "pg_isready -U postgres"]
+interval: 5s
+timeout: 5s
+retries: 5
+
+# Redis
+redis:
+image: redis:7-alpine
+ports:
+- "6379:6379"
+networks:
+- aurora-network
+healthcheck:
+test: ["CMD", "redis-cli", "ping"]
+interval: 5s
+timeout: 3s
+retries: 5
+
+auth-service:
+build: ./auth-service
+command: >
+sh -c "
+echo 'Waiting for postgres...'
+until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+... (contenido truncado)
+```
+
+### Contenido de `Dockerfile` (Docker/Microservicios)
+```yaml
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+postgresql-client \
+&& rm -rf /var/lib/apt/lists/*
+
+# Instalar dependencias Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar codigo
+COPY . .
+
+# Exponer puerto
+EXPOSE 8000
+
+# Comando por defecto
+CMD ["gunicorn", "auth_service.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+... (contenido truncado)
+```
+
+### Contenido de `settings.py` (Configuración de Django)
+```python
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-change-this-in-production')
+
+DEBUG = os.getenv('DEBUG', 'False') == 'True'
+
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost').split(',')
+
+INSTALLED_APPS = [
+'django.contrib.admin',
+'django.contrib.auth',
+'django.contrib.contenttypes',
+'django.contrib.sessions',
+'django.contrib.messages',
+'django.contrib.staticfiles',
+'rest_framework',
+'corsheaders',
+]
+
+# Apps del servicio
+INSTALLED_APPS.append('apps.authentication')
+INSTALLED_APPS.append('apps.users')
+INSTALLED_APPS.append('apps.roles')
+
+
+MIDDLEWARE = [
+'django.middleware.security.SecurityMiddleware',
+'corsheaders.middleware.CorsMiddleware',
+'django.contrib.sessions.middleware.SessionMiddleware',
+'django.middleware.common.CommonMiddleware',
+'django.middleware.csrf.CsrfViewMiddleware',
+'django.contrib.auth.middleware.AuthenticationMiddleware',
+'django.contrib.messages.middleware.MessageMiddleware',
+'django.middleware.clickjacking.XFrameOptionsMiddleware',
+... (contenido truncado)
+```
+
+### Contenido de `urls.py` (Rutas de la API)
+```python
+from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
+from . import views
+
+urlpatterns = [
+# Autenticación
+path('login/', views.CustomTokenObtainPairView.as_view(), name='login'),
+path('register/', views.register_view, name='register'),
+path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+path('logout/', views.logout_view, name='logout'),
+
+# Verificación de token
+path('verify-token/', views.verify_token_view, name='verify_token'),
+
+# Usuario actual
+path('me/', views.current_user_view, name='current_user'),
+]
+... (contenido truncado)
+```
+
+### Contenido de `package.json` (Dependencias de Frontend/React)
+```json
+{
+"name": "aurora-system-frontend",
+"version": "1.0.0",
+"private": true,
+"dependencies": {
+"axios": "^1.6.2",
+"jspdf": "^3.0.4",
+"react": "^18.2.0",
+"react-dom": "^18.2.0",
+"react-router-dom": "^6.21.0",
+"react-scripts": "5.0.1",
+"react-datepicker": "^4.21.0",
+"jspdf-autotable": "^4.0.0-alpha.5",
+"recharts": "^2.10.0",
+"date-fns": "^2.30.0"
+},
+"scripts": {
+"start": "react-scripts start",
+"build": "react-scripts build",
+"test": "react-scripts test",
+"eject": "react-scripts eject"
+},
+"eslintConfig": {
+"extends": [
+"react-app"
+]
+},
+"browserslist": {
+"production": [
+">0.2%",
+"not dead",
+"not op_mini all"
+],
+"development": [
+"last 1 chrome version",
+"last 1 firefox version",
+"last 1 safari version"
+]
+},
+"overrides": {
+... (contenido truncado)
+```

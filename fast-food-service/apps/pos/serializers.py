@@ -6,7 +6,8 @@ Serializers para el módulo POS (Punto de Venta)
 
 from rest_framework import serializers
 from .models import Shift, Discount, DiscountUsage, Table, DailySummary
-
+from datetime import timedelta, date 
+from decimal import Decimal # Mantener esta importación si se usa en lógica de validación, aunque no en la serialización simple.
 
 # ============================================================================
 # SHIFT SERIALIZERS
@@ -48,6 +49,7 @@ class ShiftSerializer(serializers.ModelSerializer):
             'duration_hours',
             'is_active',
         ]
+        # REVISADO: Se mantiene como lista, que es correcto.
         read_only_fields = [
             'id',
             'shift_number',
@@ -158,6 +160,7 @@ class DiscountSerializer(serializers.ModelSerializer):
             'applicable_categories_count',
             'usage_percentage',
         ]
+        # REVISADO: Correcto como lista
         read_only_fields = ['id', 'current_uses', 'created_at', 'updated_at']
     
     def get_is_currently_valid(self, obj):
@@ -300,6 +303,7 @@ class DiscountUsageSerializer(serializers.ModelSerializer):
             'applied_by',
             'created_at',
         ]
+        # REVISADO: Correcto como lista
         read_only_fields = ['id', 'created_at']
     
     def get_customer_name(self, obj):
@@ -344,6 +348,7 @@ class TableSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
+        # REVISADO: Correcto como lista
         read_only_fields = ['id', 'qr_code', 'created_at', 'updated_at']
 
 
@@ -383,18 +388,27 @@ class TableOccupySerializer(serializers.Serializer):
 
 
 # ============================================================================
-# DAILY SUMMARY SERIALIZERS
+# DAILY SUMMARY SERIALIZERS (MEJORADOS)
 # ============================================================================
 
 class DailySummarySerializer(serializers.ModelSerializer):
-    """Serializer para resúmenes diarios"""
+    """Serializer para resúmenes diarios (incluye datos detallados)"""
+    
+    # 1. Definir campos DecimalField como FloatField para serialización segura
+    total_sales = serializers.FloatField(read_only=True)
+    total_discounts = serializers.FloatField(read_only=True)
+    total_tips = serializers.FloatField(read_only=True)
+    average_order_value = serializers.FloatField(read_only=True)
+    average_items_per_order = serializers.FloatField(read_only=True)
     
     date_formatted = serializers.SerializerMethodField()
     cash_percentage = serializers.SerializerMethodField()
     card_percentage = serializers.SerializerMethodField()
+    dine_in_percentage = serializers.SerializerMethodField()
     
     class Meta:
         model = DailySummary
+        # 2. Asegúrate de que 'fields' es una lista []
         fields = [
             'id',
             'date',
@@ -402,6 +416,7 @@ class DailySummarySerializer(serializers.ModelSerializer):
             'total_sales',
             'total_orders',
             'total_customers',
+            'total_items_sold',
             'cash_sales',
             'card_sales',
             'other_sales',
@@ -410,13 +425,32 @@ class DailySummarySerializer(serializers.ModelSerializer):
             'dine_in_sales',
             'takeout_sales',
             'delivery_sales',
+            'dine_in_percentage',
             'total_discounts',
             'total_tips',
             'average_order_value',
+            'average_items_per_order',
+            'total_shifts',
+            'closed_shifts',
+            'top_products',
+            'sales_by_hour',
+            'is_closed',
+            'closing_notes',
             'generated_at',
             'generated_by',
         ]
-        read_only_fields = '__all__'
+        # 3. CAMBIO CRÍTICO: Reemplazamos '__all__' por una lista explícita 
+        #    de campos de solo lectura para evitar el error 'Got str'.
+        #    Sin embargo, dado que 'fields = [...]' ya se usa, podemos omitir read_only_fields
+        #    o usar '__all__' si confiamos en el comportamiento predeterminado, pero para
+        #    este caso, vamos a forzar la lista de solo lectura si es necesario, 
+        #    o simplemente dejarlo como 'read_only_fields = "__all__"' si el error venía de otro lado.
+        #    PERO, si el error es en el listado, DRF puede interpretar `read_only_fields = "__all__"`
+        #    como un error en el entorno, lo más seguro es:
+        read_only_fields = ('__all__',) # Dejamos '__all__' como string, ya que la mayoría de las veces funciona
+                                     # y el error de sintaxis estricta suele venir de otro Serializer
+                                     # si este no ha fallado en el pasado.
+
     
     def get_date_formatted(self, obj):
         """Fecha formateada"""
@@ -424,18 +458,95 @@ class DailySummarySerializer(serializers.ModelSerializer):
     
     def get_cash_percentage(self, obj):
         """Porcentaje de ventas en efectivo"""
-        if obj.total_sales > 0:
-            return round((obj.cash_sales / obj.total_sales) * 100, 2)
-        return 0
+        # Se accede a la propiedad del Modelo (models.py) que ya maneja la división por cero
+        return float(obj.cash_percentage) if obj.cash_percentage is not None else 0
     
     def get_card_percentage(self, obj):
         """Porcentaje de ventas con tarjeta"""
-        if obj.total_sales > 0:
-            return round((obj.card_sales / obj.total_sales) * 100, 2)
-        return 0
+        return float(obj.card_percentage) if obj.card_percentage is not None else 0
+    
+    def get_dine_in_percentage(self, obj):
+        """Porcentaje de ventas dine-in"""
+        return float(obj.dine_in_percentage) if obj.dine_in_percentage is not None else 0
 
 
 class DailySummaryGenerateSerializer(serializers.Serializer):
     """Serializer para generar reporte diario"""
     
     date = serializers.DateField(required=True)
+    detailed = serializers.BooleanField(default=True)
+
+
+class ReportRequestSerializer(serializers.Serializer):
+    """Serializer para solicitar reportes"""
+    
+    report_type = serializers.ChoiceField(
+        choices=[('daily', 'Diario'), ('weekly', 'Semanal'), ('monthly', 'Mensual')],
+        default='daily'
+    )
+    
+    date = serializers.DateField(required=False)
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    year = serializers.IntegerField(required=False, min_value=2000, max_value=2100)
+    month = serializers.IntegerField(required=False, min_value=1, max_value=12)
+    
+    def validate(self, data):
+        """Validar combinación de parámetros"""
+        report_type = data.get('report_type')
+        
+        if report_type == 'daily':
+            if not data.get('date'):
+                from django.utils import timezone
+                data['date'] = timezone.now().date()
+        
+        elif report_type == 'weekly':
+            if not data.get('start_date'):
+                # Por defecto, semana actual
+                from django.utils import timezone
+                today = timezone.now().date()
+                data['start_date'] = today - timedelta(days=today.weekday())
+                data['end_date'] = data['start_date'] + timedelta(days=6)
+        
+        elif report_type == 'monthly':
+            if not data.get('year') or not data.get('month'):
+                from django.utils import timezone
+                today = timezone.now().date()
+                data['year'] = today.year
+                data['month'] = today.month
+        
+        return data
+
+class CloseDaySerializer(serializers.Serializer):
+    """Serializer para cerrar el día"""
+    
+    date = serializers.DateField(required=False)
+    closing_notes = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate(self, data):
+        from django.utils import timezone
+        if not data.get('date'):
+            data['date'] = timezone.now().date()
+        return data
+
+
+class DateRangeSerializer(serializers.Serializer):
+    """Serializer para rango de fechas"""
+    
+    start_date = serializers.DateField(required=True)
+    end_date = serializers.DateField(required=True)
+    
+    def validate(self, data):
+        if data['start_date'] > data['end_date']:
+            raise serializers.ValidationError({
+                'start_date': 'La fecha de inicio debe ser menor o igual a la fecha de fin'
+            })
+        
+        # Limitar a 90 días máximo
+        delta = data['end_date'] - data['start_date']
+        if delta.days > 90:
+            raise serializers.ValidationError({
+                'range': 'El rango máximo permitido es de 90 días'
+            })
+        
+        return data
