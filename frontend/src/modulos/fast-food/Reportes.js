@@ -1,11 +1,11 @@
-// modulos/fast-food/Reportes.js - VERSIÓN CONSOLIDADA FINAL Y CORREGIDA
+// modulos/fast-food/Reportes.js - VERSIÓN FINAL LIMPIA Y SIN WARNINGS DE CLASSNAME
 
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import {
-    BarChart, Bar, PieChart, Cell,
+    BarChart, Bar, 
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-    AreaChart, Area, Pie
+    AreaChart, Area
 } from 'recharts';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -51,17 +51,16 @@ const formatDate = (dateString) => {
     }
 };
 
-// ====================================================================
-// 2. Lógica del PDF (Impresión Detallada) - CORREGIDA
-// ====================================================================
-
-// FUNCIÓN CLAVE PARA EVITAR EL ERROR 'Invalid time value'
 // FUNCIÓN CLAVE PARA EVITAR EL ERROR 'Invalid time value'
 const getValidDate = (dateValue) => {
     if (!dateValue) return null;
     const date = new Date(dateValue);
     return isNaN(date.getTime()) ? null : date;
 };
+
+// ====================================================================
+// 2. Lógica del PDF (Impresión Detallada) - SIN EMOJIS
+// ====================================================================
 
 const generateDetailedPDF = (report, reportType, dateRangeStr) => {
     if (!report) {
@@ -74,7 +73,7 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
     let y = 15;
     const MARGIN = 10;
     const PAGE_HEIGHT = doc.internal.pageSize.getHeight();
-    const MIN_SPACE_FOR_SECTION = 30; // Espacio mínimo requerido para un nuevo título y algo de contenido.
+    const MIN_SPACE_FOR_SECTION = 30;
 
     // 1. Manejo de fechas para el TÍTULO y nombre de archivo
     const reportDateForFilename = getValidDate(report.date || report.start_date) || new Date(); 
@@ -126,7 +125,6 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
 
     // --- 2. Detalle de Órdenes (Control de salto de página) ---
 
-    // Chequeamos si el siguiente encabezado cabe en la página
     if (PAGE_HEIGHT - y < MIN_SPACE_FOR_SECTION) {
         doc.addPage();
         y = 20;
@@ -142,13 +140,13 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
     if (ordersDetail.length > 0) {
         const orderData = [];
         ordersDetail.forEach((order, index) => {
-            const orderDateValue = order.timestamp || report.date;
+            const orderDateValue = order.timestamp || report.date; 
             const validOrderDate = getValidDate(orderDateValue);
             const timeFormatted = validOrderDate ? format(validOrderDate, 'HH:mm:ss') : 'N/A';
             
             // Fila de la Orden (encabezado)
             orderData.push([
-                { content: `ORDEN #${order.order_id || index + 1} (${order.customer_name || 'Anónimo'})`, colSpan: 4, styles: { fillColor: [230, 230, 250], fontStyle: 'bold' } },
+                { content: `ORDEN #${order.order_number || order.order_id || index + 1} (${order.customer_name || 'Anónimo'})`, colSpan: 4, styles: { fillColor: [230, 230, 250], fontStyle: 'bold' } },
             ]);
             orderData.push([
                 { content: 'Fecha/Hora', styles: { fontStyle: 'bold' } },
@@ -158,8 +156,8 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
             ]);
             orderData.push([
                 timeFormatted,
-                formatCurrency(order.total_amount || 0),
-                order.payment_method || 'N/A',
+                formatCurrency(order.total_amount || 0), 
+                order.payment_method_display || 'N/A', 
                 order.status || 'Completada',
             ]);
             // Fila de los Ítems
@@ -170,11 +168,14 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
                 { content: 'Subtotal', styles: { fontStyle: 'bold', halign: 'right' } },
             ]);
             (order.items || []).forEach(item => {
+                const productName = item.product_details?.name || item.product_name || 'Producto Desconocido';
+                const itemLabel = productName + (item.size_details?.name ? ` (${item.size_details.name})` : '');
+                
                 orderData.push([
-                    item.product_name || 'Producto Desconocido',
+                    itemLabel,
                     (item.quantity || 1).toString(),
                     formatCurrency(item.unit_price || 0),
-                    formatCurrency(item.subtotal || 0),
+                    formatCurrency(item.line_total || item.subtotal || 0), 
                 ]);
             });
             // Separador
@@ -208,7 +209,6 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
 
     // --- 3. Productos Más Vendidos (Control de salto de página) ---
 
-    // Chequeamos si el siguiente encabezado cabe en la página
     if (PAGE_HEIGHT - y < MIN_SPACE_FOR_SECTION) {
         doc.addPage();
         y = 20;
@@ -547,7 +547,7 @@ const Reportes = () => {
         if (!dashboardStats && connectionError) {
             return (
                 <div className="card alert-card">
-                    <h3 style={{ marginBottom: 15, color: '#dc2626' }}>⚠️ No se pudo conectar al backend</h3>
+                    <h3 style={{ marginBottom: 15, color: '#dc2626' }}>No se pudo conectar al backend</h3>
                     <p style={{ color: '#666', marginBottom: 10 }}>
                         URL del backend: <strong>{getFastFoodBaseURL()}</strong>
                     </p>
@@ -570,7 +570,7 @@ const Reportes = () => {
                         }}
                         className="action-button primary"
                     >
-                        🔄 Reintentar Conexión
+                        Reintentar Conexión
                     </button>
 
                     {debugInfo && (
@@ -589,7 +589,7 @@ const Reportes = () => {
 
         return (
             <div className="dashboard-stats card">
-                <h3 className="panel-title">📊 Resumen del Día</h3>
+                <h3 className="panel-title">Resumen del Día</h3>
 
                 <div className="stats-grid">
                     <div className="stat-item">
@@ -629,28 +629,6 @@ const Reportes = () => {
                         </h4>
                     </div>
                 </div>
-
-                {dashboardStats.last_7_days && (
-                    <div className="weekly-trend">
-                        <p className="trend-label">📈 Ventas últimos 7 días:</p>
-                        <div className="bar-chart-7d">
-                            {dashboardStats.last_7_days.map((day, index) => (
-                                <div key={index} className="bar-wrapper">
-                                    <div
-                                        className="bar-item"
-                                        style={{
-                                            height: `${Math.max(10, (day.total_sales / 1000) * 40)}px`,
-                                        }}
-                                        title={`${day.day_name}: ${formatCurrency(day.total_sales)}`}
-                                    />
-                                    <div className="bar-day">
-                                        {format(new Date(day.date), 'EEE', { locale: es }).toUpperCase()}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
             </div>
         );
     };
@@ -798,95 +776,7 @@ const Reportes = () => {
             </div>
         );
     };
-
-    // Renderizar gráfico de ventas por tipo de orden
-    const renderSalesByOrderTypeChart = () => {
-        if (!currentReport) return null;
-
-        const orderTypeData = [
-            { name: 'Dine-In', value: parseFloat(currentReport.dine_in_sales || 0) },
-            { name: 'Takeout', value: parseFloat(currentReport.takeout_sales || 0) },
-            { name: 'Delivery', value: parseFloat(currentReport.delivery_sales || 0) }
-        ].filter(item => item.value > 0);
-
-        if (orderTypeData.length === 0) {
-            return <div className="no-data-chart">No hay datos de tipos de orden.</div>;
-        }
-
-        return (
-            <div className="chart-container">
-                <h4 className="chart-title">Ventas por Tipo de Orden (MXN)</h4>
-                <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                        <Pie
-                            data={orderTypeData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            fill="#8884d8"
-                            labelLine={true}
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                        >
-                            {orderTypeData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                        </Pie>
-                        <Tooltip
-                            formatter={(value) => [formatCurrency(value), 'Ventas']}
-                        />
-                        <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    </PieChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    };
-
-    // Renderizar gráfico de métodos de pago
-    const renderPaymentMethodsChart = () => {
-        if (!currentReport) return null;
-
-        const paymentData = [
-            { name: 'Efectivo', value: parseFloat(currentReport.cash_sales || 0) },
-            { name: 'Tarjeta', value: parseFloat(currentReport.card_sales || 0) },
-            { name: 'Otros', value: parseFloat(currentReport.other_sales || 0) }
-        ].filter(item => item.value > 0);
-
-        if (paymentData.length === 0) {
-            return <div className="no-data-chart">No hay datos de métodos de pago.</div>;
-        }
-
-        return (
-            <div className="chart-container">
-                <h4 className="chart-title">Métodos de Pago (MXN)</h4>
-                <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                        <Pie
-                            data={paymentData}
-                            dataKey="value"
-                            nameKey="name"
-                            cx="50%"
-                            cy="50%"
-                            outerRadius={80}
-                            fill="#8884d8"
-                            labelLine={true}
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
-                        >
-                            {paymentData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[(index + 3) % COLORS.length]} />
-                            ))}
-                        </Pie>
-                        <Tooltip
-                            formatter={(value) => [formatCurrency(value), 'Ventas']}
-                        />
-                        <Legend wrapperStyle={{ fontSize: '12px' }} />
-                    </PieChart>
-                </ResponsiveContainer>
-            </div>
-        );
-    };
-
+    
     // Función para manejar la impresión a PDF
     const handlePrintPDF = () => {
         const start = formatDate(currentReport.date || currentReport.start_date);
@@ -904,7 +794,7 @@ const Reportes = () => {
         if (ordersDetail.length === 0) {
             return (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#666', border: '1px dashed #ccc', borderRadius: 8 }}>
-                    No hay detalles de órdenes disponibles para este reporte.
+                    No hay registros de órdenes creadas para este día.
                 </div>
             );
         }
@@ -921,14 +811,14 @@ const Reportes = () => {
                         <div key={order.order_id || index} style={{ marginBottom: 20, padding: 15, border: '1px solid #f3f4f6', borderRadius: 8 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f9fafb', padding: '10px 15px', borderRadius: 6 }}>
                                 <h5 style={{ margin: 0, color: '#1f77b4', fontSize: '1rem' }}>
-                                    ORDEN #{order.order_id || index + 1} ({order.customer_name || 'Anónimo'})
+                                    ORDEN #{order.order_number || order.order_id || index + 1} ({order.customer_name || 'Anónimo'})
                                 </h5>
                                 <span style={{ fontSize: '0.9rem', color: '#333', fontWeight: 'bold' }}>
                                     Total: {formatCurrency(order.total_amount || 0)}
                                 </span>
                             </div>
                             <p style={{ margin: '10px 0 5px 0', fontSize: '0.85rem', color: '#666' }}>
-                                **Método de Pago:** {order.payment_method || 'N/A'} | **Estado:** {order.status || 'Completada'} | **Hora:** {timeFormatted}
+                                **Método de Pago:** {order.payment_method_display || 'N/A'} | **Estado:** {order.status || 'Completada'} | **Hora:** {timeFormatted}
                             </p>
                             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 10 }}>
                                 <thead>
@@ -942,10 +832,18 @@ const Reportes = () => {
                                 <tbody>
                                     {(order.items || []).map((item, itemIndex) => (
                                         <tr key={itemIndex}>
-                                            <td style={{ padding: 8, border: '1px solid #eee', fontSize: '0.8rem' }}>{item.product_name || 'Producto Desconocido'}</td>
+                                            <td style={{ padding: 8, border: '1px solid #eee', fontSize: '0.8rem' }}>
+                                                {item.product_details?.name || 'Producto Desconocido'}
+                                                {item.size_details?.name && ` (${item.size_details.name})`}
+                                                {item.extras && item.extras.length > 0 && 
+                                                    <span style={{ display: 'block', fontSize: '0.7rem', color: '#999' }}>
+                                                        + {item.extras.map(e => e.extra_name).join(', ')}
+                                                    </span>
+                                                }
+                                            </td>
                                             <td style={{ padding: 8, border: '1px solid #eee', textAlign: 'right', fontSize: '0.8rem' }}>{(item.quantity || 1).toLocaleString()}</td>
                                             <td style={{ padding: 8, border: '1px solid #eee', textAlign: 'right', fontSize: '0.8rem' }}>{formatCurrency(item.unit_price || 0)}</td>
-                                            <td style={{ padding: 8, border: '1px solid #eee', textAlign: 'right', fontSize: '0.8rem' }}>{formatCurrency(item.subtotal || 0)}</td>
+                                            <td style={{ padding: 8, border: '1px solid #eee', textAlign: 'right', fontSize: '0.8rem' }}>{formatCurrency(item.line_total || 0)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -970,7 +868,7 @@ const Reportes = () => {
             {/* Título principal */}
             <div className="header-bar">
                 <div>
-                    <h1 className="main-title">📊 Reportes del Sistema</h1>
+                    <h1 className="main-title">Reportes del Sistema</h1>
                     <p className="subtitle">Datos en tiempo real desde la base de datos.</p>
                 </div>
                 <div className="actions-group">
@@ -979,7 +877,7 @@ const Reportes = () => {
                         disabled={currentReport?.is_closed || connectionError}
                         className={`action-button ${currentReport?.is_closed ? 'closed' : 'open'}`}
                     >
-                        {currentReport?.is_closed ? '✅ Día Cerrado' : '🔒 Cerrar Día'}
+                        {currentReport?.is_closed ? 'Día Cerrado' : 'Cerrar Día'}
                     </button>
                     {currentReport && (
                         <button
@@ -988,7 +886,7 @@ const Reportes = () => {
                             className="action-button primary"
                             style={{ backgroundColor: '#cc3333' }}
                         >
-                            🖨️ Imprimir PDF Detallado
+                            Imprimir PDF Detallado
                         </button>
                     )}
                 </div>
@@ -999,7 +897,7 @@ const Reportes = () => {
 
             {/* Panel de Control */}
             <div className="control-panel card">
-                <h3 className="panel-title">🔧 Filtros y Generación</h3>
+                <h3 className="panel-title">Filtros y Generación</h3>
 
                 <div className="filter-group">
                     {/* Select Tipo de Reporte */}
@@ -1010,10 +908,10 @@ const Reportes = () => {
                             onChange={(e) => setReportType(e.target.value)}
                             className="form-select"
                         >
-                            <option value="daily">📅 Diario</option>
-                            <option value="weekly">🗓️ Semanal</option>
-                            <option value="monthly">📆 Mensual</option>
-                            <option value="custom">🎯 Personalizado</option>
+                            <option value="daily">Diario</option>
+                            <option value="weekly">Semanal</option>
+                            <option value="monthly">Mensual</option>
+                            <option value="custom">Personalizado</option>
                         </select>
                     </div>
 
@@ -1055,7 +953,7 @@ const Reportes = () => {
                             disabled={loadingData || connectionError}
                             className={`generate-button ${loadingData ? 'loading' : ''}`}
                         >
-                             {loadingData ? 'Generando...' : '📊 Generar Reporte'}
+                             {loadingData ? 'Generando...' : 'Generar Reporte'}
                         </button>
                     )}
                 </div>
@@ -1071,11 +969,11 @@ const Reportes = () => {
                                 disabled={connectionError}
                                 className={`quick-filter-button ${filterType === filter ? 'active' : ''}`}
                             >
-                                {filter === 'today' && '📅 Hoy'}
-                                {filter === 'yesterday' && '📅 Ayer'}
-                                {filter === 'thisWeek' && '🗓️ Esta Semana'}
-                                {filter === 'lastWeek' && '🗓️ Semana Pasada'}
-                                {filter === 'thisMonth' && '📆 Este Mes'}
+                                {filter === 'today' && 'Hoy'}
+                                {filter === 'yesterday' && 'Ayer'}
+                                {filter === 'thisWeek' && 'Esta Semana'}
+                                {filter === 'lastWeek' && 'Semana Pasada'}
+                                {filter === 'thisMonth' && 'Este Mes'}
                             </button>
                         ))}
                     </div>
@@ -1087,13 +985,13 @@ const Reportes = () => {
                 {/* Lista de Reportes */}
                 <div className="reports-list-panel card">
                     <div className="panel-header">
-                        <h3 className="panel-title">📋 Reportes Recientes ({reports.length})</h3>
+                        <h3 className="panel-title">Reportes Recientes ({reports.length})</h3>
                         <button
                             onClick={() => fetchReports()}
                             disabled={connectionError}
                             className="refresh-button"
                         >
-                            🔄 Actualizar
+                            Actualizar
                         </button>
                     </div>
 
@@ -1125,17 +1023,17 @@ const Reportes = () => {
                                                 <div className="item-status">
                                                     <h4 className="item-date">{formatDate(reportDate)}</h4>
                                                     {report.is_closed && (
-                                                        <span className="status-badge closed-badge">✅ CERRADO</span>
+                                                        <span className="status-badge closed-badge">CERRADO</span>
                                                     )}
                                                 </div>
 
-                                                <p className="item-sales">💰 {formatCurrency(report.total_sales || 0)}</p>
+                                                <p className="item-sales">{formatCurrency(report.total_sales || 0)}</p>
                                                 <p className="item-summary">
                                                     {report.total_orders || 0} órdenes • {report.total_customers || 0} clientes
                                                 </p>
                                             </div>
                                             <div className="item-footer">
-                                                <span className="item-source">👤 Generado por: {report.generated_by || 'Sistema'}</span>
+                                                <span className="item-source">Generado por: {report.generated_by || 'Sistema'}</span>
                                             </div>
                                         </div>
                                     );
@@ -1152,18 +1050,18 @@ const Reportes = () => {
                             {/* Header del Reporte */}
                             <div className="detail-header">
                                 <div>
-                                    <h2 className="detail-title">📊 Reporte {reportType === 'daily' ? 'Diario' : reportType === 'weekly' ? 'Semanal' : reportType === 'monthly' ? 'Mensual' : 'Personalizado'}</h2>
+                                    <h2 className="detail-title">Reporte {reportType === 'daily' ? 'Diario' : reportType === 'weekly' ? 'Semanal' : reportType === 'monthly' ? 'Mensual' : 'Personalizado'}</h2>
                                     <div className="detail-metadata">
-                                        <span className="metadata-item">📅 Fecha: {formatDate(currentReport.date || currentReport.start_date)}
+                                        <span className="metadata-item">Fecha: {formatDate(currentReport.date || currentReport.start_date)}
                                             {currentReport.end_date && currentReport.date !== currentReport.end_date && currentReport.start_date !== currentReport.end_date &&
                                                 ` - ${formatDate(currentReport.end_date)}`}
                                         </span>
-                                        <span className="metadata-item">👤 Usuario: {currentReport.generated_by || 'Sistema'}</span>
+                                        <span className="metadata-item">Usuario: {currentReport.generated_by || 'Sistema'}</span>
                                     </div>
                                 </div>
                                 <div className="detail-status">
                                     <div className={`status-pill ${currentReport.is_closed ? 'closed-pill' : 'open-pill'}`}>
-                                        {currentReport.is_closed ? '🔒 DÍA CERRADO' : '🔄 DÍA ABIERTO'}
+                                        {currentReport.is_closed ? 'DÍA CERRADO' : 'DÍA ABIERTO'}
                                     </div>
                                     <p className="generation-date">Actualizado: {formatDate(currentReport.generated_at || new Date().toISOString())}</p>
                                 </div>
@@ -1172,33 +1070,31 @@ const Reportes = () => {
                             {/* Alerta de Conexión */}
                             {connectionError && (
                                 <div className="alert warning-alert">
-                                    <h4 className="alert-title">⚠️ Nota importante</h4>
+                                    <h4 className="alert-title">Nota importante</h4>
                                     <p>Estás viendo datos incompletos. Soluciona el error en el backend para ver datos en tiempo real y gráficos.</p>
                                 </div>
                             )}
 
                             {/* Métricas Principales */}
-                            <h3 className="section-title">✨ Métricas de Rendimiento</h3>
+                            <h3 className="section-title">Métricas de Rendimiento</h3>
                             {renderMetrics()}
+                            
+                            {/* DETALLE DE ÓRDENES - POSICION PRIMARIA */}
+                            <h3 className="section-title detail-section">Detalle de Órdenes (Web)</h3>
+                            {renderDetailedOrdersTable()}
 
-                            {/* Gráficos (Organizados en 2 columnas) */}
-                            <h3 className="section-title chart-section">📈 Análisis y Gráficos</h3>
+                            {/* Gráficos Restantes (Ventas por Hora y Top Productos) */}
+                            <h3 className="section-title chart-section" style={{marginTop: '40px'}}>Análisis de Gráficos</h3>
 
                             <div className="charts-grid">
                                 {renderSalesByHourChart()}
                                 {renderTopProductsChart()}
-                                {renderSalesByOrderTypeChart()}
-                                {renderPaymentMethodsChart()}
                             </div>
-
-                            {/* Detalle de Órdenes */}
-                            <h3 className="section-title detail-section">📋 Detalle de Órdenes (Web)</h3>
-                            {renderDetailedOrdersTable()}
 
                             {/* Notas Adicionales */}
                             {currentReport.closing_notes && (
                                 <div className="alert notes-alert">
-                                    <h4 className="alert-title">📝 Notas de Cierre</h4>
+                                    <h4 className="alert-title">Notas de Cierre</h4>
                                     <p>{currentReport.closing_notes}</p>
                                 </div>
                             )}
@@ -1213,7 +1109,7 @@ const Reportes = () => {
                                 disabled={connectionError}
                                 className="action-button primary"
                             >
-                                {connectionError ? '❌ Error de Conexión' : '🚀 Ver Reporte de Hoy'}
+                                {connectionError ? 'Error de Conexión' : 'Ver Reporte de Hoy'}
                             </button>
                         </div>
                     )}
@@ -1397,7 +1293,7 @@ const Reportes = () => {
                 /* Dashboard Stats */
                 .stats-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
                     gap: 20px;
                 }
                 .stat-item {
@@ -1732,8 +1628,8 @@ const Reportes = () => {
                     justify-content: center;
                 }
             `}</style>
-        </div>
-    );
+    </div>
+    );
 };
 
 export default Reportes;

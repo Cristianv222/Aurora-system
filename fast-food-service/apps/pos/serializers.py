@@ -401,6 +401,14 @@ class DailySummarySerializer(serializers.ModelSerializer):
     average_order_value = serializers.FloatField(read_only=True)
     average_items_per_order = serializers.FloatField(read_only=True)
     
+    # Campo temporal para adjuntar la lista de órdenes detalladas para el reporte
+    orders_detail = serializers.ListField(
+        child=serializers.DictField(), 
+        required=False, 
+        allow_empty=True,
+        write_only=False 
+    )
+
     date_formatted = serializers.SerializerMethodField()
     cash_percentage = serializers.SerializerMethodField()
     card_percentage = serializers.SerializerMethodField()
@@ -438,18 +446,9 @@ class DailySummarySerializer(serializers.ModelSerializer):
             'closing_notes',
             'generated_at',
             'generated_by',
+            'orders_detail', # <--- CAMPO AÑADIDO PARA EL DETALLE DE ÓRDENES
         ]
-        # 3. CAMBIO CRÍTICO: Reemplazamos '__all__' por una lista explícita 
-        #    de campos de solo lectura para evitar el error 'Got str'.
-        #    Sin embargo, dado que 'fields = [...]' ya se usa, podemos omitir read_only_fields
-        #    o usar '__all__' si confiamos en el comportamiento predeterminado, pero para
-        #    este caso, vamos a forzar la lista de solo lectura si es necesario, 
-        #    o simplemente dejarlo como 'read_only_fields = "__all__"' si el error venía de otro lado.
-        #    PERO, si el error es en el listado, DRF puede interpretar `read_only_fields = "__all__"`
-        #    como un error en el entorno, lo más seguro es:
-        read_only_fields = ('__all__',) # Dejamos '__all__' como string, ya que la mayoría de las veces funciona
-                                     # y el error de sintaxis estricta suele venir de otro Serializer
-                                     # si este no ha fallado en el pasado.
+        read_only_fields = ('__all__',)
 
     
     def get_date_formatted(self, obj):
@@ -468,8 +467,6 @@ class DailySummarySerializer(serializers.ModelSerializer):
     def get_dine_in_percentage(self, obj):
         """Porcentaje de ventas dine-in"""
         return float(obj.dine_in_percentage) if obj.dine_in_percentage is not None else 0
-
-
 class DailySummaryGenerateSerializer(serializers.Serializer):
     """Serializer para generar reporte diario"""
     

@@ -431,3 +431,26 @@ class OrderStatsSerializer(serializers.Serializer):
     cancelled_orders = serializers.IntegerField()
     total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
     average_order_value = serializers.DecimalField(max_digits=10, decimal_places=2)
+class OrderReportDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer optimizado para ser usado en el detalle de órdenes del Reporte (PDF/Web).
+    Mapea los campos de Order al formato esperado por el front-end.
+    """
+    customer_name = serializers.CharField(source='customer.get_full_name', read_only=True)
+    items = OrderItemSerializer(many=True, read_only=True)
+    
+    # Mapear 'total' a 'total_amount' y 'created_at' a 'timestamp' para compatibilidad con el frontend/PDF
+    total_amount = serializers.FloatField(source='total', read_only=True)
+    timestamp = serializers.DateTimeField(source='created_at', read_only=True)
+    
+    # Asumo que Order tiene un método get_payment_method_display() o un campo simple
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+
+
+    class Meta:
+        model = Order
+        fields = [
+            'order_number', 'id', 'status', 'customer_name', 
+            'items', 'payment_method_display',
+            'total_amount', 'timestamp',
+        ]

@@ -9,10 +9,14 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.utils import timezone
-from django.db.models import Sum, Count # Las importaciones deben estar aquí si se usan en esta vista
+from django.db.models import Sum, Count, Prefetch 
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 import calendar
+
+# <<<< IMPORTACIONES CRÍTICAS DE ÓRDENES Y SERIALIZER >>>>
+from apps.orders.models import Order, OrderItem 
+from apps.orders.serializers import OrderReportDetailSerializer
 
 from .models import Shift, Discount, DiscountUsage, Table, DailySummary
 from .serializers import (
@@ -40,7 +44,7 @@ from .serializers import (
 
 class ShiftViewSet(viewsets.ModelViewSet):
     """
-    ViewSet para gestionar turnos de caja.
+    Viewset para gestionar turnos de caja.
     """
     queryset = Shift.objects.all().select_related('cash_register')
     permission_classes = [IsAuthenticated]
@@ -55,7 +59,6 @@ class ShiftViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Nota: Asumo que request.user.is_staff y is_superuser funcionan correctamente.
         if not (self.request.user.is_staff or self.request.user.is_superuser):
             return queryset.filter(user_id=str(self.request.user.id))
         
@@ -151,7 +154,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
 
 
 class DiscountViewSet(viewsets.ModelViewSet):
-    # ... (código DiscountViewSet omitido por brevedad, asumido correcto) ...
+    # ... (código DiscountViewSet existente) ...
     queryset = Discount.objects.all()
     permission_classes = [IsAuthenticated]
     
@@ -252,7 +255,7 @@ class DiscountViewSet(viewsets.ModelViewSet):
 
 
 class TableViewSet(viewsets.ModelViewSet):
-    # ... (código TableViewSet omitido por brevedad, asumido correcto) ...
+    # ... (código TableViewSet existente) ...
     queryset = Table.objects.all()
     permission_classes = [IsAuthenticated]
     
@@ -350,6 +353,29 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DailySummarySerializer
     permission_classes = [IsAuthenticated]
     
+    # FUNCIÓN PARA OBTENER EL DETALLE DE ÓRDENES
+    def _get_orders_detail(self, start_date, end_date):
+    
+    # Convierte las fechas a objetos datetime con zona horaria
+        start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.get_current_timezone())
+        end_dt = datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.get_current_timezone())
+
+        orders = Order.objects.filter(
+            created_at__gte=start_dt,  # <-- Usamos GTE y LTE con el objeto datetime completo
+            created_at__lte=end_dt,
+        ).select_related(
+            'customer'
+        ).prefetch_related(
+            Prefetch('items', 
+                    queryset=OrderItem.objects.select_related('product', 'size')
+                                            .prefetch_related('extras', 'extras__extra')), 
+        ).order_by('created_at')
+            # Usar el Serializer de Órdenes para formatear el detalle
+        serializer = OrderReportDetailSerializer(orders, many=True)
+        
+        return serializer.data
+
+    
     def get_queryset(self):
         queryset = super().get_queryset()
         
@@ -379,30 +405,38 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'])
     def generate(self, request):
         """
-        Generar o actualizar reporte diario.
+        Generar o actualizar reporte diario, con opción a incluir detalle de órdenes.
         """
         serializer = DailySummaryGenerateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        date = serializer.validated_data['date']
+        date_obj = serializer.validated_data['date']
         detailed = serializer.validated_data.get('detailed', True)
+        include_orders_detail = request.data.get('include_orders_detail', False) # <-- Capturar la bandera
         
         summary = DailySummary.generate_for_date(
-            date=date,
+            date=date_obj,
             generated_by=str(request.user.id),
             detailed=detailed
         )
         
+        summary_data = DailySummarySerializer(summary).data
+        
+        # 1. Si se pide detalle, adjuntarlo
+        if include_orders_detail:
+            # Obtener el detalle de órdenes para el día
+            summary_data['orders_detail'] = self._get_orders_detail(date_obj, date_obj) 
+        
         return Response({
             'message': 'Reporte generado exitosamente',
-            'summary': DailySummarySerializer(summary).data
+            'summary': summary_data # Devolvemos el dict con orders_detail si existe
         })
     
     @action(detail=False, methods=['post'])
     def get_report(self, request):
         """
-        Obtener reporte por tipo (diario, semanal, mensual).
+        Obtener reporte por tipo (diario, semanal, mensual), con opción a detalle.
         """
         serializer = ReportRequestSerializer(data=request.data)
         if not serializer.is_valid():
@@ -411,8 +445,16 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
         data = serializer.validated_data
         report_type = data['report_type']
         
+        include_orders_detail = request.data.get('include_orders_detail', False) # <-- Capturar la bandera
+        start_date = None
+        end_date = None
+        
         try:
             if report_type == 'daily':
+                start_date = data['date']
+                end_date = data['date']
+                
+                # ... [Lógica de get_or_create y generate_for_date para el daily summary] ...
                 summary, created = DailySummary.objects.get_or_create(
                     date=data['date'],
                     defaults={'generated_by': str(request.user.id)}
@@ -425,28 +467,39 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                         detailed=True
                     )
                 
+                summary_data = DailySummarySerializer(summary).data
+                
+                if include_orders_detail:
+                    summary_data['orders_detail'] = self._get_orders_detail(start_date, end_date)
+
                 return Response({
                     'report_type': 'daily',
                     'period_name': data['date'].strftime('%d/%m/%Y'),
-                    'data': DailySummarySerializer(summary).data
+                    'data': summary_data
                 })
             
-            elif report_type == 'weekly':
-                start_date = data['start_date']
-                end_date = data['end_date']
+            elif report_type == 'weekly' or report_type == 'monthly' or report_type == 'range': 
                 
-                summaries = DailySummary.objects.filter(
-                    date__gte=start_date,
-                    date__lte=end_date
-                ).order_by('date')
+                if report_type == 'weekly':
+                    start_date = data['start_date']
+                    end_date = data['end_date']
+                    period_name = f'Semana {start_date.strftime("%d/%m")} - {end_date.strftime("%d/%m/%Y")}'
                 
-                # Generar los que no existen
+                elif report_type == 'monthly':
+                    year = data['year']
+                    month = data['month']
+                    _, last_day = calendar.monthrange(year, month)
+                    start_date = date(year, month, 1)
+                    end_date = date(year, month, last_day)
+                    period_name = f'{calendar.month_name[month]} {year}'
+                
+                # Generación rápida para días faltantes
                 current_date = start_date
                 while current_date <= end_date:
                     DailySummary.generate_for_date(
                         date=current_date,
                         generated_by=str(request.user.id),
-                        detailed=False # Generación rápida
+                        detailed=False
                     )
                     current_date += timedelta(days=1)
                 
@@ -464,71 +517,28 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                     'total_discounts': sum(float(s.total_discounts) for s in summaries),
                     'total_tips': sum(float(s.total_tips) for s in summaries),
                     'average_order_value': 0,
-                    'daily_summaries': DailySummarySerializer(summaries, many=True).data
+                    'daily_summaries': DailySummarySerializer(summaries, many=True).data,
+                    'start_date': start_date,
+                    'end_date': end_date,
+                    'is_closed': all(s.is_closed for s in summaries) if summaries.exists() else False
                 }
                 
                 if consolidated['total_orders'] > 0:
                     consolidated['average_order_value'] = consolidated['total_sales'] / consolidated['total_orders']
                 
+                # 2. Si se pide detalle, adjuntarlo
+                if include_orders_detail:
+                    consolidated['orders_detail'] = self._get_orders_detail(start_date, end_date)
+                
                 return Response({
-                    'report_type': 'weekly',
-                    'period_name': f'Semana {start_date.strftime("%d/%m")} - {end_date.strftime("%d/%m/%Y")}',
+                    'report_type': report_type,
+                    'period_name': period_name,
                     'start_date': start_date,
                     'end_date': end_date,
                     'data': consolidated
                 })
             
-            elif report_type == 'monthly':
-                year = data['year']
-                month = data['month']
-                
-                # Primer y último día del mes
-                _, last_day = calendar.monthrange(year, month)
-                start_date = date(year, month, 1)
-                end_date = date(year, month, last_day)
-                
-                summaries = DailySummary.objects.filter(
-                    date__gte=start_date,
-                    date__lte=end_date
-                ).order_by('date')
-                
-                # Generar los que no existen
-                current_date = start_date
-                while current_date <= end_date:
-                    DailySummary.generate_for_date(
-                        date=current_date,
-                        generated_by=str(request.user.id),
-                        detailed=False # Generación rápida
-                    )
-                    current_date += timedelta(days=1)
-
-                # Reconsultar
-                summaries = DailySummary.objects.filter(
-                    date__gte=start_date,
-                    date__lte=end_date
-                ).order_by('date')
-                
-                # Consolidar
-                consolidated = {
-                    'total_sales': sum(float(s.total_sales) for s in summaries),
-                    'total_orders': sum(s.total_orders for s in summaries),
-                    'total_items_sold': sum(s.total_items_sold for s in summaries),
-                    'total_discounts': sum(float(s.total_discounts) for s in summaries),
-                    'total_tips': sum(float(s.total_tips) for s in summaries),
-                    'average_order_value': 0,
-                    'daily_summaries': DailySummarySerializer(summaries, many=True).data
-                }
-                
-                if consolidated['total_orders'] > 0:
-                    consolidated['average_order_value'] = consolidated['total_sales'] / consolidated['total_orders']
-                
-                return Response({
-                    'report_type': 'monthly',
-                    'period_name': f'{calendar.month_name[month]} {year}',
-                    'start_date': start_date,
-                    'end_date': end_date,
-                    'data': consolidated
-                })
+            # ... (Lógica de otros reportes) ...
             
         except Exception as e:
             return Response({
@@ -552,13 +562,13 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 detailed=True
             )
         
+        # Nota: Aquí no se incluye orders_detail por defecto, solo en generate/ o get_report/
+        
         return Response(DailySummarySerializer(summary).data)
     
     @action(detail=False, methods=['post'])
     def close_day(self, request):
-        """
-        Cerrar el día de operaciones. Requiere rol administrativo o permisos de staff.
-        """
+        # ... (Lógica de close_day existente) ...
         
         ALLOWED_ROLES_TO_CLOSE_DAY = ['SUPER_ADMIN', 'ADMIN_FAST_FOOD', 'ADMIN_RESTAURANT', 'MANAGER']
         user_role_name = 'USER_UNKNOWN'
@@ -613,10 +623,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def range(self, request):
-        """
-        Obtener reportes en un rango de fechas.
-        GET /api/pos/daily-summaries/range/?start_date=2025-01-01&end_date=2025-01-31
-        """
+        # ... (código range existente) ...
         serializer = DateRangeSerializer(data=request.query_params)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -647,15 +654,12 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
-        """
-        Dashboard con estadísticas rápidas.
-        GET /api/pos/daily-summaries/dashboard/
-        """
+        # ... (código dashboard existente) ...
         today = timezone.now().date()
         yesterday = today - timedelta(days=1)
         
         from apps.orders.models import Order
-        from .models import Shift # Importamos Shift para usarlo aquí
+        from .models import Shift 
         
         # Hoy
         orders_today = Order.objects.filter(
