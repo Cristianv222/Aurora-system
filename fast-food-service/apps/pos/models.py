@@ -938,12 +938,12 @@ class DailySummary(models.Model):
         
         return summary
     @staticmethod
-    def _get_top_products(date, limit=10):
+    def _get_top_products(date, limit=None): # <-- CAMBIO: Hacemos 'limit' opcional
         """
-        Obtiene los productos más vendidos del día, usando line_total para el monto.
+        Obtiene *todos* los productos vendidos del día, ordenados por cantidad.
         """
         from apps.orders.models import Order, OrderItem
-        from django.db.models import Sum, Avg # Aseguramos estas importaciones
+        from django.db.models import Sum, Avg
         
         orders = Order.objects.filter(
             created_at__date=date,
@@ -952,7 +952,7 @@ class DailySummary(models.Model):
         
         order_ids = orders.values_list('id', flat=True)
         
-        # Agregación usando 'line_total' y 'unit_price'
+        # Agregación usando 'line_total'
         top_products = OrderItem.objects.filter(
             order__id__in=order_ids
         ).values(
@@ -961,16 +961,22 @@ class DailySummary(models.Model):
             'product__category__name',
         ).annotate(
             quantity=Sum('quantity'),
-            total_amount=Sum('line_total'), # CORREGIDO: Usa line_total
+            total_amount=Sum('line_total'),
             avg_price=Avg('unit_price'), 
-        ).order_by('-quantity')[:limit]
+        ).order_by('-quantity')
+
+        # Aplicamos el límite si se proporciona (en este caso, queremos que no haya límite)
+        if limit:
+            top_products = top_products[:limit]
         
         # Formatear respuesta y convertir UUID a string
         formatted = []
         for idx, product in enumerate(top_products, 1):
+            if product['quantity'] is None or product['total_amount'] is None:
+                continue # Evitar productos con datos nulos si es un problema de BD
+
             formatted.append({
                 'rank': idx,
-                # <<< CORRECCIÓN CRÍTICA UUID >>>
                 'product_id': str(product['product__id']), 
                 'product_name': product['product__name'],
                 'category': product['product__category__name'] or 'Sin categoría',
@@ -979,8 +985,7 @@ class DailySummary(models.Model):
                 'average_price': float(product['avg_price'] or 0),
             })
         
-        return formatted
-        
+        return formatted  
     @staticmethod
     def _get_sales_by_hour(date):
         """

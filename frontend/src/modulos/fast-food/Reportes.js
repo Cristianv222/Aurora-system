@@ -1,4 +1,4 @@
-// modulos/fast-food/Reportes.js - VERSIÓN FINAL LIMPIA Y SIN WARNINGS DE CLASSNAME
+// modulos/fast-food/Reportes.js - VERSIÓN FINAL LIMPIA Y REORGANIZADA CON TODOS LOS PRODUCTOS
 
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
@@ -207,7 +207,7 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
         y += 10;
     }
 
-    // --- 3. Productos Más Vendidos (Control de salto de página) ---
+    // --- 3. Listado Completo de Productos Vendidos (Control de salto de página) ---
 
     if (PAGE_HEIGHT - y < MIN_SPACE_FOR_SECTION) {
         doc.addPage();
@@ -216,11 +216,12 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
 
     doc.setFontSize(14);
     doc.setTextColor(0);
-    doc.text('3. Top 10 Productos Más Vendidos', MARGIN, y);
+    // Título actualizado: Listado Completo de Productos Vendidos
+    doc.text('3. Listado Completo de Productos Vendidos', MARGIN, y);
     y += 5;
 
     const topProducts = (report.top_products || [])
-        .slice(0, 10)
+        // Ya no aplicamos slice(0, 10) aquí, ya que el Back-end ya debería enviar todos
         .map(p => [
             p.product_name || 'Desconocido',
             (p.quantity || p.quantity_sold || 0).toLocaleString(),
@@ -751,15 +752,14 @@ const Reportes = () => {
 
         const productData = currentReport.top_products
             .filter(item => item && (item.quantity || item.quantity_sold || 0) > 0)
-            .slice(0, 10)
-            .map((item, index) => ({
+            .map((item, index) => ({ // Eliminado .slice(0, 10) aquí para mostrar todos
                 name: item.product_name?.substring(0, 25) + (item.product_name?.length > 25 ? '...' : '') || `Producto ${index + 1}`,
                 cantidad: item.quantity || item.quantity_sold || 0,
             }));
 
         return (
             <div className="chart-container">
-                <h4 className="chart-title">Top 10 Productos (Unidades)</h4>
+                <h4 className="chart-title">Listado Completo de Productos Vendidos</h4>
                 <ResponsiveContainer width="100%" height={300}>
                     <BarChart data={productData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
