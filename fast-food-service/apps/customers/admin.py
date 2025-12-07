@@ -1,3 +1,5 @@
+# apps/customers/admin.py (COMPLETO Y MODIFICADO)
+
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
@@ -29,18 +31,18 @@ class CustomerLoyaltyInline(admin.StackedInline):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ['email', 'full_name', 'phone', 'customer_type', 
-                    'is_active', 'is_vip', 'total_orders', 'total_spent_display',
-                    'created_at']
+    list_display = ['email', 'full_name', 'cedula', 'phone', 'customer_type', # <-- CEDULA en list_display
+                     'is_active', 'is_vip', 'total_orders', 'total_spent_display',
+                     'created_at']
     list_filter = ['customer_type', 'is_active', 'is_vip',
                    'newsletter_subscribed', 'city', 'country', 'created_at']
-    search_fields = ['email', 'phone', 'first_name', 'last_name', 'address', 'city']
+    search_fields = ['email', 'phone', 'first_name', 'last_name', 'address', 'city', 'cedula'] # <-- CEDULA en search_fields
     ordering = ['-created_at']
     
     fieldsets = (
         ('Información Personal', {
-            'fields': ('email', 'phone', 'first_name', 'last_name', 
-                      'birth_date', 'gender')
+            'fields': ('email', 'cedula', 'phone', 'first_name', 'last_name', # <-- CEDULA en fieldsets
+                       'birth_date', 'gender')
         }),
         ('Información de Contacto', {
             'fields': ('address', 'city', 'state', 'zip_code', 'country')
@@ -50,11 +52,11 @@ class CustomerAdmin(admin.ModelAdmin):
         }),
         ('Preferencias', {
             'fields': ('preferences', 'newsletter_subscribed',
-                      'marketing_emails', 'marketing_sms')
+                       'marketing_emails', 'marketing_sms')
         }),
         ('Estadísticas', {
             'fields': ('total_orders', 'total_spent', 'last_order_date',
-                      'average_order_value'),
+                       'average_order_value'),
             'classes': ('collapse',)
         }),
         ('Auditoría', {
@@ -64,8 +66,8 @@ class CustomerAdmin(admin.ModelAdmin):
     )
     
     readonly_fields = ['total_orders', 'total_spent', 'last_order_date',
-                      'average_order_value', 'registered_ip',
-                      'created_at', 'updated_at']
+                       'average_order_value', 'registered_ip',
+                       'created_at', 'updated_at']
     
     inlines = [CustomerAddressInline, CustomerNoteInline, CustomerLoyaltyInline]
     
@@ -79,13 +81,12 @@ class CustomerAdmin(admin.ModelAdmin):
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        # Usar prefetch_related en lugar de select_related porque loyalty es OneToOne
         return qs.prefetch_related('loyalty')
 
 @admin.register(CustomerAddress)
 class CustomerAddressAdmin(admin.ModelAdmin):
     list_display = ['customer', 'address_type', 'is_default', 'city', 
-                    'state', 'country', 'created_at']
+                     'state', 'country', 'created_at']
     list_filter = ['address_type', 'is_default', 'city', 'state', 'country']
     search_fields = ['customer__email', 'customer__first_name', 
                      'customer__last_name', 'street', 'city']
@@ -120,7 +121,7 @@ class CustomerAddressAdmin(admin.ModelAdmin):
 @admin.register(CustomerNote)
 class CustomerNoteAdmin(admin.ModelAdmin):
     list_display = ['customer', 'note_type', 'created_by_name', 'is_archived',
-                    'created_at']
+                     'created_at']
     list_filter = ['note_type', 'is_archived', 'created_at']
     search_fields = ['customer__email', 'customer__first_name', 
                      'customer__last_name', 'content', 'created_by_name']
@@ -139,11 +140,19 @@ class CustomerNoteAdmin(admin.ModelAdmin):
     )
     
     readonly_fields = ['created_at', 'updated_at']
+    
+    def has_add_permission(self, request):
+        # No permitir agregar manualmente, son manejadas por el sistema
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        # No permitir edición, son registros de auditoría
+        return False
 
 @admin.register(CustomerLoyalty)
 class CustomerLoyaltyAdmin(admin.ModelAdmin):
     list_display = ['customer', 'current_tier', 'points_balance',
-                    'total_points_earned', 'discount_rate', 'free_delivery']
+                     'total_points_earned', 'discount_rate', 'free_delivery']
     list_filter = ['current_tier', 'free_delivery', 'priority_service']
     search_fields = ['customer__email', 'customer__first_name', 'customer__last_name']
     raw_id_fields = ['customer']
@@ -154,7 +163,7 @@ class CustomerLoyaltyAdmin(admin.ModelAdmin):
         }),
         ('Nivel y Puntos', {
             'fields': ('current_tier', 'points_balance', 'total_points_earned',
-                      'total_points_redeemed')
+                       'total_points_redeemed')
         }),
         ('Progreso', {
             'fields': ('tier_achieved_date', 'next_tier_progress')
@@ -169,18 +178,17 @@ class CustomerLoyaltyAdmin(admin.ModelAdmin):
     )
     
     readonly_fields = ['current_tier', 'points_balance', 'total_points_earned',
-                      'total_points_redeemed', 'next_tier_progress',
-                      'discount_rate', 'free_delivery', 'priority_service',
-                      'created_at', 'updated_at']
+                       'total_points_redeemed', 'next_tier_progress',
+                       'discount_rate', 'free_delivery', 'priority_service',
+                       'created_at', 'updated_at']
     
     def has_add_permission(self, request):
-        # No permitir agregar manualmente, se crea automáticamente
         return False
 
 @admin.register(CustomerLoyaltyHistory)
 class CustomerLoyaltyHistoryAdmin(admin.ModelAdmin):
     list_display = ['loyalty', 'transaction_type', 'points_change',
-                    'balance_after', 'reason', 'created_at']
+                     'balance_after', 'reason', 'created_at']
     list_filter = ['transaction_type', 'created_at']
     search_fields = ['loyalty__customer__email', 'reason', 'order_reference']
     raw_id_fields = ['loyalty']
@@ -188,7 +196,7 @@ class CustomerLoyaltyHistoryAdmin(admin.ModelAdmin):
     fieldsets = (
         ('Transacción', {
             'fields': ('loyalty', 'transaction_type', 'points_change',
-                      'balance_after', 'reason', 'order_reference')
+                       'balance_after', 'reason', 'order_reference')
         }),
         ('Fecha', {
             'fields': ('created_at',)
@@ -198,17 +206,15 @@ class CustomerLoyaltyHistoryAdmin(admin.ModelAdmin):
     readonly_fields = ['created_at']
     
     def has_add_permission(self, request):
-        # Generalmente no se agregan manualmente
         return False
     
     def has_change_permission(self, request, obj=None):
-        # No permitir edición, son registros históricos
         return False
 
 @admin.register(CustomerDevice)
 class CustomerDeviceAdmin(admin.ModelAdmin):
     list_display = ['customer', 'device_type', 'is_active', 'last_used',
-                    'created_at']
+                     'created_at']
     list_filter = ['device_type', 'is_active', 'created_at']
     search_fields = ['customer__email', 'device_token', 'device_id']
     raw_id_fields = ['customer']

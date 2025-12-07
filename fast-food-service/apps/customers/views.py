@@ -721,6 +721,7 @@ def admin_customer_stats(request):
         'data': stats
     })
 
+# apps/customers/views.py (SOLO la función admin_search_customers)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -739,15 +740,16 @@ def admin_search_customers(request):
     
     query = serializer.validated_data['query']
     
-    # Búsqueda en múltiples campos
+    # Búsqueda en múltiples campos (AÑADIDO: Q(cedula__icontains=query))
     customers = Customer.objects.filter(
         Q(email__icontains=query) |
         Q(phone__icontains=query) |
         Q(first_name__icontains=query) |
         Q(last_name__icontains=query) |
+        Q(cedula__icontains=query) | # <--- CAMBIO CRÍTICO
         Q(address__icontains=query) |
         Q(city__icontains=query)
-    ).order_by('-created_at')[:50]  # Limitar a 50 resultados
+    ).order_by('-created_at')[:50] 
     
     serializer = CustomerSerializer(customers, many=True)
     
@@ -759,8 +761,6 @@ def admin_search_customers(request):
             'customers': serializer.data
         }
     })
-
-
 # ========== ENDPOINTS DE HEALTH CHECK ==========
 
 @api_view(['GET'])

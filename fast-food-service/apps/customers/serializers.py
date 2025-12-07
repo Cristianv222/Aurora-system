@@ -14,7 +14,7 @@ class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'id', 'email', 'phone', 'first_name', 'last_name', 'full_name',
+            'id', 'email', 'phone', 'cedula', 'first_name', 'last_name', 'full_name', # <-- CEDULA AÑADIDA
             'birth_date', 'gender', 'address', 'city', 'state', 'zip_code', 'country',
             'customer_type', 'is_active', 'is_vip', 'preferences',
             'total_orders', 'total_spent', 'last_order_date', 'average_order_value',
@@ -31,6 +31,7 @@ class CustomerSerializer(serializers.ModelSerializer):
             'phone': {'required': True},
             'first_name': {'required': True},
             'last_name': {'required': True},
+            # CEDULA NO DEBE SER REQUERIDA AQUÍ si se maneja como opcional/nulleable
         }
     
     def get_full_name(self, obj):
@@ -52,10 +53,13 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'email', 'phone', 'first_name', 'last_name', 'birth_date', 'gender',
+            'email', 'phone', 'cedula', 'first_name', 'last_name', 'birth_date', 'gender', # <-- CEDULA AÑADIDA
             'password', 'password_confirmation', 'newsletter_subscribed',
             'marketing_emails', 'marketing_sms'
         ]
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
     
     def validate(self, data):
         # Validar contraseñas solo si se proporcionan
@@ -70,6 +74,11 @@ class CustomerCreateSerializer(serializers.ModelSerializer):
         if Customer.objects.filter(phone=data['phone']).exists():
             raise serializers.ValidationError({'phone': 'Este teléfono ya está registrado'})
         
+        # Validar unicidad de cédula si se proporciona
+        cedula = data.get('cedula')
+        if cedula and Customer.objects.filter(cedula=cedula).exists():
+             raise serializers.ValidationError({'cedula': 'Esta cédula/RUC ya está registrado'})
+             
         return data
     
     def create(self, validated_data):
@@ -90,11 +99,19 @@ class CustomerUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'first_name', 'last_name', 'birth_date', 'gender',
+            'first_name', 'last_name', 'cedula', 'birth_date', 'gender', # <-- CEDULA AÑADIDA
             'address', 'city', 'state', 'zip_code', 'country',
             'preferences', 'newsletter_subscribed',
             'marketing_emails', 'marketing_sms'
         ]
+        
+    def validate(self, data):
+        # Validar unicidad de cédula en la actualización (excluyendo al cliente actual)
+        cedula = data.get('cedula')
+        if cedula and self.instance and Customer.objects.filter(cedula=cedula).exclude(pk=self.instance.pk).exists():
+             raise serializers.ValidationError({'cedula': 'Esta cédula/RUC ya pertenece a otro cliente'})
+        
+        return data
 
 class CustomerLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -154,7 +171,8 @@ class CustomerNoteSerializer(serializers.ModelSerializer):
     
     def get_created_by_name(self, obj):
         if obj.created_by:
-            return obj.created_by.get_full_name()
+            # Asumiendo que obj.created_by es una instancia de Customer o User con get_full_name()
+            return obj.created_by.get_full_name() 
         return None
 
 class CustomerLoyaltySerializer(serializers.ModelSerializer):

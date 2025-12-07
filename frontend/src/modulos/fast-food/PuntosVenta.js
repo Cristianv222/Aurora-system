@@ -1,6 +1,38 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
 
+// ====================================================================
+// 1. Funciones de Ayuda (Definiciones de formato)
+// ====================================================================
+
+const formatCurrency = (amount) => {
+    if (amount === undefined || amount === null) return '$0.00';
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(num || 0);
+};
+
+const formatDate = (dateString) => {
+    try {
+        if (!dateString) return 'Fecha no disponible';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString;
+
+        return date.toLocaleDateString('es-MX', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    } catch (e) {
+        return dateString;
+    }
+};
+
 const PuntosVenta = () => {
     // =====================================
     // 1. ESTADO DE DATOS Y CARGA
@@ -19,6 +51,11 @@ const PuntosVenta = () => {
     const [selectedTable, setSelectedTable] = useState('');
     const [discountCode, setDiscountCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState(null);
+    
+    // ESTADO NUEVO: Controla el modal de revisión de orden
+    const [showReviewModal, setShowReviewModal] = useState(false); 
+    // ESTADO NUEVO: Controla el modal de facturación (temporal)
+    const [showInvoiceModal, setShowInvoiceModal] = useState(false); 
 
     // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
@@ -33,7 +70,8 @@ const PuntosVenta = () => {
         last_name: '',
         phone: '',
         address: '',
-        city: ''
+        city: '',
+        cedula: '' 
     });
 
     // =====================================
@@ -122,7 +160,7 @@ const PuntosVenta = () => {
     const calculateTotal = useMemo(() => {
         const subtotal = calculateSubtotal;
         const discount = calculateDiscountAmount;
-        return (subtotal - discount).toFixed(2);
+        return (subtotal - discount); 
     }, [calculateSubtotal, calculateDiscountAmount]);
 
     // =====================================
@@ -158,7 +196,7 @@ const PuntosVenta = () => {
             return;
         }
         try {
-            const response = await api.post('/api/customers/admin/search/', { query }, {
+            const response = await api.post('/api/customers/admin/search/', { query }, { 
                 baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
             });
             setCustomers(response.data.data.customers || []);
@@ -170,7 +208,12 @@ const PuntosVenta = () => {
     const handleCreateCustomer = async (e) => {
         e.preventDefault();
         try {
-            const response = await api.post('/api/customers/register/', newCustomer, {
+             const customerData = {
+                ...newCustomer,
+                cedula: newCustomer.cedula || null 
+            };
+            
+            const response = await api.post('/api/customers/register/', customerData, {
                 baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
             });
             alert('Cliente creado exitosamente');
@@ -186,7 +229,8 @@ const PuntosVenta = () => {
                 last_name: '',
                 phone: '',
                 address: '',
-                city: ''
+                city: '',
+                cedula: '' 
             });
         } catch (err) {
             console.error('Error creating customer:', err);
@@ -216,8 +260,9 @@ const PuntosVenta = () => {
     };
 
     // =====================================
-    // 9. LÓGICA DE FILTRADO Y PROCESAMIENTO
+    // 9. LÓGICA DE PROCESAMIENTO PRINCIPAL
     // =====================================
+
     const filteredProducts = useMemo(() => {
         return products.filter(product => {
             const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
@@ -226,18 +271,31 @@ const PuntosVenta = () => {
         });
     }, [products, selectedCategory, searchTerm]);
 
-    const handlePlaceOrder = async () => {
+    // Función que realmente envía la orden a la API
+    const finalPlaceOrder = async () => {
         if (cart.length === 0) return;
-        if (!selectedTable && selectedTable !== 'takeout') {
-            alert('Por favor seleccione una mesa o "Para Llevar"');
-            return;
+        
+        setProcessingOrder(true);
+        setShowReviewModal(false); // Cierra el modal antes de enviar
+
+        let orderType = 'dine_in';
+        let tableNumber = selectedTable;
+        const DEFAULT_TABLE_NAME = 'GENERICA'; 
+
+        if (selectedTable === 'takeout') {
+            orderType = 'takeout';
+            tableNumber = ''; 
+        } else if (!selectedTable || selectedTable === 'Seleccionar mesa...') {
+             orderType = 'dine_in'; 
+             tableNumber = DEFAULT_TABLE_NAME; 
+        } else {
+            orderType = 'dine_in'; 
+            tableNumber = selectedTable;
         }
 
-        setProcessingOrder(true);
-
         const orderPayload = {
-            order_type: selectedTable === 'takeout' ? 'takeout' : 'dine_in',
-            table_number: selectedTable === 'takeout' ? "" : selectedTable,
+            order_type: orderType,
+            table_number: tableNumber,
             items: cart.map(item => ({
                 product_id: item.product_id,
                 quantity: item.quantity
@@ -250,7 +308,7 @@ const PuntosVenta = () => {
             await api.post('/api/orders/orders/', orderPayload, {
                 baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
             });
-            alert('¡Orden creada exitosamente!');
+            alert('¡Orden creada exitosamente! La venta está lista para ser marcada como pagada.');
             setCart([]);
             setAppliedDiscount(null);
             setDiscountCode('');
@@ -265,8 +323,290 @@ const PuntosVenta = () => {
             setProcessingOrder(false);
         }
     };
+    
+    // Nueva función para abrir el modal de revisión
+    const openOrderConfirmationModal = () => {
+        if (cart.length === 0) {
+            alert("El carrito está vacío.");
+            return;
+        }
+        setShowReviewModal(true);
+    };
 
-    // 10. RENDERIZADO CONDICIONAL
+    // Función para manejar la acción de facturación (temporal)
+    const handleInvoiceClick = () => {
+        setShowReviewModal(false); // Opcional: cierra el modal de revisión si está abierto
+        setShowInvoiceModal(true); // Abre el modal de desarrollo
+    };
+
+
+    // =====================================
+    // 10. COMPONENTES DE RENDERIZADO
+    // =====================================
+
+    // Función para renderizar el detalle de la orden en el modal
+    const renderReviewDetails = () => (
+        <div style={{ padding: '0 1rem' }}>
+            {/* Detalles de la Orden y Cliente */}
+            <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
+                <p style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1f2937' }}>
+                    Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'Casual'}
+                </p>
+                <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+                    Mesa/Tipo: {selectedTable === 'takeout' ? 'Para Llevar' : selectedTable || 'Mesa Genérica (DINE-IN)'}
+                </p>
+            </div>
+
+            {/* Lista de Items */}
+            <div style={{ maxHeight: '30vh', overflowY: 'auto', marginBottom: '1.5rem' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead style={{ backgroundColor: '#f3f4f6' }}>
+                        <tr>
+                            <th style={{ textAlign: 'left', padding: '0.5rem', fontSize: '0.8rem', color: '#4b5563' }}>PRODUCTO</th>
+                            <th style={{ width: '15%', textAlign: 'right', padding: '0.5rem', fontSize: '0.8rem', color: '#4b5563' }}>CANT.</th>
+                            <th style={{ width: '25%', textAlign: 'right', padding: '0.5rem', fontSize: '0.8rem', color: '#4b5563' }}>TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {cart.map((item, index) => (
+                            <tr key={index}>
+                                <td style={{ padding: '0.5rem 0', fontSize: '0.9rem' }}>{item.name}</td>
+                                <td style={{ textAlign: 'right', fontSize: '0.9rem' }}>{item.quantity}</td>
+                                <td style={{ textAlign: 'right', fontSize: '0.9rem', fontWeight: '600' }}>
+                                    {formatCurrency(item.price * item.quantity)}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Totales en el Modal */}
+            <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '1rem', color: '#6b7280' }}>
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(calculateSubtotal)}</span>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#dc2626' }}>
+                    <span>Descuento</span>
+                    <span>- {formatCurrency(calculateDiscountAmount)}</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', borderTop: '1px solid #ccc', paddingTop: '0.75rem' }}>
+                    <span>Total Final</span>
+                    <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
+                </div>
+            </div>
+        </div>
+    );
+    
+    // Componente separado para renderizar la lista de productos del carrito visible (NUEVO REQUISITO)
+    const renderCartItems = () => (
+        <div style={{ 
+            // NUEVO CONTENEDOR DE LA LISTA DEL CARRITO
+            flex: 1, 
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#ffffff',
+            borderBottom: '2px solid #e5e7eb',
+            borderRight: '2px solid #e5e7eb' // Separador del catálogo
+        }}>
+            {/* Título de Orden Actual Fijo */}
+             <div style={{
+                padding: '1rem 1.5rem 0.5rem 1.5rem',
+                backgroundColor: '#f3f4f6',
+                flexShrink: 0,
+                borderBottom: '1px solid #e5e7eb'
+            }}>
+                <h3 style={{
+                    fontSize: '1.125rem',
+                    fontWeight: '700',
+                    color: '#111827',
+                    margin: 0
+                }}>
+                    Orden Actual
+                </h3>
+            </div>
+            
+            {/* Contenido Scrollable */}
+            <div style={{
+                flex: 1, 
+                overflowY: 'auto',
+                padding: '1.5rem', 
+            }}>
+                {cart.length === 0 ? (
+                    <div style={{
+                        textAlign: 'center',
+                        padding: '3rem 1rem',
+                        color: '#9ca3af',
+                        fontSize: '0.9375rem'
+                    }}>
+                        <p style={{ margin: 0 }}>No hay productos en el carrito</p>
+                        <p style={{
+                            margin: '0.5rem 0 0 0',
+                            fontSize: '0.8125rem'
+                        }}>
+                            Selecciona productos para comenzar
+                        </p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {cart.map((item, index) => (
+                            <div
+                                key={index}
+                                style={{
+                                    backgroundColor: '#ffffff',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '10px',
+                                    padding: '1rem',
+                                    display: 'flex',
+                                    gap: '1rem',
+                                    alignItems: 'center'
+                                }}
+                            >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <h4 style={{
+                                        fontSize: '0.9375rem',
+                                        fontWeight: '600',
+                                        color: '#1f2937',
+                                        marginBottom: '0.25rem',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap'
+                                    }}>
+                                        {item.name}
+                                    </h4>
+                                    <p style={{
+                                        fontSize: '0.8125rem',
+                                        color: '#6b7280',
+                                        margin: 0
+                                    }}>
+                                        {formatCurrency(item.price)} c/u
+                                    </p>
+                                </div>
+
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}>
+                                    {/* Control de Cantidad */}
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        border: '2px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        overflow: 'hidden',
+                                        backgroundColor: '#ffffff'
+                                    }}>
+                                        <button
+                                            style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                border: 'none',
+                                                backgroundColor: 'transparent',
+                                                color: '#6b7280',
+                                                fontSize: '1.25rem',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                transition: 'all 0.15s'
+                                            }}
+                                            onClick={() => updateQuantity(item.product_id, -1)}
+                                            onMouseEnter={(e) => {
+                                                e.target.style.backgroundColor = '#f3f4f6';
+                                                e.target.style.color = '#111827';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.target.style.backgroundColor = 'transparent';
+                                                e.target.style.color = '#6b7280';
+                                            }}
+                                        >
+                                            −
+                                        </button>
+                                        <span style={{
+                                            width: '36px',
+                                            textAlign: 'center',
+                                            fontSize: '0.9375rem',
+                                            fontWeight: '600',
+                                            color: '#1f2937'
+                                        }}>
+                                            {item.quantity}
+                                        </span>
+                                        <button
+                                            style={{
+                                                width: '32px',
+                                                height: '32px',
+                                                border: 'none',
+                                                backgroundColor: 'transparent',
+                                                color: '#6b7280',
+                                                fontSize: '1.25rem',
+                                                fontWeight: '600',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                transition: 'all 0.15s'
+                                            }}
+                                            onClick={() => updateQuantity(item.product_id, 1)}
+                                            onMouseEnter={(e) => {
+                                                e.target.style.backgroundColor = '#f3f4f6';
+                                                e.target.style.color = '#111827';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.target.style.backgroundColor = 'transparent';
+                                                e.target.style.color = '#6b7280';
+                                            }}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+
+                                    {/* Botón Eliminar */}
+                                    <button
+                                        style={{
+                                            width: '32px',
+                                            height: '32px',
+                                            backgroundColor: '#fee2e2',
+                                            border: '2px solid #fecaca',
+                                            borderRadius: '8px',
+                                            color: '#dc2626',
+                                            fontSize: '1.125rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            transition: 'all 0.15s'
+                                        }}
+                                        onClick={() => removeFromCart(item.product_id)}
+                                        onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#dc2626';
+                                            e.target.style.borderColor = '#dc2626';
+                                            e.target.style.color = '#ffffff';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = '#fee2e2';
+                                            e.target.style.borderColor = '#fecaca';
+                                            e.target.style.color = '#dc2626';
+                                        }}
+                                        title="Eliminar producto"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+    
+    // RENDERIZADO CONDICIONAL DE LA PÁGINA
     if (loading) return (
         <div style={{
             display: 'flex',
@@ -311,11 +651,12 @@ const PuntosVenta = () => {
                 </h1>
             </div>
 
+            {/* CONTENEDOR PRINCIPAL DE 3 COLUMNAS (Catálogo | Carrito | Checkout) */}
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-                {/* Panel Izquierdo: Catálogo de Productos */}
+                {/* Panel Izquierdo: Catálogo de Productos (Flexible) */}
                 <div style={{
-                    flex: '1 1 65%',
+                    flex: '1 1 50%', // Reducido para hacer espacio al carrito
                     display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: '#ffffff',
@@ -326,7 +667,8 @@ const PuntosVenta = () => {
                     <div style={{
                         padding: '1.25rem',
                         borderBottom: '1px solid #e5e7eb',
-                        backgroundColor: '#fafafa'
+                        backgroundColor: '#fafafa',
+                        flexShrink: 0
                     }}>
                         <div style={{
                             display: 'flex',
@@ -491,20 +833,28 @@ const PuntosVenta = () => {
                     </div>
                 </div>
 
-                {/* Panel Derecho: Carrito y Checkout */}
+                {/* Panel Central: Lista de la Orden Actual (Flexible) */}
+                <div style={{ flex: '0 0 320px', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '2px solid #e5e7eb' }}>
+                    {renderCartItems()}
+                </div>
+
+
+                {/* Panel Derecho: Controles e Información (Fijo 420px) */}
                 <div style={{
                     flex: '0 0 420px',
                     backgroundColor: '#ffffff',
                     display: 'flex',
                     flexDirection: 'column',
-                    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)'
+                    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
+                    flexShrink: 0 
                 }}>
 
-                    {/* Información de Orden */}
+                    {/* 1. Información de Orden (Mesa/Cliente) */}
                     <div style={{
                         padding: '1.5rem',
                         borderBottom: '2px solid #e5e7eb',
-                        backgroundColor: '#fafafa'
+                        backgroundColor: '#fafafa',
+                        flexShrink: 0
                     }}>
                         {/* Selección de Mesa */}
                         <div style={{ marginBottom: '1.25rem' }}>
@@ -535,7 +885,7 @@ const PuntosVenta = () => {
                                 onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                             >
                                 <option value="">Seleccionar mesa...</option>
-                                <option value="takeout">Para Llevar</option>
+                                <option value="takeout">Para Llevar (Takeout)</option>
                                 {tables.map(table => (
                                     <option
                                         key={table.id}
@@ -564,7 +914,7 @@ const PuntosVenta = () => {
                                 <div style={{ position: 'relative', flex: 1 }}>
                                     <input
                                         type="text"
-                                        placeholder="Buscar cliente por nombre..."
+                                        placeholder="Buscar por nombre, cédula o teléfono..." 
                                         style={{
                                             width: '100%',
                                             padding: '0.75rem',
@@ -621,7 +971,7 @@ const PuntosVenta = () => {
                                                         color: '#6b7280',
                                                         margin: 0
                                                     }}>
-                                                        {c.email}
+                                                        {c.email} {c.cedula && `(${c.cedula})`} 
                                                     </p>
                                                 </div>
                                             ))}
@@ -700,198 +1050,12 @@ const PuntosVenta = () => {
                         </div>
                     </div>
 
-                    {/* Items del Carrito */}
-                    <div style={{
-                        flex: 1,
-                        overflowY: 'auto',
-                        padding: '1.5rem',
-                        backgroundColor: '#fafafa'
-                    }}>
-                        <h3 style={{
-                            fontSize: '1.125rem',
-                            fontWeight: '700',
-                            color: '#111827',
-                            marginBottom: '1rem',
-                            paddingBottom: '0.75rem',
-                            borderBottom: '2px solid #e5e7eb'
-                        }}>
-                            Orden Actual
-                        </h3>
-
-                        {cart.length === 0 ? (
-                            <div style={{
-                                textAlign: 'center',
-                                padding: '3rem 1rem',
-                                color: '#9ca3af',
-                                fontSize: '0.9375rem'
-                            }}>
-                                <p style={{ margin: 0 }}>No hay productos en el carrito</p>
-                                <p style={{
-                                    margin: '0.5rem 0 0 0',
-                                    fontSize: '0.8125rem'
-                                }}>
-                                    Selecciona productos para comenzar
-                                </p>
-                            </div>
-                        ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {cart.map((item, index) => (
-                                    <div
-                                        key={index}
-                                        style={{
-                                            backgroundColor: '#ffffff',
-                                            border: '1px solid #e5e7eb',
-                                            borderRadius: '10px',
-                                            padding: '1rem',
-                                            display: 'flex',
-                                            gap: '1rem',
-                                            alignItems: 'center'
-                                        }}
-                                    >
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <h4 style={{
-                                                fontSize: '0.9375rem',
-                                                fontWeight: '600',
-                                                color: '#1f2937',
-                                                marginBottom: '0.25rem',
-                                                overflow: 'hidden',
-                                                textOverflow: 'ellipsis',
-                                                whiteSpace: 'nowrap'
-                                            }}>
-                                                {item.name}
-                                            </h4>
-                                            <p style={{
-                                                fontSize: '0.8125rem',
-                                                color: '#6b7280',
-                                                margin: 0
-                                            }}>
-                                                ${item.price.toFixed(2)} c/u
-                                            </p>
-                                        </div>
-
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '0.5rem'
-                                        }}>
-                                            {/* Control de Cantidad */}
-                                            <div style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                border: '2px solid #e5e7eb',
-                                                borderRadius: '8px',
-                                                overflow: 'hidden',
-                                                backgroundColor: '#ffffff'
-                                            }}>
-                                                <button
-                                                    style={{
-                                                        width: '32px',
-                                                        height: '32px',
-                                                        border: 'none',
-                                                        backgroundColor: 'transparent',
-                                                        color: '#6b7280',
-                                                        fontSize: '1.25rem',
-                                                        fontWeight: '600',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        transition: 'all 0.15s'
-                                                    }}
-                                                    onClick={() => updateQuantity(item.product_id, -1)}
-                                                    onMouseEnter={(e) => {
-                                                        e.target.style.backgroundColor = '#f3f4f6';
-                                                        e.target.style.color = '#111827';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.target.style.backgroundColor = 'transparent';
-                                                        e.target.style.color = '#6b7280';
-                                                    }}
-                                                >
-                                                    −
-                                                </button>
-                                                <span style={{
-                                                    width: '36px',
-                                                    textAlign: 'center',
-                                                    fontSize: '0.9375rem',
-                                                    fontWeight: '600',
-                                                    color: '#1f2937'
-                                                }}>
-                                                    {item.quantity}
-                                                </span>
-                                                <button
-                                                    style={{
-                                                        width: '32px',
-                                                        height: '32px',
-                                                        border: 'none',
-                                                        backgroundColor: 'transparent',
-                                                        color: '#6b7280',
-                                                        fontSize: '1.25rem',
-                                                        fontWeight: '600',
-                                                        cursor: 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        transition: 'all 0.15s'
-                                                    }}
-                                                    onClick={() => updateQuantity(item.product_id, 1)}
-                                                    onMouseEnter={(e) => {
-                                                        e.target.style.backgroundColor = '#f3f4f6';
-                                                        e.target.style.color = '#111827';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.target.style.backgroundColor = 'transparent';
-                                                        e.target.style.color = '#6b7280';
-                                                    }}
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-
-                                            {/* Botón Eliminar */}
-                                            <button
-                                                style={{
-                                                    width: '32px',
-                                                    height: '32px',
-                                                    backgroundColor: '#fee2e2',
-                                                    border: '2px solid #fecaca',
-                                                    borderRadius: '8px',
-                                                    color: '#dc2626',
-                                                    fontSize: '1.125rem',
-                                                    fontWeight: '600',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    transition: 'all 0.15s'
-                                                }}
-                                                onClick={() => removeFromCart(item.product_id)}
-                                                onMouseEnter={(e) => {
-                                                    e.target.style.backgroundColor = '#dc2626';
-                                                    e.target.style.borderColor = '#dc2626';
-                                                    e.target.style.color = '#ffffff';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.target.style.backgroundColor = '#fee2e2';
-                                                    e.target.style.borderColor = '#fecaca';
-                                                    e.target.style.color = '#dc2626';
-                                                }}
-                                                title="Eliminar producto"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Sección de Descuentos y Totales */}
+                    {/* 3. Sección de Descuentos y Totales (Fijo) */}
                     <div style={{
                         borderTop: '2px solid #e5e7eb',
                         padding: '1.5rem',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: '#ffffff',
+                        flexShrink: 0
                     }}>
                         {/* Código de Descuento */}
                         <div style={{ marginBottom: '1.5rem' }}>
@@ -910,7 +1074,7 @@ const PuntosVenta = () => {
                                     placeholder="Ingresa el código"
                                     style={{
                                         flex: 1,
-                                        padding: '0.75rem',
+                                        padding: '0.6rem', 
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
                                         fontSize: '0.9375rem',
@@ -923,7 +1087,7 @@ const PuntosVenta = () => {
                                 />
                                 <button
                                     style={{
-                                        padding: '0.75rem 1.25rem',
+                                        padding: '0.6rem 1rem', 
                                         backgroundColor: '#fbbf24',
                                         border: 'none',
                                         borderRadius: '8px',
@@ -976,7 +1140,7 @@ const PuntosVenta = () => {
                                 color: '#6b7280'
                             }}>
                                 <span>Subtotal</span>
-                                <span style={{ fontWeight: '600' }}>${calculateSubtotal.toFixed(2)}</span>
+                                <span style={{ fontWeight: '600' }}>{formatCurrency(calculateSubtotal)}</span>
                             </div>
 
                             {appliedDiscount && (
@@ -985,11 +1149,11 @@ const PuntosVenta = () => {
                                     justifyContent: 'space-between',
                                     marginBottom: '0.75rem',
                                     fontSize: '0.9375rem',
-                                    color: '#059669',
+                                    color: '#dc2626',
                                     fontWeight: '600'
                                 }}>
                                     <span>Descuento</span>
-                                    <span>- ${calculateDiscountAmount.toFixed(2)}</span>
+                                    <span>- {formatCurrency(calculateDiscountAmount)}</span>
                                 </div>
                             )}
 
@@ -1003,17 +1167,17 @@ const PuntosVenta = () => {
                                 color: '#111827'
                             }}>
                                 <span>Total</span>
-                                <span style={{ color: '#059669' }}>${calculateTotal}</span>
+                                <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
                             </div>
                         </div>
 
-                        {/* Botón de Confirmar Pedido */}
+                        {/* Botón de Confirmar Pedido (Abre modal) */}
                         <button
                             style={{
                                 width: '100%',
                                 marginTop: '1.5rem',
                                 padding: '1rem',
-                                backgroundColor: cart.length === 0 || processingOrder ? '#d1d5db' : '#059669',
+                                backgroundColor: cart.length === 0 || processingOrder ? '#d1d5db' : '#3b82f6', 
                                 border: 'none',
                                 borderRadius: '10px',
                                 color: '#ffffff',
@@ -1021,30 +1185,196 @@ const PuntosVenta = () => {
                                 fontWeight: '700',
                                 cursor: cart.length === 0 || processingOrder ? 'not-allowed' : 'pointer',
                                 transition: 'all 0.2s',
-                                boxShadow: cart.length === 0 || processingOrder ? 'none' : '0 4px 12px rgba(5, 150, 105, 0.3)'
+                                boxShadow: cart.length === 0 || processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)'
                             }}
-                            onClick={handlePlaceOrder}
+                            onClick={openOrderConfirmationModal} 
                             disabled={cart.length === 0 || processingOrder}
                             onMouseEnter={(e) => {
                                 if (cart.length > 0 && !processingOrder) {
-                                    e.target.style.backgroundColor = '#047857';
+                                    e.target.style.backgroundColor = '#2563eb';
                                     e.target.style.transform = 'translateY(-2px)';
-                                    e.target.style.boxShadow = '0 6px 16px rgba(5, 150, 105, 0.4)';
+                                    e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)';
                                 }
                             }}
                             onMouseLeave={(e) => {
                                 if (cart.length > 0 && !processingOrder) {
-                                    e.target.style.backgroundColor = '#059669';
+                                    e.target.style.backgroundColor = '#3b82f6';
                                     e.target.style.transform = 'translateY(0)';
-                                    e.target.style.boxShadow = '0 4px 12px rgba(5, 150, 105, 0.3)';
+                                    e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
                                 }
                             }}
                         >
-                            {processingOrder ? 'Procesando pedido...' : 'Confirmar Pedido'}
+                            {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
                         </button>
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Revisión y Pago */}
+            {showReviewModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: '1rem'
+                }}>
+                    <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '12px',
+                        width: '100%',
+                        maxWidth: '550px',
+                        maxHeight: '90vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
+                    }}>
+                        {/* Header del Modal */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderBottom: '2px solid #e5e7eb',
+                            backgroundColor: '#1f2937',
+                            display: 'flex', // Añadido display flex para alinear el botón de facturar
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                        }}>
+                            <div>
+                                <h3 style={{
+                                    fontSize: '1.5rem',
+                                    fontWeight: '700',
+                                    color: '#ffffff',
+                                    margin: 0
+                                }}>
+                                    Confirmación de Orden
+                                </h3>
+                                <p style={{ color: '#d1d5db', fontSize: '0.9rem', margin: '0.25rem 0 0 0' }}>
+                                    Confirma la orden antes de procesar el pago.
+                                </p>
+                            </div>
+                            
+                            {/* Botón Facturar (No llamativo) */}
+                            <button
+                                style={{
+                                    padding: '0.5rem 1rem',
+                                    backgroundColor: 'transparent',
+                                    border: '1px solid #9ca3af',
+                                    borderRadius: '6px',
+                                    color: '#ffffff',
+                                    fontWeight: '500',
+                                    fontSize: '0.8rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onClick={handleInvoiceClick}
+                                onMouseEnter={(e) => { e.target.style.backgroundColor = '#4b5563'; }}
+                                onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; }}
+                            >
+                                FACTURAR
+                            </button>
+                        </div>
+
+                        {/* Contenido de Revisión */}
+                        {renderReviewDetails()}
+
+                        {/* Botones de Acción */}
+                        <div style={{
+                            padding: '1.5rem',
+                            borderTop: '2px solid #e5e7eb',
+                            display: 'flex',
+                            gap: '0.75rem',
+                            justifyContent: 'space-between'
+                        }}>
+                            <button
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    backgroundColor: '#9ca3af',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: '#ffffff',
+                                    fontWeight: '600',
+                                    fontSize: '1rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    flex: 1
+                                }}
+                                onClick={() => setShowReviewModal(false)} // Cierra el modal para editar
+                            >
+                                Editar Pedido
+                            </button>
+                            
+                            <button
+                                style={{
+                                    padding: '0.75rem 1.5rem',
+                                    backgroundColor: '#059669',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    color: '#ffffff',
+                                    fontWeight: '700',
+                                    fontSize: '1rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    flex: 1
+                                }}
+                                onClick={finalPlaceOrder} // <-- Llama a la función final de envío
+                                disabled={processingOrder}
+                            >
+                                Confirmar y Procesar Pago
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {/* Modal de Facturación (En Desarrollo) */}
+            {showInvoiceModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1100,
+                    padding: '1rem'
+                }}>
+                    <div style={{
+                        backgroundColor: '#ffffff',
+                        borderRadius: '12px',
+                        padding: '2rem',
+                        textAlign: 'center',
+                        maxWidth: '400px',
+                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)'
+                    }}>
+                        <h3 style={{ color: '#f59e0b', margin: '0 0 1rem 0' }}>⚠️ FUNCIONALIDAD EN DESARROLLO</h3>
+                        <p style={{ fontSize: '1rem', color: '#1f2937', marginBottom: '1.5rem' }}>
+                            La ventana de facturación se implementará en una fase posterior.
+                        </p>
+                        <button
+                            style={{
+                                padding: '0.75rem 2rem',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                cursor: 'pointer',
+                                fontWeight: '600'
+                            }}
+                            onClick={() => setShowInvoiceModal(false)}
+                        >
+                            Aceptar
+                        </button>
+                    </div>
+                </div>
+            )}
+
 
             {/* Modal de Crear Cliente */}
             {showCustomerModal && (
@@ -1088,6 +1418,37 @@ const PuntosVenta = () => {
 
                         {/* Formulario */}
                         <form onSubmit={handleCreateCustomer} style={{ padding: '1.5rem' }}>
+                            
+                            {/* CÉDULA */}
+                            <div style={{ marginBottom: '1.25rem' }}>
+                                <label style={{
+                                    display: 'block',
+                                    fontSize: '0.875rem',
+                                    fontWeight: '600',
+                                    color: '#374151',
+                                    marginBottom: '0.5rem'
+                                }}>
+                                    Cédula / RUC (Identificación)
+                                </label>
+                                <input
+                                    type="text"
+                                    name="cedula"
+                                    value={newCustomer.cedula}
+                                    onChange={handleInputChange}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        border: '2px solid #d1d5db',
+                                        borderRadius: '8px',
+                                        fontSize: '0.9375rem',
+                                        transition: 'all 0.2s',
+                                        boxSizing: 'border-box'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
+                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                                />
+                            </div>
+                            
                             {/* Email */}
                             <div style={{ marginBottom: '1.25rem' }}>
                                 <label style={{
