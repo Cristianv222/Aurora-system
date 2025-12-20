@@ -1,5 +1,4 @@
-// modulos/fast-food/Reportes.js - VERSIÓN FINAL CON MODAL
-
+// modulos/fast-food/Reportes.js - VERSIÓN COMPLETA CORREGIDA CON FILTROS Y FECHA FIXED
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import {
@@ -9,7 +8,7 @@ import {
 } from 'recharts';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import { format, subDays, startOfWeek, endOfWeek, startOfMonth } from 'date-fns';
+import { format, subDays, startOfWeek, endOfWeek, startOfMonth, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -56,6 +55,22 @@ const getValidDate = (dateValue) => {
     if (!dateValue) return null;
     const date = new Date(dateValue);
     return isNaN(date.getTime()) ? null : date;
+};
+
+// Función para comparar fechas ignorando la hora (solo año, mes, día)
+const isSameLocalDate = (date1, date2) => {
+    if (!date1 || !date2) return false;
+    
+    const d1 = getValidDate(date1);
+    const d2 = getValidDate(date2);
+    
+    if (!d1 || !d2) return false;
+    
+    // Normalizar a fecha local (sin hora)
+    const normalized1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate());
+    const normalized2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate());
+    
+    return normalized1.getTime() === normalized2.getTime();
 };
 
 // ====================================================================
@@ -260,6 +275,7 @@ const Reportes = () => {
     const [dashboardStats, setDashboardStats] = useState(null);
     const [connectionError, setConnectionError] = useState(false);
     const [debugInfo, setDebugInfo] = useState('');
+    const [noReportMessage, setNoReportMessage] = useState('');
     
     // ========== NUEVOS ESTADOS PARA EL MODAL ==========
     const [showModal, setShowModal] = useState(false);
@@ -281,12 +297,13 @@ const Reportes = () => {
         }
     }, []);
 
-    // Obtener la lista de reportes recientes Y el reporte de hoy
+    // Obtener la lista de reportes recientes
     const fetchReports = useCallback(async () => {
         try {
             setLoadingData(true);
             setConnectionError(false);
             setError('');
+            setNoReportMessage('');
 
             const listResponse = await api.get('/api/pos/daily-summaries/', {
                 baseURL: getFastFoodBaseURL(),
@@ -297,22 +314,48 @@ const Reportes = () => {
             let reportsData = listResponse.data.results || listResponse.data;
             if (!Array.isArray(reportsData)) reportsData = [];
 
-            const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
-                baseURL: getFastFoodBaseURL(),
-                timeout: 10000
-            });
+            // Obtener fecha de hoy correctamente
+            const today = new Date();
+            const todayStr = format(today, 'yyyy-MM-dd');
+            
+            // Buscar reporte de hoy en la lista recibida
+            let todayReport = null;
+            for (const report of reportsData) {
+                const reportDate = report.date || report.start_date;
+                if (reportDate && isSameLocalDate(reportDate, todayStr)) {
+                    todayReport = report;
+                    break;
+                }
+            }
 
-            const todayReport = todayResponse.data;
-            const todayDateStr = todayReport.date_formatted || todayReport.date;
+            // Si no hay reporte de hoy, intentar obtener del endpoint /today/
+            if (!todayReport) {
+                try {
+                    const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
+                        baseURL: getFastFoodBaseURL(),
+                        timeout: 5000
+                    });
+                    todayReport = todayResponse.data;
+                } catch (err) {
+                    console.warn('No se pudo obtener reporte específico de hoy:', err);
+                }
+            }
 
-            const updatedReports = reportsData.filter(r => r.date !== todayDateStr);
-            updatedReports.unshift(todayReport);
+            // Procesar lista de reportes
+            const updatedReports = [];
+            if (todayReport) {
+                // Filtrar reportes que no sean de hoy
+                const todayDate = todayReport.date_formatted || todayReport.date;
+                updatedReports.push(...reportsData.filter(r => {
+                    const reportDate = r.date_formatted || r.date;
+                    return !isSameLocalDate(reportDate, todayDate);
+                }));
+                updatedReports.unshift(todayReport);
+            } else {
+                updatedReports.push(...reportsData);
+            }
 
             setReports(updatedReports);
-
-            if (format(dateRange.startDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')) {
-                 setCurrentReport(todayReport);
-            }
 
         } catch (err) {
             console.error('Error loading reports (fetchReports):', err);
@@ -320,13 +363,13 @@ const Reportes = () => {
         } finally {
             setLoadingData(false);
         }
-    }, [dateRange.startDate]);
+    }, []);
 
     // ========== NUEVA FUNCIÓN PARA VER DETALLE DEL REPORTE ==========
     const verDetalleReporte = async (reportId) => {
         try {
             setModalLoading(true);
-            setShowModal(true); // Abrimos el modal aunque esté cargando
+            setShowModal(true);
             
             const response = await api.get(`/api/pos/daily-summaries/${reportId}/detail_with_orders/`, {
                 baseURL: getFastFoodBaseURL()
@@ -343,21 +386,49 @@ const Reportes = () => {
     };
     // ================================================================
 
-    // Cargar reporte diario específico (usa generate/ para asegurar la actualización y actualizar todo el panel)
-    const loadDailyReport = useCallback(async (date) => {
+    // ========== FUNCIÓN MODIFICADA: SOLO CARGA REPORTES EXISTENTES ==========
+    const loadDailyReport = useCallback(async (date, shouldGenerate = false) => {
         try {
             setLoadingData(true);
             setConnectionError(false);
             setError('');
+            setNoReportMessage('');
             setDebugInfo('');
 
             const dateStr = format(date, 'yyyy-MM-dd');
+            const targetDate = getValidDate(dateStr);
 
-            // 1. Forzar la generación/actualización - Pedir detalle de órdenes
+            if (!targetDate) {
+                setNoReportMessage(`Fecha inválida: ${format(date, 'dd/MM/yyyy')}`);
+                return;
+            }
+
+            // PRIMERO: Buscar si ya existe un reporte para esta fecha
+            const existingReport = reports.find(report => {
+                const reportDate = report.date || report.start_date;
+                return reportDate && isSameLocalDate(reportDate, targetDate);
+            });
+
+            if (existingReport && !shouldGenerate) {
+                // Si ya existe un reporte y no debemos generarlo, lo usamos
+                console.log("Usando reporte existente para:", dateStr);
+                setCurrentReport(existingReport);
+                return;
+            }
+
+            // Si no existe reporte y no se debe generar
+            if (!shouldGenerate) {
+                setNoReportMessage(`No hay reporte disponible para la fecha ${format(date, 'dd/MM/yyyy')}`);
+                setCurrentReport(null);
+                return;
+            }
+
+            // SOLO generar nuevo reporte si se solicita explícitamente
+            console.log("Generando nuevo reporte para:", dateStr);
             const response = await api.post('/api/pos/daily-summaries/generate/', {
                 date: dateStr,
                 detailed: true,
-                include_orders_detail: true // Solicitar detalle de órdenes completo
+                include_orders_detail: true
             }, {
                 baseURL: getFastFoodBaseURL(),
                 timeout: 15000
@@ -367,16 +438,14 @@ const Reportes = () => {
 
             if (generatedSummary) {
                 setCurrentReport(generatedSummary);
-
-                // 2. Actualizar la lista superior y el dashboard
+                // Actualizar la lista de reportes
                 await fetchReports();
-                await fetchDashboardStats();
             }
 
         } catch (err) {
             console.error('Error loading daily report:', err);
 
-            let errorMessage = `Error al cargar/generar reporte para ${format(date, 'dd/MM/yyyy')}.`;
+            let errorMessage = `Error al cargar reporte para ${format(date, 'dd/MM/yyyy')}.`;
             if (err.response?.status === 500) {
                 errorMessage += '\n\nError interno del servidor (500). Revise los logs.';
             }
@@ -387,27 +456,57 @@ const Reportes = () => {
         } finally {
             setLoadingData(false);
         }
-    }, [fetchReports, fetchDashboardStats]);
+    }, [reports, fetchReports]);
 
-    // Generar reporte (función que maneja rangos/semanales/mensuales)
-    const generateReport = useCallback(async (currentReportType, currentRange) => {
+    // ========== FUNCIÓN MODIFICADA: SOLO GENERA REPORTES CUANDO SE PIDE EXPLÍCITAMENTE ==========
+    const generateReport = useCallback(async (currentReportType, currentRange, shouldGenerate = false) => {
          try {
             setLoadingData(true);
             setConnectionError(false);
             setError('');
+            setNoReportMessage('');
             setDebugInfo('');
 
             const startDate = format(currentRange.startDate, 'yyyy-MM-dd');
             const endDate = format(currentRange.endDate, 'yyyy-MM-dd');
 
             if (currentReportType === 'daily') {
-                 await loadDailyReport(currentRange.startDate);
-                 return;
+                // Para reportes diarios, buscar primero si ya existe
+                await loadDailyReport(currentRange.startDate, shouldGenerate);
+                return;
             }
 
+            // Para reportes de rango, siempre mostrar datos existentes primero
+            if (!shouldGenerate) {
+                // Buscar reportes existentes que coincidan con el rango
+                const filteredReports = reports.filter(report => {
+                    const reportDate = getValidDate(report.date || report.start_date);
+                    if (!reportDate) return false;
+                    
+                    return isWithinInterval(reportDate, {
+                        start: startOfDay(currentRange.startDate),
+                        end: endOfDay(currentRange.endDate)
+                    });
+                });
+
+                if (filteredReports.length > 0) {
+                    console.log("Mostrando reportes existentes para el rango");
+                    // Mostrar el reporte más reciente del rango
+                    const latestReport = filteredReports[0];
+                    setCurrentReport(latestReport);
+                    return;
+                } else {
+                    setNoReportMessage(`No hay reportes disponibles para el período seleccionado (${format(currentRange.startDate, 'dd/MM/yyyy')} - ${format(currentRange.endDate, 'dd/MM/yyyy')})`);
+                    setCurrentReport(null);
+                    return;
+                }
+            }
+
+            // SOLO generar nuevo reporte si se solicita explícitamente
+            console.log("Generando nuevo reporte de rango");
             const payload = {
                 report_type: currentReportType,
-                include_orders_detail: true // Solicitar detalle de órdenes
+                include_orders_detail: true
             };
 
             if (currentReportType === 'weekly') {
@@ -427,8 +526,8 @@ const Reportes = () => {
                 timeout: 15000
             });
 
-            setCurrentReport(response.data.data || response.data);
-            await fetchDashboardStats();
+            const newReport = response.data.data || response.data;
+            setCurrentReport(newReport);
 
         } catch (err) {
             console.error('Error generating report (range):', err);
@@ -450,7 +549,7 @@ const Reportes = () => {
         } finally {
             setLoadingData(false);
         }
-    }, [fetchDashboardStats, loadDailyReport]);
+    }, [reports, loadDailyReport]);
 
 
     // Hook de inicialización
@@ -458,10 +557,30 @@ const Reportes = () => {
         const initializeReports = async () => {
             setLoading(true);
             try {
+                console.log('Inicializando reportes - Fecha local:', new Date().toLocaleString('es-MX'));
+                
                 await fetchDashboardStats();
                 await fetchReports();
                 setConnectionError(false);
-                loadDailyReport(new Date());
+                
+                // Inicialmente cargar el reporte de hoy si existe
+                const today = new Date();
+                console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'));
+                
+                const todayStr = format(today, 'yyyy-MM-dd');
+                const todayReport = reports.find(r => {
+                    const reportDate = r.date || r.start_date;
+                    return reportDate && isSameLocalDate(reportDate, todayStr);
+                });
+                
+                console.log('Reporte de hoy encontrado:', todayReport ? 'Sí' : 'No');
+                
+                if (todayReport) {
+                    setCurrentReport(todayReport);
+                    setFilterType('today');
+                } else {
+                    setNoReportMessage('No hay reporte disponible para hoy. Puedes generar uno si es necesario.');
+                }
 
             } catch (err) {
                 console.error('Error inicializando reportes:', err);
@@ -473,7 +592,6 @@ const Reportes = () => {
             }
         };
 
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         initializeReports();
     }, []);
 
@@ -500,7 +618,10 @@ const Reportes = () => {
 
             await fetchReports();
             await fetchDashboardStats();
-            loadDailyReport(new Date());
+            
+            // Recargar el reporte de hoy
+            const today = new Date();
+            await loadDailyReport(today, true);
 
         } catch (err) {
             console.error('Error closing day:', err);
@@ -510,9 +631,10 @@ const Reportes = () => {
         }
     };
 
-    // Aplicar filtro rápido y GENERAR el reporte automáticamente
+    // ========== FUNCIÓN MODIFICADA: SOLO FILTRA, NO CREA ==========
     const applyQuickFilter = (filter) => {
         setFilterType(filter);
+        setNoReportMessage('');
         const today = new Date();
         let newRange = { startDate: today, endDate: today };
         let newReportType = 'daily';
@@ -521,13 +643,15 @@ const Reportes = () => {
             case 'today':
                 newReportType = 'daily';
                 newRange = { startDate: today, endDate: today };
-                loadDailyReport(today);
+                // Solo cargar reporte existente, no generar nuevo
+                loadDailyReport(today, false);
                 break;
             case 'yesterday':
                 const yesterday = subDays(today, 1);
                 newReportType = 'daily';
                 newRange = { startDate: yesterday, endDate: yesterday };
-                loadDailyReport(yesterday);
+                // Solo cargar reporte existente, no generar nuevo
+                loadDailyReport(yesterday, false);
                 break;
             case 'thisWeek':
                 newReportType = 'weekly';
@@ -535,7 +659,8 @@ const Reportes = () => {
                     startDate: startOfWeek(today, { locale: es }),
                     endDate: today
                 };
-                generateReport(newReportType, newRange);
+                // Solo filtrar reportes existentes
+                generateReport(newReportType, newRange, false);
                 break;
             case 'lastWeek':
                 newReportType = 'weekly';
@@ -545,7 +670,8 @@ const Reportes = () => {
                     startDate: lastWeekStart,
                     endDate: lastWeekEnd
                 };
-                generateReport(newReportType, newRange);
+                // Solo filtrar reportes existentes
+                generateReport(newReportType, newRange, false);
                 break;
             case 'thisMonth':
                 newReportType = 'monthly';
@@ -553,16 +679,27 @@ const Reportes = () => {
                     startDate: startOfMonth(today),
                     endDate: today
                 };
-                generateReport(newReportType, newRange);
+                // Solo filtrar reportes existentes
+                generateReport(newReportType, newRange, false);
                 break;
             default:
                 newReportType = 'daily';
                 newRange = { startDate: today, endDate: today };
-                loadDailyReport(today);
+                loadDailyReport(today, false);
         }
 
         setReportType(newReportType);
         setDateRange(newRange);
+    };
+
+    // Función para forzar la generación de un reporte (solo cuando el usuario lo pida explícitamente)
+    const forceGenerateReport = () => {
+        setNoReportMessage('');
+        if (reportType === 'daily') {
+            loadDailyReport(dateRange.startDate, true);
+        } else {
+            generateReport(reportType, dateRange, true);
+        }
     };
 
     // --- Funciones de Renderizado ---
@@ -803,6 +940,11 @@ const Reportes = () => {
     
     // Función para manejar la impresión a PDF
     const handlePrintPDF = () => {
+        if (!currentReport) {
+            alert('No hay reporte seleccionado para imprimir.');
+            return;
+        }
+        
         const start = formatDate(currentReport.date || currentReport.start_date);
         const end = currentReport.end_date && currentReport.date !== currentReport.end_date ? formatDate(currentReport.end_date) : '';
         const rangeStr = end ? `${start} - ${end}` : start;
@@ -885,8 +1027,6 @@ const Reportes = () => {
     }
 
 
-    // El resto del JSX
-
     return (
         <div className="reportes-container">
             {/* Título principal */}
@@ -898,7 +1038,7 @@ const Reportes = () => {
                 <div className="actions-group">
                     <button
                         onClick={closeDay}
-                        disabled={currentReport?.is_closed || connectionError}
+                        disabled={currentReport?.is_closed || connectionError || !currentReport}
                         className={`action-button ${currentReport?.is_closed ? 'closed' : 'open'}`}
                     >
                         {currentReport?.is_closed ? 'Día Cerrado' : 'Cerrar Día'}
@@ -906,7 +1046,7 @@ const Reportes = () => {
                     {currentReport && (
                         <button
                             onClick={handlePrintPDF}
-                            disabled={loadingData || connectionError}
+                            disabled={loadingData || connectionError || !currentReport}
                             className="action-button primary"
                             style={{ backgroundColor: '#cc3333' }}
                         >
@@ -970,16 +1110,15 @@ const Reportes = () => {
                         </div>
                     </div>
 
-                    {/* Botón Generar Reporte (Solo para Custom/Rangos) */}
-                    {(reportType !== 'daily' && filterType === 'custom') && (
-                        <button
-                            onClick={() => generateReport(reportType, dateRange)}
-                            disabled={loadingData || connectionError}
-                            className={`generate-button ${loadingData ? 'loading' : ''}`}
-                        >
-                             {loadingData ? 'Generando...' : 'Generar Reporte'}
-                        </button>
-                    )}
+                    {/* Botón Generar Reporte - AHORA ES OPCIONAL */}
+                    <button
+                        onClick={forceGenerateReport}
+                        disabled={loadingData || connectionError}
+                        className={`generate-button ${loadingData ? 'loading' : ''}`}
+                        title="Forzar generación de nuevo reporte (solo si es necesario)"
+                    >
+                        {loadingData ? 'Generando...' : 'Generar Nuevo Reporte'}
+                    </button>
                 </div>
 
                 {/* Filtros Rápidos */}
@@ -1006,7 +1145,7 @@ const Reportes = () => {
 
             {/* Contenido principal */}
             <div className="content-layout">
-                {/* Lista de Reportes - CON EL NUEVO onClick */}
+                {/* Lista de Reportes - SIDEBAR MEJORADO CON CAMPOS DE CLIENTE */}
                 <div className="reports-list-panel card">
                     <div className="panel-header">
                         <h3 className="panel-title">Reportes Recientes ({reports.length})</h3>
@@ -1037,7 +1176,10 @@ const Reportes = () => {
                                                     verDetalleReporte(report.id);
                                                 } else {
                                                     // Si por alguna razón no tiene ID (es el de hoy recién creado)
-                                                    loadDailyReport(new Date(reportDate));
+                                                    const reportDateObj = getValidDate(reportDate);
+                                                    if (reportDateObj) {
+                                                        loadDailyReport(reportDateObj, false);
+                                                    }
                                                 }
                                             }}
                                             className={`report-item ${isSelected ? 'selected' : ''}`}
@@ -1050,10 +1192,30 @@ const Reportes = () => {
                                                     )}
                                                 </div>
 
-                                                <p className="item-sales">{formatCurrency(report.total_sales || 0)}</p>
-                                                <p className="item-summary">
-                                                    {report.total_orders || 0} órdenes • {report.total_customers || 0} clientes
-                                                </p>
+                                                <div className="item-metrics">
+                                                    <div className="metric-row">
+                                                        <span className="metric-label">Ventas:</span>
+                                                        <strong className="metric-value sales-color">{formatCurrency(report.total_sales || 0)}</strong>
+                                                    </div>
+                                                    <div className="metric-row">
+                                                        <span className="metric-label">Órdenes:</span>
+                                                        <span className="metric-text">{(report.total_orders || 0).toLocaleString()}</span>
+                                                    </div>
+                                                    {/* ========== NUEVOS CAMPOS DE CLIENTE ========== */}
+                                                    <div className="metric-row">
+                                                        <span className="metric-label">Clientes:</span>
+                                                        <span className="metric-text customer-count">{(report.total_customers || 0).toLocaleString()}</span>
+                                                    </div>
+                                                    <div className="metric-row">
+                                                        <span className="metric-label">Prom/Orden:</span>
+                                                        <span className="metric-text">{formatCurrency(report.average_order_value || 0)}</span>
+                                                    </div>
+                                                    <div className="metric-row">
+                                                        <span className="metric-label">Items:</span>
+                                                        <span className="metric-text">{(report.total_items_sold || 0).toLocaleString()} unid.</span>
+                                                    </div>
+                                                    {/* ============================================== */}
+                                                </div>
                                             </div>
                                             <div className="item-footer">
                                                 <span className="item-source">Generado por: {report.generated_by || 'Sistema'}</span>
@@ -1125,8 +1287,14 @@ const Reportes = () => {
                     ) : (
                         <div className="empty-state">
                             <span className="material-icons" style={{ fontSize: '4rem', color: '#ccc' }}>assessment</span>
-                            <h3 className="empty-title">Selecciona un reporte</h3>
-                            <p className="empty-message">Haz clic en un reporte de la lista para ver su información detallada, métricas y gráficos de análisis.</p>
+                            <h3 className="empty-title">
+                                {noReportMessage || 'Selecciona un reporte'}
+                            </h3>
+                            <p className="empty-message">
+                                {noReportMessage 
+                                    ? 'Puedes generar un nuevo reporte usando el botón "Generar Nuevo Reporte"'
+                                    : 'Haz clic en un reporte de la lista para ver su información detallada, métricas y gráficos de análisis.'}
+                            </p>
                             <button
                                 onClick={() => applyQuickFilter('today')}
                                 disabled={connectionError}
@@ -1155,21 +1323,39 @@ const Reportes = () => {
                                 <>
                                     <div className="modal-summary-grid">
                                         <div className="modal-stat">
-                                            <span>Ventas:</span>
+                                            <span>Ventas Totales:</span>
                                             <strong>{formatCurrency(currentReport?.total_sales)}</strong>
                                         </div>
                                         <div className="modal-stat">
-                                            <span>Órdenes:</span>
+                                            <span>Órdenes Totales:</span>
                                             <strong>{currentReport?.total_orders}</strong>
+                                        </div>
+                                        <div className="modal-stat">
+                                            <span>Clientes Únicos:</span>
+                                            <strong>{currentReport?.total_customers}</strong>
+                                        </div>
+                                        <div className="modal-stat">
+                                            <span>Promedio/Orden:</span>
+                                            <strong>{formatCurrency(currentReport?.average_order_value)}</strong>
                                         </div>
                                     </div>
                                     
-                                    {/* Aquí reutilizamos tu tabla de órdenes que ya tenías */}
+                                    {/* Aquí mostramos EXACTAMENTE lo mismo que en el panel principal */}
+                                    <h3 className="section-title detail-section" style={{marginTop: '20px'}}>Detalle de Órdenes</h3>
                                     {renderDetailedOrdersTable()}
                                     
                                     <div style={{ marginTop: '20px' }}>
-                                        <h4 className="section-title">Productos Vendidos</h4>
-                                        {renderTopProductsChart()}
+                                        <h4 className="section-title chart-section">Análisis de Gráficos</h4>
+                                        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
+                                            <div>
+                                                <h4 className="chart-title">Ventas por Hora</h4>
+                                                {renderSalesByHourChart()}
+                                            </div>
+                                            <div>
+                                                <h4 className="chart-title">Productos Vendidos</h4>
+                                                {renderTopProductsChart()}
+                                            </div>
+                                        </div>
                                     </div>
                                 </>
                             )}
@@ -1183,7 +1369,7 @@ const Reportes = () => {
                 </div>
             )}
 
-            {/* Estilos CSS Globales - INCLUYENDO ESTILOS DEL MODAL */}
+            {/* Estilos CSS Globales - COMPLETOS */}
             <style>{`
                 @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
                 
@@ -1233,7 +1419,7 @@ const Reportes = () => {
                     word-break: break-all;
                 }
 
-                /* ========== ESTILOS DEL MODAL ========== */
+                /* ========== ESTILOS MEJORADOS DEL MODAL ========== */
                 .modal-overlay {
                     position: fixed;
                     top: 0;
@@ -1248,33 +1434,41 @@ const Reportes = () => {
                 }
                 .modal-container {
                     background: white;
-                    width: 90%;
-                    max-width: 1000px;
+                    width: 95%;
+                    max-width: 1200px;
                     max-height: 90vh;
                     border-radius: 12px;
                     display: flex;
                     flex-direction: column;
                     overflow: hidden;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
                 }
                 .modal-header {
-                    padding: 20px;
+                    padding: 20px 30px;
                     background: #f8fafc;
                     border-bottom: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
                 }
+                .modal-header h2 {
+                    margin: 0;
+                    color: #1f2937;
+                    font-size: 1.5rem;
+                }
                 .modal-body {
-                    padding: 20px;
+                    padding: 30px;
                     overflow-y: auto;
                     flex: 1;
+                    background: #f9fafb;
                 }
                 .modal-footer {
-                    padding: 15px;
+                    padding: 20px 30px;
                     border-top: 1px solid #e2e8f0;
                     display: flex;
                     justify-content: flex-end;
-                    gap: 10px;
+                    gap: 15px;
+                    background: white;
                 }
                 .close-button {
                     font-size: 2rem;
@@ -1282,26 +1476,48 @@ const Reportes = () => {
                     background: none;
                     cursor: pointer;
                     color: #64748b;
+                    line-height: 1;
+                    padding: 0;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border-radius: 50%;
+                    transition: background-color 0.2s;
+                }
+                .close-button:hover {
+                    background-color: #e2e8f0;
                 }
                 .modal-summary-grid {
-                    display: flex;
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                     gap: 20px;
-                    margin-bottom: 20px;
-                    background: #eff6ff;
-                    padding: 15px;
-                    border-radius: 8px;
+                    margin-bottom: 30px;
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    border: 1px solid #e5e7eb;
                 }
                 .modal-stat {
                     display: flex;
                     flex-direction: column;
+                    padding: 10px;
+                    background: #f8fafc;
+                    border-radius: 8px;
+                    border-left: 4px solid #3b82f6;
                 }
                 .modal-stat span {
-                    font-size: 0.9rem;
+                    font-size: 0.85rem;
                     color: #64748b;
+                    margin-bottom: 5px;
+                    font-weight: 500;
                 }
                 .modal-stat strong {
                     font-size: 1.5rem;
-                    color: #1f77b4;
+                    color: #1f2937;
+                    font-weight: 700;
                 }
                 .loading-spinner {
                     display: flex;
@@ -1310,8 +1526,126 @@ const Reportes = () => {
                     height: 200px;
                     color: #64748b;
                     font-size: 1.1rem;
+                    background: white;
+                    border-radius: 10px;
+                    border: 1px solid #e5e7eb;
                 }
-                /* ====================================== */
+                /* Asegurar que las tablas dentro del modal se vean bien */
+                .modal-body table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 10px;
+                    background: white;
+                    border-radius: 8px;
+                    overflow: hidden;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                }
+                .modal-body th {
+                    background-color: #f3f4f6;
+                    padding: 12px 15px;
+                    text-align: left;
+                    font-weight: 600;
+                    color: #374151;
+                    border-bottom: 2px solid #e5e7eb;
+                }
+                .modal-body td {
+                    padding: 12px 15px;
+                    border-bottom: 1px solid #e5e7eb;
+                    color: #4b5563;
+                }
+                .modal-body tr:hover {
+                    background-color: #f9fafb;
+                }
+                /* Mejorar los gráficos dentro del modal */
+                .modal-body .chart-container {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 10px;
+                    border: 1px solid #e5e7eb;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+                    margin-bottom: 0;
+                }
+                .modal-body .section-title {
+                    color: #1f2937;
+                    font-size: 1.25rem;
+                    margin-top: 30px;
+                    margin-bottom: 20px;
+                    padding-bottom: 10px;
+                    border-bottom: 2px solid #e5e7eb;
+                }
+                .modal-body .chart-title {
+                    color: #374151;
+                    font-size: 1.1rem;
+                    margin-top: 0;
+                    margin-bottom: 15px;
+                }
+                /* ================================================ */
+
+                /* ========== ESTILOS MEJORADOS PARA EL SIDEBAR/SIDECAR ========== */
+                .item-metrics {
+                    margin-top: 10px;
+                    padding: 10px;
+                    background: #f8fafc;
+                    border-radius: 6px;
+                    border: 1px solid #e5e7eb;
+                }
+                .metric-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 6px;
+                    font-size: 0.8rem;
+                }
+                .metric-row:last-child {
+                    margin-bottom: 0;
+                }
+                .metric-label {
+                    color: #6b7280;
+                    font-weight: 500;
+                    min-width: 80px;
+                }
+                .metric-value {
+                    font-weight: 700;
+                }
+                .metric-text {
+                    color: #374151;
+                    font-weight: 600;
+                }
+                .sales-color {
+                    color: #059669;
+                }
+                .customer-count {
+                    color: #3b82f6;
+                    font-weight: 700;
+                }
+                .item-date {
+                    margin: 0 0 8px 0;
+                    font-size: 0.95rem;
+                    color: #1f2937;
+                    font-weight: 600;
+                }
+                .status-badge {
+                    padding: 2px 8px;
+                    border-radius: 12px;
+                    font-size: 0.65rem;
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 4px;
+                }
+                .closed-badge {
+                    background-color: #10b981;
+                    color: white;
+                }
+                .item-source {
+                    font-size: 0.7rem;
+                    color: #9ca3af;
+                    display: block;
+                    margin-top: 8px;
+                    padding-top: 8px;
+                    border-top: 1px dashed #e5e7eb;
+                }
+                /* ============================================================== */
 
                 .header-bar {
                     display: flex;
@@ -1568,52 +1902,6 @@ const Reportes = () => {
                     background-color: #e6f0ff;
                 }
 
-                .item-status {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin-bottom: 5px;
-                }
-                .item-date {
-                    margin: 0;
-                    font-size: 0.95rem;
-                    color: var(--text-dark);
-                }
-                .status-badge {
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    font-size: 0.7rem;
-                    font-weight: 600;
-                    display: flex;
-                    align-items: center;
-                    gap: 4px;
-                }
-                .closed-badge {
-                    background-color: var(--success);
-                    color: white;
-                }
-                .item-sales {
-                    margin: 0;
-                    font-size: 0.9rem;
-                    color: var(--success);
-                    font-weight: 700;
-                }
-                .item-summary {
-                    margin: 0;
-                    font-size: 0.75rem;
-                    color: var(--text-muted);
-                }
-                .item-footer {
-                    margin-top: 10px;
-                    padding-top: 8px;
-                    border-top: 1px dashed #eee;
-                }
-                .item-source {
-                    font-size: 0.7rem;
-                    color: #999;
-                }
-
-
                 /* Detalle del Reporte */
                 .report-detail-panel {
                     min-height: calc(100vh - 200px);
@@ -1782,6 +2070,13 @@ const Reportes = () => {
                     height: 100vh;
                     font-size: 1.2rem;
                     color: #666;
+                }
+                
+                .no-reports {
+                    text-align: center;
+                    padding: 40px;
+                    color: #666;
+                    font-style: italic;
                 }
             `}</style>
         </div>
