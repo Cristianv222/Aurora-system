@@ -1,4 +1,4 @@
-// modulos/fast-food/Reportes.js - VERSIÓN FINAL LIMPIA Y REORGANIZADA CON TODOS LOS PRODUCTOS
+// modulos/fast-food/Reportes.js - VERSIÓN FINAL CON MODAL
 
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
@@ -221,7 +221,6 @@ const generateDetailedPDF = (report, reportType, dateRangeStr) => {
     y += 5;
 
     const topProducts = (report.top_products || [])
-        // Ya no aplicamos slice(0, 10) aquí, ya que el Back-end ya debería enviar todos
         .map(p => [
             p.product_name || 'Desconocido',
             (p.quantity || p.quantity_sold || 0).toLocaleString(),
@@ -261,7 +260,11 @@ const Reportes = () => {
     const [dashboardStats, setDashboardStats] = useState(null);
     const [connectionError, setConnectionError] = useState(false);
     const [debugInfo, setDebugInfo] = useState('');
-
+    
+    // ========== NUEVOS ESTADOS PARA EL MODAL ==========
+    const [showModal, setShowModal] = useState(false);
+    const [modalLoading, setModalLoading] = useState(false);
+    // ==================================================
 
     // Cargar estadísticas del dashboard
     const fetchDashboardStats = useCallback(async () => {
@@ -318,6 +321,27 @@ const Reportes = () => {
             setLoadingData(false);
         }
     }, [dateRange.startDate]);
+
+    // ========== NUEVA FUNCIÓN PARA VER DETALLE DEL REPORTE ==========
+    const verDetalleReporte = async (reportId) => {
+        try {
+            setModalLoading(true);
+            setShowModal(true); // Abrimos el modal aunque esté cargando
+            
+            const response = await api.get(`/api/pos/daily-summaries/${reportId}/detail_with_orders/`, {
+                baseURL: getFastFoodBaseURL()
+            });
+
+            setCurrentReport(response.data);
+        } catch (err) {
+            console.error("Error al obtener detalle:", err);
+            alert("No se pudo cargar el detalle del reporte.");
+            setShowModal(false);
+        } finally {
+            setModalLoading(false);
+        }
+    };
+    // ================================================================
 
     // Cargar reporte diario específico (usa generate/ para asegurar la actualización y actualizar todo el panel)
     const loadDailyReport = useCallback(async (date) => {
@@ -752,7 +776,7 @@ const Reportes = () => {
 
         const productData = currentReport.top_products
             .filter(item => item && (item.quantity || item.quantity_sold || 0) > 0)
-            .map((item, index) => ({ // Eliminado .slice(0, 10) aquí para mostrar todos
+            .map((item, index) => ({
                 name: item.product_name?.substring(0, 25) + (item.product_name?.length > 25 ? '...' : '') || `Producto ${index + 1}`,
                 cantidad: item.quantity || item.quantity_sold || 0,
             }));
@@ -892,7 +916,7 @@ const Reportes = () => {
                 </div>
             </div>
 
-            {/* Dashboard Stats (Resuelve el error al estar definida arriba) */}
+            {/* Dashboard Stats */}
             {renderDashboardStats()}
 
             {/* Panel de Control */}
@@ -982,7 +1006,7 @@ const Reportes = () => {
 
             {/* Contenido principal */}
             <div className="content-layout">
-                {/* Lista de Reportes */}
+                {/* Lista de Reportes - CON EL NUEVO onClick */}
                 <div className="reports-list-panel card">
                     <div className="panel-header">
                         <h3 className="panel-title">Reportes Recientes ({reports.length})</h3>
@@ -1009,12 +1033,11 @@ const Reportes = () => {
                                         <div
                                             key={report.id || index}
                                             onClick={() => {
-                                                if (reportDate && !connectionError) {
-                                                    const date = new Date(reportDate);
-                                                    setFilterType(format(date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') ? 'today' : 'daily');
-                                                    setReportType('daily');
-                                                    setDateRange({ startDate: date, endDate: date });
-                                                    loadDailyReport(date);
+                                                if (report.id) {
+                                                    verDetalleReporte(report.id);
+                                                } else {
+                                                    // Si por alguna razón no tiene ID (es el de hoy recién creado)
+                                                    loadDailyReport(new Date(reportDate));
                                                 }
                                             }}
                                             className={`report-item ${isSelected ? 'selected' : ''}`}
@@ -1116,7 +1139,51 @@ const Reportes = () => {
                 </div>
             </div>
 
-            {/* Estilos CSS Globales */}
+            {/* ========== MODAL PARA DETALLE COMPLETO ========== */}
+            {showModal && (
+                <div className="modal-overlay">
+                    <div className="modal-container">
+                        <div className="modal-header">
+                            <h2>Detalle Completo del Reporte</h2>
+                            <button className="close-button" onClick={() => setShowModal(false)}>×</button>
+                        </div>
+                        
+                        <div className="modal-body">
+                            {modalLoading ? (
+                                <div className="loading-spinner">Cargando detalles...</div>
+                            ) : (
+                                <>
+                                    <div className="modal-summary-grid">
+                                        <div className="modal-stat">
+                                            <span>Ventas:</span>
+                                            <strong>{formatCurrency(currentReport?.total_sales)}</strong>
+                                        </div>
+                                        <div className="modal-stat">
+                                            <span>Órdenes:</span>
+                                            <strong>{currentReport?.total_orders}</strong>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Aquí reutilizamos tu tabla de órdenes que ya tenías */}
+                                    {renderDetailedOrdersTable()}
+                                    
+                                    <div style={{ marginTop: '20px' }}>
+                                        <h4 className="section-title">Productos Vendidos</h4>
+                                        {renderTopProductsChart()}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        
+                        <div className="modal-footer">
+                            <button className="action-button" onClick={() => setShowModal(false)}>Cerrar</button>
+                            <button className="action-button primary" onClick={handlePrintPDF}>Imprimir PDF</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Estilos CSS Globales - INCLUYENDO ESTILOS DEL MODAL */}
             <style>{`
                 @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
                 
@@ -1165,6 +1232,86 @@ const Reportes = () => {
                     white-space: pre-wrap;
                     word-break: break-all;
                 }
+
+                /* ========== ESTILOS DEL MODAL ========== */
+                .modal-overlay {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0, 0, 0, 0.7);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 1000;
+                }
+                .modal-container {
+                    background: white;
+                    width: 90%;
+                    max-width: 1000px;
+                    max-height: 90vh;
+                    border-radius: 12px;
+                    display: flex;
+                    flex-direction: column;
+                    overflow: hidden;
+                }
+                .modal-header {
+                    padding: 20px;
+                    background: #f8fafc;
+                    border-bottom: 1px solid #e2e8f0;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                }
+                .modal-body {
+                    padding: 20px;
+                    overflow-y: auto;
+                    flex: 1;
+                }
+                .modal-footer {
+                    padding: 15px;
+                    border-top: 1px solid #e2e8f0;
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                }
+                .close-button {
+                    font-size: 2rem;
+                    border: none;
+                    background: none;
+                    cursor: pointer;
+                    color: #64748b;
+                }
+                .modal-summary-grid {
+                    display: flex;
+                    gap: 20px;
+                    margin-bottom: 20px;
+                    background: #eff6ff;
+                    padding: 15px;
+                    border-radius: 8px;
+                }
+                .modal-stat {
+                    display: flex;
+                    flex-direction: column;
+                }
+                .modal-stat span {
+                    font-size: 0.9rem;
+                    color: #64748b;
+                }
+                .modal-stat strong {
+                    font-size: 1.5rem;
+                    color: #1f77b4;
+                }
+                .loading-spinner {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 200px;
+                    color: #64748b;
+                    font-size: 1.1rem;
+                }
+                /* ====================================== */
 
                 .header-bar {
                     display: flex;
@@ -1627,9 +1774,18 @@ const Reportes = () => {
                     align-items: center;
                     justify-content: center;
                 }
+                
+                .loading-screen {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    font-size: 1.2rem;
+                    color: #666;
+                }
             `}</style>
-    </div>
-    );
+        </div>
+    );
 };
 
 export default Reportes;

@@ -729,3 +729,18 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
             },
             'last_7_days': sales_last_7_days
         })
+    @action(detail=True, methods=['get'])
+    def detail_with_orders(self, request, pk=None):
+        """
+        Obtiene el detalle completo de un reporte existente por su UUID.
+        """
+        try:
+            summary = self.get_object()
+            summary_data = DailySummarySerializer(summary).data
+            
+            # Reutilizamos tu lógica existente para obtener órdenes
+            summary_data['orders_detail'] = self._get_orders_detail(summary.date, summary.date)
+            
+            return Response(summary_data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_404_NOT_FOUND)
