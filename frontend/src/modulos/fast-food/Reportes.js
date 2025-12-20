@@ -57,22 +57,42 @@ const getValidDate = (dateValue) => {
     return isNaN(date.getTime()) ? null : date;
 };
 
-// Función para comparar fechas ignorando la hora (solo año, mes, día)
+// Reemplaza la función isSameLocalDate con esta versión corregida:
 const isSameLocalDate = (date1, date2) => {
-    if (!date1 || !date2) return false;
+    if (!date1 || !date2) {
+        console.log('isSameLocalDate: fecha(s) inválida(s)', { date1, date2 });
+        return false;
+    }
     
     const d1 = getValidDate(date1);
     const d2 = getValidDate(date2);
     
-    if (!d1 || !d2) return false;
+    if (!d1 || !d2) {
+        console.log('isSameLocalDate: no se pudo obtener fecha válida', { d1, d2, date1, date2 });
+        return false;
+    }
     
-    // Normalizar a fecha local (sin hora)
-    const normalized1 = new Date(d1.getFullYear(), d1.getMonth(), d1.getDate());
-    const normalized2 = new Date(d2.getFullYear(), d2.getMonth(), d2.getDate());
+    // Obtener componentes de fecha local
+    const year1 = d1.getFullYear();
+    const month1 = d1.getMonth();
+    const day1 = d1.getDate();
     
-    return normalized1.getTime() === normalized2.getTime();
+    const year2 = d2.getFullYear();
+    const month2 = d2.getMonth();
+    const day2 = d2.getDate();
+    
+    const result = (year1 === year2 && month1 === month2 && day1 === day2);
+    
+    console.log('isSameLocalDate comparación:', {
+        fecha1: d1.toISOString(),
+        fecha1_local: `${day1}/${month1 + 1}/${year1}`,
+        fecha2: d2.toISOString(),
+        fecha2_local: `${day2}/${month2 + 1}/${year2}`,
+        resultado: result
+    });
+    
+    return result;
 };
-
 // ====================================================================
 // 2. Lógica del PDF (Impresión Detallada) - SIN EMOJIS
 // ====================================================================
@@ -297,74 +317,102 @@ const Reportes = () => {
         }
     }, []);
 
-    // Obtener la lista de reportes recientes
-    const fetchReports = useCallback(async () => {
-        try {
-            setLoadingData(true);
-            setConnectionError(false);
-            setError('');
-            setNoReportMessage('');
+   // Obtener la lista de reportes recientes
+const fetchReports = useCallback(async () => {
+    try {
+        setLoadingData(true);
+        setConnectionError(false);
+        setError('');
+        setNoReportMessage('');
 
-            const listResponse = await api.get('/api/pos/daily-summaries/', {
-                baseURL: getFastFoodBaseURL(),
-                params: { ordering: '-date', limit: 30 },
-                timeout: 10000
-            });
+        console.log('=== INICIO fetchReports ===');
+        const today = new Date();
+        console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'), today.toISOString());
 
-            let reportsData = listResponse.data.results || listResponse.data;
-            if (!Array.isArray(reportsData)) reportsData = [];
+        const listResponse = await api.get('/api/pos/daily-summaries/', {
+            baseURL: getFastFoodBaseURL(),
+            params: { ordering: '-date', limit: 30 },
+            timeout: 10000
+        });
 
-            // Obtener fecha de hoy correctamente
-            const today = new Date();
-            const todayStr = format(today, 'yyyy-MM-dd');
-            
-            // Buscar reporte de hoy en la lista recibida
-            let todayReport = null;
-            for (const report of reportsData) {
-                const reportDate = report.date || report.start_date;
-                if (reportDate && isSameLocalDate(reportDate, todayStr)) {
+        let reportsData = listResponse.data.results || listResponse.data;
+        if (!Array.isArray(reportsData)) reportsData = [];
+
+        console.log(`Se obtuvieron ${reportsData.length} reportes del servidor`);
+        
+        // Imprimir las fechas de los reportes para debug
+        reportsData.forEach((report, index) => {
+            const reportDate = report.date || report.start_date;
+            console.log(`Reporte ${index}: ${reportDate} (${formatDate(reportDate)})`);
+        });
+
+        const todayStr = format(today, 'yyyy-MM-dd');
+        console.log('Buscando reporte para hoy (str):', todayStr);
+        
+        // Buscar reporte de hoy en la lista recibida
+        let todayReport = null;
+        for (const report of reportsData) {
+            const reportDate = report.date || report.start_date;
+            if (reportDate) {
+                console.log(`Comparando reporte ${reportDate} con hoy ${todayStr}`);
+                if (isSameLocalDate(reportDate, todayStr)) {
                     todayReport = report;
+                    console.log('¡Reporte de hoy encontrado en lista!');
                     break;
                 }
             }
-
-            // Si no hay reporte de hoy, intentar obtener del endpoint /today/
-            if (!todayReport) {
-                try {
-                    const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
-                        baseURL: getFastFoodBaseURL(),
-                        timeout: 5000
-                    });
-                    todayReport = todayResponse.data;
-                } catch (err) {
-                    console.warn('No se pudo obtener reporte específico de hoy:', err);
-                }
-            }
-
-            // Procesar lista de reportes
-            const updatedReports = [];
-            if (todayReport) {
-                // Filtrar reportes que no sean de hoy
-                const todayDate = todayReport.date_formatted || todayReport.date;
-                updatedReports.push(...reportsData.filter(r => {
-                    const reportDate = r.date_formatted || r.date;
-                    return !isSameLocalDate(reportDate, todayDate);
-                }));
-                updatedReports.unshift(todayReport);
-            } else {
-                updatedReports.push(...reportsData);
-            }
-
-            setReports(updatedReports);
-
-        } catch (err) {
-            console.error('Error loading reports (fetchReports):', err);
-            throw new Error('Error al cargar reportes listados.');
-        } finally {
-            setLoadingData(false);
         }
-    }, []);
 
+        // Si no hay reporte de hoy, intentar obtener del endpoint /today/
+        if (!todayReport) {
+            console.log('No se encontró reporte de hoy en lista, intentando endpoint /today/');
+            try {
+                const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
+                    baseURL: getFastFoodBaseURL(),
+                    timeout: 5000
+                });
+                todayReport = todayResponse.data;
+                console.log('Reporte de hoy obtenido de endpoint /today/:', todayReport?.date);
+            } catch (err) {
+                console.warn('No se pudo obtener reporte específico de hoy:', err);
+            }
+        } else {
+            console.log('Reporte de hoy encontrado en lista:', todayReport.date);
+        }
+
+        // Procesar lista de reportes
+        const updatedReports = [];
+        if (todayReport) {
+            // Filtrar reportes que no sean de hoy
+            const todayDate = todayReport.date_formatted || todayReport.date;
+            console.log('Filtrando reportes que no sean de:', todayDate);
+            
+            const otherReports = reportsData.filter(r => {
+                const reportDate = r.date_formatted || r.date;
+                const isSame = reportDate && isSameLocalDate(reportDate, todayDate);
+                console.log(`  - Reporte ${reportDate}: ${isSame ? 'ES hoy' : 'NO es hoy'}`);
+                return !isSame;
+            });
+            
+            console.log(`Se encontraron ${otherReports.length} reportes que no son de hoy`);
+            updatedReports.push(...otherReports);
+            updatedReports.unshift(todayReport);
+        } else {
+            updatedReports.push(...reportsData);
+        }
+
+        console.log(`Total reportes finales: ${updatedReports.length}`);
+        console.log('=== FIN fetchReports ===');
+        
+        setReports(updatedReports);
+
+    } catch (err) {
+        console.error('Error loading reports (fetchReports):', err);
+        throw new Error('Error al cargar reportes listados.');
+    } finally {
+        setLoadingData(false);
+    }
+}, []);
     // ========== NUEVA FUNCIÓN PARA VER DETALLE DEL REPORTE ==========
     const verDetalleReporte = async (reportId) => {
         try {
