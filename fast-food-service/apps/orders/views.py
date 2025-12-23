@@ -54,7 +54,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     destroy: Elimina una orden
     """
     queryset = Order.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['status', 'order_type', 'payment_status', 'customer']
     search_fields = ['order_number', 'customer__first_name', 'customer__last_name', 'table_number']

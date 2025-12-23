@@ -1,12 +1,12 @@
 """
 apps/pos/views.py
 
-ViewSets para el módulo POS (Punto de Venta) - Versión simplificada
+ViewSets para el módulo POS (Punto de Venta) - Versión corregida
 """
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum, Count, Prefetch 
@@ -154,7 +154,9 @@ class ShiftViewSet(viewsets.ModelViewSet):
 
 
 class DiscountViewSet(viewsets.ModelViewSet):
-    # ... (código DiscountViewSet existente) ...
+    """
+    Viewset para gestionar descuentos.
+    """
     queryset = Discount.objects.all()
     permission_classes = [IsAuthenticated]
     
@@ -255,9 +257,11 @@ class DiscountViewSet(viewsets.ModelViewSet):
 
 
 class TableViewSet(viewsets.ModelViewSet):
-    # ... (código TableViewSet existente) ...
+    """
+    Viewset para gestionar mesas.
+    """
     queryset = Table.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # Permitir acceso público a las mesas
     
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -299,8 +303,8 @@ class TableViewSet(viewsets.ModelViewSet):
                 'error': 'Orden no encontrada'
             }, status=status.HTTP_404_NOT_FOUND)
         
-        waiter_id = serializer.validated_data.get('waiter_id') or str(request.user.id)
-        waiter_name = serializer.validated_data.get('waiter_name') or request.user.get_full_name()
+        waiter_id = serializer.validated_data.get('waiter_id') or str(request.user.id) if request.user.is_authenticated else 'system'
+        waiter_name = serializer.validated_data.get('waiter_name') or (request.user.get_full_name() if request.user.is_authenticated else 'Sistema')
         
         success, message = table.occupy(order, waiter_id, waiter_name)
         
@@ -348,20 +352,30 @@ class TableViewSet(viewsets.ModelViewSet):
 class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet para reportes diarios (solo lectura).
+    PERMISOS: Endpoints públicos sin autenticación para consulta.
+              Acciones de modificación requieren autenticación.
     """
     queryset = DailySummary.objects.all()
     serializer_class = DailySummarySerializer
-    permission_classes = [IsAuthenticated]
     
+    def get_permissions(self):
+        """
+        Permisos personalizados por acción:
+        - dashboard, today, list, retrieve: Acceso público (sin autenticación)
+        - Resto (generate, close_day, etc.): Requiere autenticación
+        """
+        if self.action in ['dashboard', 'today', 'list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+        
     # FUNCIÓN PARA OBTENER EL DETALLE DE ÓRDENES
     def _get_orders_detail(self, start_date, end_date):
-    
-    # Convierte las fechas a objetos datetime con zona horaria
+        # Convierte las fechas a objetos datetime con zona horaria
         start_dt = datetime.combine(start_date, datetime.min.time(), tzinfo=timezone.get_current_timezone())
         end_dt = datetime.combine(end_date, datetime.max.time(), tzinfo=timezone.get_current_timezone())
 
         orders = Order.objects.filter(
-            created_at__gte=start_dt,  # <-- Usamos GTE y LTE con el objeto datetime completo
+            created_at__gte=start_dt,
             created_at__lte=end_dt,
         ).select_related(
             'customer'
@@ -370,11 +384,11 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                     queryset=OrderItem.objects.select_related('product', 'size')
                                             .prefetch_related('extras', 'extras__extra')), 
         ).order_by('created_at')
-            # Usar el Serializer de Órdenes para formatear el detalle
+        
+        # Usar el Serializer de Órdenes para formatear el detalle
         serializer = OrderReportDetailSerializer(orders, many=True)
         
         return serializer.data
-
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -413,7 +427,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
         
         date_obj = serializer.validated_data['date']
         detailed = serializer.validated_data.get('detailed', True)
-        include_orders_detail = request.data.get('include_orders_detail', False) # <-- Capturar la bandera
+        include_orders_detail = request.data.get('include_orders_detail', False)
         
         summary = DailySummary.generate_for_date(
             date=date_obj,
@@ -423,14 +437,13 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
         
         summary_data = DailySummarySerializer(summary).data
         
-        # 1. Si se pide detalle, adjuntarlo
+        # Si se pide detalle, adjuntarlo
         if include_orders_detail:
-            # Obtener el detalle de órdenes para el día
-            summary_data['orders_detail'] = self._get_orders_detail(date_obj, date_obj) 
+            summary_data['orders_detail'] = self._get_orders_detail(date_obj, date_obj)
         
         return Response({
             'message': 'Reporte generado exitosamente',
-            'summary': summary_data # Devolvemos el dict con orders_detail si existe
+            'summary': summary_data
         })
     
     @action(detail=False, methods=['post'])
@@ -445,7 +458,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
         data = serializer.validated_data
         report_type = data['report_type']
         
-        include_orders_detail = request.data.get('include_orders_detail', False) # <-- Capturar la bandera
+        include_orders_detail = request.data.get('include_orders_detail', False)
         start_date = None
         end_date = None
         
@@ -454,7 +467,6 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 start_date = data['date']
                 end_date = data['date']
                 
-                # ... [Lógica de get_or_create y generate_for_date para el daily summary] ...
                 summary, created = DailySummary.objects.get_or_create(
                     date=data['date'],
                     defaults={'generated_by': str(request.user.id)}
@@ -526,7 +538,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 if consolidated['total_orders'] > 0:
                     consolidated['average_order_value'] = consolidated['total_sales'] / consolidated['total_orders']
                 
-                # 2. Si se pide detalle, adjuntarlo
+                # Si se pide detalle, adjuntarlo
                 if include_orders_detail:
                     consolidated['orders_detail'] = self._get_orders_detail(start_date, end_date)
                 
@@ -538,8 +550,6 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                     'data': consolidated
                 })
             
-            # ... (Lógica de otros reportes) ...
-            
         except Exception as e:
             return Response({
                 'error': f'Error al generar reporte: {str(e)}'
@@ -548,32 +558,31 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def today(self, request):
         """
-        Reporte del día actual.
+        Reporte del día actual - ACCESO PÚBLICO
         """
         today = timezone.now().date()
         
         try:
             summary = DailySummary.objects.get(date=today)
         except DailySummary.DoesNotExist:
-            # Si no existe, generarlo inmediatamente
+            # Si no existe, generarlo inmediatamente con ID genérico
             summary = DailySummary.generate_for_date(
                 date=today,
-                generated_by=str(request.user.id),
+                generated_by='system',
                 detailed=True
             )
-        
-        # Nota: Aquí no se incluye orders_detail por defecto, solo en generate/ o get_report/
         
         return Response(DailySummarySerializer(summary).data)
     
     @action(detail=False, methods=['post'])
     def close_day(self, request):
-        # ... (Lógica de close_day existente) ...
-        
+        """
+        Cerrar el día - Requiere permisos especiales
+        """
         ALLOWED_ROLES_TO_CLOSE_DAY = ['SUPER_ADMIN', 'ADMIN_FAST_FOOD', 'ADMIN_RESTAURANT', 'MANAGER']
         user_role_name = 'USER_UNKNOWN'
         
-        # --- Manejo seguro del rol para evitar AttributeError: 'str' object has no attribute 'get' ---
+        # Manejo seguro del rol
         try:
             role_attribute = getattr(request.user, 'role', None) 
             
@@ -582,13 +591,12 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
             elif request.user.is_superuser:
                 user_role_name = 'SUPER_ADMIN'
             elif isinstance(request.user, str) and request.user.lower() in ['admin', 'alexandermy']:
-                # Caso de emergencia si el middleware solo adjunta el username/ID como string
                 user_role_name = 'SUPER_ADMIN'
             
         except Exception:
             pass
             
-        # 2. Comprobación de permisos
+        # Comprobación de permisos
         is_allowed = (
             request.user.is_staff or 
             request.user.is_superuser or
@@ -600,7 +608,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 'error': f'No tienes permiso para cerrar el día. Rol actual detectado: {user_role_name}'
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # --- Lógica de Cierre ---
+        # Lógica de Cierre
         serializer = CloseDaySerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -623,7 +631,9 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['get'])
     def range(self, request):
-        # ... (código range existente) ...
+        """
+        Obtener reportes en un rango de fechas
+        """
         serializer = DateRangeSerializer(data=request.query_params)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -654,7 +664,9 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
-        # ... (código dashboard existente) ...
+        """
+        Dashboard principal con estadísticas de ventas - ACCESO PÚBLICO
+        """
         today = timezone.now().date()
         yesterday = today - timedelta(days=1)
         
@@ -729,6 +741,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
             },
             'last_7_days': sales_last_7_days
         })
+    
     @action(detail=True, methods=['get'])
     def detail_with_orders(self, request, pk=None):
         """
@@ -738,7 +751,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
             summary = self.get_object()
             summary_data = DailySummarySerializer(summary).data
             
-            # Reutilizamos tu lógica existente para obtener órdenes
+            # Reutilizamos la lógica existente para obtener órdenes
             summary_data['orders_detail'] = self._get_orders_detail(summary.date, summary.date)
             
             return Response(summary_data)

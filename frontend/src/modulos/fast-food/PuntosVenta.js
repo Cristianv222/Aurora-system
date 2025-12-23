@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
+import printerService from '../../services/printerService';
 
 // ====================================================================
 // 1. Funciones de Ayuda (Definiciones de formato)
@@ -52,9 +53,7 @@ const PuntosVenta = () => {
     const [discountCode, setDiscountCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState(null);
     
-    // ESTADO NUEVO: Controla el modal de revisión de orden
     const [showReviewModal, setShowReviewModal] = useState(false); 
-    // ESTADO NUEVO: Controla el modal de facturación (temporal)
     const [showInvoiceModal, setShowInvoiceModal] = useState(false); 
 
     // 3. ESTADO DE CLIENTES
@@ -78,26 +77,63 @@ const PuntosVenta = () => {
     // 4. EFECTOS - CARGA INICIAL DE DATOS
     // =====================================
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const [productsRes, categoriesRes, tablesRes] = await Promise.all([
-                    api.get('/api/menu/products/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE }),
-                    api.get('/api/menu/categories/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE }),
-                    api.get('/api/pos/tables/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE })
-                ]);
-                setProducts(productsRes.data.results || productsRes.data || []);
-                setCategories(categoriesRes.data.results || categoriesRes.data || []);
-                setTables(tablesRes.data.results || tablesRes.data || []);
-            } catch (err) {
-                console.error('Error loading POS data:', err);
-                setError('Error al cargar datos del POS');
-            } finally {
-                setLoading(false);
+    let isMounted = true;
+    
+    const fetchData = async () => {
+        try {
+            const productsRes = await api.get('/api/menu/products/', {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
+            
+            if (!isMounted) return;
+            
+            const loadedProducts = productsRes.data.results || productsRes.data || [];
+            setProducts(loadedProducts);
+            
+        } catch (err) {
+            console.error('Error cargando productos:', err);
+        }
+        
+        try {
+            const categoriesRes = await api.get('/api/menu/categories/', {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
+            
+            if (!isMounted) return;
+            
+            const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
+            setCategories(loadedCategories);
+            
+        } catch (err) {
+            console.error('Error cargando categorías:', err);
+        }
+        
+        try {
+            const tablesRes = await api.get('/api/pos/tables/', {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
+            
+            if (!isMounted) return;
+            setTables(tablesRes.data.results || tablesRes.data || []);
+            
+        } catch (err) {
+            console.warn('Mesas no disponibles');
+            if (isMounted) {
+                setTables([]);
             }
-        };
-        fetchData();
-    }, []);
-
+        }
+        
+        if (isMounted) {
+            setLoading(false);
+        }
+    };
+    
+    fetchData();
+    
+    return () => {
+        isMounted = false;
+    };
+}, []);
     // =====================================
     // 5. LÓGICA DEL CARRITO
     // =====================================
@@ -271,25 +307,25 @@ const PuntosVenta = () => {
         });
     }, [products, selectedCategory, searchTerm]);
 
-    // Función que realmente envía la orden a la API
+    // 🖨️ FUNCIÓN PRINCIPAL CON IMPRESIÓN
     const finalPlaceOrder = async () => {
         if (cart.length === 0) return;
         
         setProcessingOrder(true);
-        setShowReviewModal(false); // Cierra el modal antes de enviar
+        setShowReviewModal(false);
 
         let orderType = 'dine_in';
         let tableNumber = selectedTable;
-        const DEFAULT_TABLE_NAME = 'GENERICA'; 
+        const DEFAULT_TABLE_NAME = 'GENERICA';
 
         if (selectedTable === 'takeout') {
             orderType = 'takeout';
-            tableNumber = ''; 
+            tableNumber = '';
         } else if (!selectedTable || selectedTable === 'Seleccionar mesa...') {
-             orderType = 'dine_in'; 
-             tableNumber = DEFAULT_TABLE_NAME; 
+            orderType = 'dine_in';
+            tableNumber = DEFAULT_TABLE_NAME;
         } else {
-            orderType = 'dine_in'; 
+            orderType = 'dine_in';
             tableNumber = selectedTable;
         }
 
@@ -305,26 +341,84 @@ const PuntosVenta = () => {
         };
 
         try {
-            await api.post('/api/orders/orders/', orderPayload, {
+            // 1. CREAR LA ORDEN
+            const orderResponse = await api.post('/api/orders/orders/', orderPayload, {
                 baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
             });
-            alert('¡Orden creada exitosamente! La venta está lista para ser marcada como pagada.');
+
+            const createdOrder = orderResponse.data;
+            
+            // 2. PREPARAR DATOS PARA EL TICKET
+            const receiptData = {
+                order_number: createdOrder.order_number || createdOrder.id,
+                customer_name: selectedCustomer 
+                    ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` 
+                    : 'CONTADO',
+                table_number: selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA'),
+                items: cart.map(item => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: parseFloat(item.price),
+                    total: parseFloat(item.price * item.quantity)
+                })),
+                subtotal: parseFloat(calculateSubtotal),
+                discount: parseFloat(calculateDiscountAmount),
+                tax: parseFloat(calculateSubtotal * 0.12), // IVA 12%
+                total: parseFloat(calculateTotal)
+            };
+
+            // 3. ENVIAR A IMPRIMIR (esto abre la caja automáticamente)
+            try {
+                const printResult = await printerService.printReceipt(receiptData);
+                console.log('✅ Ticket enviado a impresión:', printResult);
+                
+                alert(
+                    `✅ ¡Orden creada exitosamente!\n\n` +
+                    `Orden: ${createdOrder.order_number || createdOrder.id}\n` +
+                    `Ticket: ${printResult.job_number}\n\n` +
+                    `🖨️ El ticket se está imprimiendo...\n` +
+                    `🔓 La caja se abrirá automáticamente.`
+                );
+            } catch (printError) {
+                console.error('⚠️ Error al imprimir:', printError);
+                
+                alert(
+                    `⚠️ Orden creada pero no se pudo imprimir\n\n` +
+                    `Orden: ${createdOrder.order_number || createdOrder.id}\n\n` +
+                    `Error: ${printError.response?.data?.error || 'Error de conexión con la impresora'}\n\n` +
+                    `Verifica que el agente de Windows esté ejecutándose.`
+                );
+            }
+
+            // 4. LIMPIAR EL CARRITO
             setCart([]);
             setAppliedDiscount(null);
             setDiscountCode('');
             setSelectedTable('');
             setSelectedCustomer(null);
             setCustomerSearch('');
+
         } catch (err) {
-            console.error('Error placing order:', err);
-            const errorMsg = err.response?.data ? JSON.stringify(err.response.data) : 'Error al procesar la orden';
-            alert(`Error: ${errorMsg}`);
+            console.error('❌ Error al procesar la orden:', err);
+            const errorMsg = err.response?.data 
+                ? JSON.stringify(err.response.data) 
+                : 'Error al procesar la orden';
+            alert(`❌ Error: ${errorMsg}`);
         } finally {
             setProcessingOrder(false);
         }
     };
     
-    // Nueva función para abrir el modal de revisión
+    // 🔓 FUNCIÓN PARA ABRIR CAJA MANUALMENTE
+    const handleOpenCashDrawer = async () => {
+        try {
+            await printerService.openCashDrawer();
+            alert('✅ Caja abierta');
+        } catch (error) {
+            alert('❌ Error al abrir caja. Verifica que el agente esté ejecutándose.');
+        }
+    };
+    
     const openOrderConfirmationModal = () => {
         if (cart.length === 0) {
             alert("El carrito está vacío.");
@@ -333,21 +427,17 @@ const PuntosVenta = () => {
         setShowReviewModal(true);
     };
 
-    // Función para manejar la acción de facturación (temporal)
     const handleInvoiceClick = () => {
-        setShowReviewModal(false); // Opcional: cierra el modal de revisión si está abierto
-        setShowInvoiceModal(true); // Abre el modal de desarrollo
+        setShowReviewModal(false);
+        setShowInvoiceModal(true);
     };
-
 
     // =====================================
     // 10. COMPONENTES DE RENDERIZADO
     // =====================================
 
-    // Función para renderizar el detalle de la orden en el modal
     const renderReviewDetails = () => (
         <div style={{ padding: '0 1rem' }}>
-            {/* Detalles de la Orden y Cliente */}
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
                 <p style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1f2937' }}>
                     Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'Casual'}
@@ -357,7 +447,6 @@ const PuntosVenta = () => {
                 </p>
             </div>
 
-            {/* Lista de Items */}
             <div style={{ maxHeight: '30vh', overflowY: 'auto', marginBottom: '1.5rem' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead style={{ backgroundColor: '#f3f4f6' }}>
@@ -381,7 +470,6 @@ const PuntosVenta = () => {
                 </table>
             </div>
 
-            {/* Totales en el Modal */}
             <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '1rem', color: '#6b7280' }}>
                     <span>Subtotal</span>
@@ -401,18 +489,15 @@ const PuntosVenta = () => {
         </div>
     );
     
-    // Componente separado para renderizar la lista de productos del carrito visible (NUEVO REQUISITO)
     const renderCartItems = () => (
         <div style={{ 
-            // NUEVO CONTENEDOR DE LA LISTA DEL CARRITO
             flex: 1, 
             display: 'flex',
             flexDirection: 'column',
             backgroundColor: '#ffffff',
             borderBottom: '2px solid #e5e7eb',
-            borderRight: '2px solid #e5e7eb' // Separador del catálogo
+            borderRight: '2px solid #e5e7eb'
         }}>
-            {/* Título de Orden Actual Fijo */}
              <div style={{
                 padding: '1rem 1.5rem 0.5rem 1.5rem',
                 backgroundColor: '#f3f4f6',
@@ -429,7 +514,6 @@ const PuntosVenta = () => {
                 </h3>
             </div>
             
-            {/* Contenido Scrollable */}
             <div style={{
                 flex: 1, 
                 overflowY: 'auto',
@@ -491,7 +575,6 @@ const PuntosVenta = () => {
                                     alignItems: 'center',
                                     gap: '0.5rem'
                                 }}>
-                                    {/* Control de Cantidad */}
                                     <div style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -565,7 +648,6 @@ const PuntosVenta = () => {
                                         </button>
                                     </div>
 
-                                    {/* Botón Eliminar */}
                                     <button
                                         style={{
                                             width: '32px',
@@ -606,7 +688,6 @@ const PuntosVenta = () => {
         </div>
     );
     
-    // RENDERIZADO CONDICIONAL DE LA PÁGINA
     if (loading) return (
         <div style={{
             display: 'flex',
@@ -633,7 +714,6 @@ const PuntosVenta = () => {
             overflow: 'hidden'
         }}>
 
-            {/* Header Superior */}
             <div style={{
                 backgroundColor: '#ffffff',
                 borderBottom: '2px solid #e5e7eb',
@@ -651,19 +731,18 @@ const PuntosVenta = () => {
                 </h1>
             </div>
 
-            {/* CONTENEDOR PRINCIPAL DE 3 COLUMNAS (Catálogo | Carrito | Checkout) */}
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-                {/* Panel Izquierdo: Catálogo de Productos (Flexible) */}
+                {/* Panel Izquierdo: Catálogo */}
                 <div style={{
-                    flex: '1 1 50%', // Reducido para hacer espacio al carrito
+                    flex: '1 1 50%',
                     display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: '#ffffff',
                     borderRight: '2px solid #e5e7eb'
                 }}>
 
-                    {/* Barra de Filtros */}
+                    {/* Filtros */}
                     <div style={{
                         padding: '1.25rem',
                         borderBottom: '1px solid #e5e7eb',
@@ -691,18 +770,6 @@ const PuntosVenta = () => {
                                     boxShadow: selectedCategory === 'all' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
                                 }}
                                 onClick={() => setSelectedCategory('all')}
-                                onMouseEnter={(e) => {
-                                    if (selectedCategory !== 'all') {
-                                        e.target.style.backgroundColor = '#f3f4f6';
-                                        e.target.style.borderColor = '#9ca3af';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (selectedCategory !== 'all') {
-                                        e.target.style.backgroundColor = '#ffffff';
-                                        e.target.style.borderColor = '#d1d5db';
-                                    }
-                                }}
                             >
                                 Todos los productos
                             </button>
@@ -723,18 +790,6 @@ const PuntosVenta = () => {
                                         boxShadow: selectedCategory === cat.id ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
                                     }}
                                     onClick={() => setSelectedCategory(cat.id)}
-                                    onMouseEnter={(e) => {
-                                        if (selectedCategory !== cat.id) {
-                                            e.target.style.backgroundColor = '#f3f4f6';
-                                            e.target.style.borderColor = '#9ca3af';
-                                        }
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        if (selectedCategory !== cat.id) {
-                                            e.target.style.backgroundColor = '#ffffff';
-                                            e.target.style.borderColor = '#d1d5db';
-                                        }
-                                    }}
                                 >
                                     {cat.name}
                                 </button>
@@ -742,7 +797,7 @@ const PuntosVenta = () => {
                         </div>
                     </div>
 
-                    {/* Grid de Productos */}
+                    {/* Grid Productos */}
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
@@ -833,13 +888,12 @@ const PuntosVenta = () => {
                     </div>
                 </div>
 
-                {/* Panel Central: Lista de la Orden Actual (Flexible) */}
+                {/* Panel Central: Carrito */}
                 <div style={{ flex: '0 0 320px', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '2px solid #e5e7eb' }}>
                     {renderCartItems()}
                 </div>
 
-
-                {/* Panel Derecho: Controles e Información (Fijo 420px) */}
+                {/* Panel Derecho: Checkout */}
                 <div style={{
                     flex: '0 0 420px',
                     backgroundColor: '#ffffff',
@@ -849,14 +903,14 @@ const PuntosVenta = () => {
                     flexShrink: 0 
                 }}>
 
-                    {/* 1. Información de Orden (Mesa/Cliente) */}
+                    {/* Información Orden */}
                     <div style={{
                         padding: '1.5rem',
                         borderBottom: '2px solid #e5e7eb',
                         backgroundColor: '#fafafa',
                         flexShrink: 0
                     }}>
-                        {/* Selección de Mesa */}
+                        {/* Mesa */}
                         <div style={{ marginBottom: '1.25rem' }}>
                             <label style={{
                                 display: 'block',
@@ -881,8 +935,6 @@ const PuntosVenta = () => {
                                 }}
                                 value={selectedTable}
                                 onChange={(e) => setSelectedTable(e.target.value)}
-                                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                                onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                             >
                                 <option value="">Seleccionar mesa...</option>
                                 <option value="takeout">Para Llevar (Takeout)</option>
@@ -898,7 +950,7 @@ const PuntosVenta = () => {
                             </select>
                         </div>
 
-                        {/* Selección de Cliente */}
+                        {/* Cliente */}
                         <div>
                             <label style={{
                                 display: 'block',
@@ -925,8 +977,6 @@ const PuntosVenta = () => {
                                         }}
                                         value={customerSearch}
                                         onChange={(e) => searchCustomers(e.target.value)}
-                                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     />
                                     {customers.length > 0 && (
                                         <div style={{
@@ -996,14 +1046,6 @@ const PuntosVenta = () => {
                                         justifyContent: 'center'
                                     }}
                                     onClick={() => setShowCustomerModal(true)}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.backgroundColor = '#7c3aed';
-                                        e.target.style.transform = 'scale(1.05)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.backgroundColor = '#8b5cf6';
-                                        e.target.style.transform = 'scale(1)';
-                                    }}
                                     title="Agregar nuevo cliente"
                                 >
                                     +
@@ -1050,14 +1092,14 @@ const PuntosVenta = () => {
                         </div>
                     </div>
 
-                    {/* 3. Sección de Descuentos y Totales (Fijo) */}
+                    {/* Descuentos y Totales */}
                     <div style={{
                         borderTop: '2px solid #e5e7eb',
                         padding: '1.5rem',
                         backgroundColor: '#ffffff',
                         flexShrink: 0
                     }}>
-                        {/* Código de Descuento */}
+                        {/* Descuento */}
                         <div style={{ marginBottom: '1.5rem' }}>
                             <label style={{
                                 display: 'block',
@@ -1082,8 +1124,6 @@ const PuntosVenta = () => {
                                     }}
                                     value={discountCode}
                                     onChange={(e) => setDiscountCode(e.target.value)}
-                                    onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                                 <button
                                     style={{
@@ -1099,14 +1139,6 @@ const PuntosVenta = () => {
                                         whiteSpace: 'nowrap'
                                     }}
                                     onClick={handleApplyDiscount}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.backgroundColor = '#f59e0b';
-                                        e.target.style.transform = 'scale(1.02)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.backgroundColor = '#fbbf24';
-                                        e.target.style.transform = 'scale(1)';
-                                    }}
                                 >
                                     Aplicar
                                 </button>
@@ -1127,7 +1159,7 @@ const PuntosVenta = () => {
                             )}
                         </div>
 
-                        {/* Resumen de Totales */}
+                        {/* Totales */}
                         <div style={{
                             borderTop: '2px solid #e5e7eb',
                             paddingTop: '1rem'
@@ -1171,7 +1203,7 @@ const PuntosVenta = () => {
                             </div>
                         </div>
 
-                        {/* Botón de Confirmar Pedido (Abre modal) */}
+                        {/* Botón Principal */}
                         <button
                             style={{
                                 width: '100%',
@@ -1189,28 +1221,34 @@ const PuntosVenta = () => {
                             }}
                             onClick={openOrderConfirmationModal} 
                             disabled={cart.length === 0 || processingOrder}
-                            onMouseEnter={(e) => {
-                                if (cart.length > 0 && !processingOrder) {
-                                    e.target.style.backgroundColor = '#2563eb';
-                                    e.target.style.transform = 'translateY(-2px)';
-                                    e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.4)';
-                                }
-                            }}
-                            onMouseLeave={(e) => {
-                                if (cart.length > 0 && !processingOrder) {
-                                    e.target.style.backgroundColor = '#3b82f6';
-                                    e.target.style.transform = 'translateY(0)';
-                                    e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.3)';
-                                }
-                            }}
                         >
                             {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
+                        </button>
+
+                        {/* 🔓 Botón Abrir Caja */}
+                        <button
+                            style={{
+                                width: '100%',
+                                marginTop: '0.75rem',
+                                padding: '0.75rem',
+                                backgroundColor: '#f59e0b',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#ffffff',
+                                fontSize: '0.9375rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                            onClick={handleOpenCashDrawer}
+                        >
+                            🔓 Abrir Caja Registradora
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Modal de Revisión y Pago */}
+            {/* Modal Confirmación */}
             {showReviewModal && (
                 <div style={{
                     position: 'fixed',
@@ -1234,12 +1272,11 @@ const PuntosVenta = () => {
                         overflowY: 'auto',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                     }}>
-                        {/* Header del Modal */}
                         <div style={{
                             padding: '1.5rem',
                             borderBottom: '2px solid #e5e7eb',
                             backgroundColor: '#1f2937',
-                            display: 'flex', // Añadido display flex para alinear el botón de facturar
+                            display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
                         }}>
@@ -1257,7 +1294,6 @@ const PuntosVenta = () => {
                                 </p>
                             </div>
                             
-                            {/* Botón Facturar (No llamativo) */}
                             <button
                                 style={{
                                     padding: '0.5rem 1rem',
@@ -1271,17 +1307,13 @@ const PuntosVenta = () => {
                                     transition: 'all 0.2s'
                                 }}
                                 onClick={handleInvoiceClick}
-                                onMouseEnter={(e) => { e.target.style.backgroundColor = '#4b5563'; }}
-                                onMouseLeave={(e) => { e.target.style.backgroundColor = 'transparent'; }}
                             >
                                 FACTURAR
                             </button>
                         </div>
 
-                        {/* Contenido de Revisión */}
                         {renderReviewDetails()}
 
-                        {/* Botones de Acción */}
                         <div style={{
                             padding: '1.5rem',
                             borderTop: '2px solid #e5e7eb',
@@ -1302,7 +1334,7 @@ const PuntosVenta = () => {
                                     transition: 'all 0.2s',
                                     flex: 1
                                 }}
-                                onClick={() => setShowReviewModal(false)} // Cierra el modal para editar
+                                onClick={() => setShowReviewModal(false)}
                             >
                                 Editar Pedido
                             </button>
@@ -1320,7 +1352,7 @@ const PuntosVenta = () => {
                                     transition: 'all 0.2s',
                                     flex: 1
                                 }}
-                                onClick={finalPlaceOrder} // <-- Llama a la función final de envío
+                                onClick={finalPlaceOrder}
                                 disabled={processingOrder}
                             >
                                 Confirmar y Procesar Pago
@@ -1330,7 +1362,7 @@ const PuntosVenta = () => {
                 </div>
             )}
             
-            {/* Modal de Facturación (En Desarrollo) */}
+            {/* Modal Facturación */}
             {showInvoiceModal && (
                 <div style={{
                     position: 'fixed',
@@ -1375,8 +1407,7 @@ const PuntosVenta = () => {
                 </div>
             )}
 
-
-            {/* Modal de Crear Cliente */}
+            {/* Modal Crear Cliente */}
             {showCustomerModal && (
                 <div style={{
                     position: 'fixed',
@@ -1400,7 +1431,6 @@ const PuntosVenta = () => {
                         overflowY: 'auto',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                     }}>
-                        {/* Header del Modal */}
                         <div style={{
                             padding: '1.5rem',
                             borderBottom: '2px solid #e5e7eb',
@@ -1416,10 +1446,8 @@ const PuntosVenta = () => {
                             </h3>
                         </div>
 
-                        {/* Formulario */}
                         <form onSubmit={handleCreateCustomer} style={{ padding: '1.5rem' }}>
                             
-                            {/* CÉDULA */}
                             <div style={{ marginBottom: '1.25rem' }}>
                                 <label style={{
                                     display: 'block',
@@ -1444,12 +1472,9 @@ const PuntosVenta = () => {
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                             </div>
                             
-                            {/* Email */}
                             <div style={{ marginBottom: '1.25rem' }}>
                                 <label style={{
                                     display: 'block',
@@ -1475,12 +1500,9 @@ const PuntosVenta = () => {
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                             </div>
 
-                            {/* Nombre y Apellido */}
                             <div style={{
                                 display: 'grid',
                                 gridTemplateColumns: '1fr 1fr',
@@ -1512,8 +1534,6 @@ const PuntosVenta = () => {
                                             transition: 'all 0.2s',
                                             boxSizing: 'border-box'
                                         }}
-                                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     />
                                 </div>
                                 <div>
@@ -1541,13 +1561,10 @@ const PuntosVenta = () => {
                                             transition: 'all 0.2s',
                                             boxSizing: 'border-box'
                                         }}
-                                        onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                        onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                     />
                                 </div>
                             </div>
 
-                            {/* Teléfono */}
                             <div style={{ marginBottom: '1.25rem' }}>
                                 <label style={{
                                     display: 'block',
@@ -1572,12 +1589,9 @@ const PuntosVenta = () => {
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                             </div>
 
-                            {/* Ciudad */}
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={{
                                     display: 'block',
@@ -1602,12 +1616,9 @@ const PuntosVenta = () => {
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box'
                                     }}
-                                    onFocus={(e) => e.target.style.borderColor = '#8b5cf6'}
-                                    onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
                                 />
                             </div>
 
-                            {/* Botones de Acción */}
                             <div style={{
                                 display: 'flex',
                                 gap: '0.75rem',
@@ -1629,14 +1640,6 @@ const PuntosVenta = () => {
                                         transition: 'all 0.2s'
                                     }}
                                     onClick={() => setShowCustomerModal(false)}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.backgroundColor = '#f3f4f6';
-                                        e.target.style.borderColor = '#9ca3af';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.backgroundColor = '#ffffff';
-                                        e.target.style.borderColor = '#d1d5db';
-                                    }}
                                 >
                                     Cancelar
                                 </button>
@@ -1652,14 +1655,6 @@ const PuntosVenta = () => {
                                         fontSize: '0.9375rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.backgroundColor = '#7c3aed';
-                                        e.target.style.transform = 'scale(1.02)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.backgroundColor = '#8b5cf6';
-                                        e.target.style.transform = 'scale(1)';
                                     }}
                                 >
                                     Guardar Cliente

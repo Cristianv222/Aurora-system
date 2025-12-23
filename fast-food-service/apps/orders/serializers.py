@@ -1,10 +1,15 @@
 from rest_framework import serializers
 from django.db import transaction
 from decimal import Decimal
+import requests
+import logging
 
 from .models import Order, OrderItem, OrderItemExtra, DeliveryInfo, OrderStatusHistory
 from apps.menu.serializers import ProductListSerializer, SizeSerializer, ExtraSerializer
 from apps.customers.serializers import CustomerSerializer
+
+# Configurar logger
+logger = logging.getLogger(__name__)
 
 
 class OrderItemExtraSerializer(serializers.ModelSerializer):
@@ -253,11 +258,9 @@ class OrderCreateSerializer(serializers.Serializer):
                 'delivery_info': 'La información de delivery es requerida para este tipo de orden'
             })
         
-        # Si es dine-in, debería tener número de mesa
+        # Si es dine-in y no tiene mesa, asignar mesa genérica
         if data.get('order_type') == 'dine_in' and not data.get('table_number'):
-            raise serializers.ValidationError({
-                'table_number': 'El número de mesa es requerido para este tipo de orden'
-            })
+            data['table_number'] = 'GENERICA'
         
         return data
     
@@ -266,6 +269,7 @@ class OrderCreateSerializer(serializers.Serializer):
         """Crea la orden con todos sus items"""
         from apps.menu.models import Product, Size, Extra
         
+        # Extraer datos que no van directamente al modelo Order
         items_data = validated_data.pop('items')
         delivery_info_data = validated_data.pop('delivery_info', None)
         
@@ -313,7 +317,78 @@ class OrderCreateSerializer(serializers.Serializer):
         order.calculate_totals()
         order.save()
         
+        # ========================================
+        # ENVIAR A IMPRESIÓN AUTOMÁTICAMENTE
+        # ========================================
+        self._send_to_printer(order)
+        
         return order
+    
+    def _send_to_printer(self, order):
+        """
+        Envía la orden a la impresora automáticamente.
+        Prepara los datos en el formato esperado por PrintReceiptView.
+        """
+        from django.conf import settings
+        
+        try:
+            # URL del endpoint de impresión
+            printer_url = 'http://127.0.0.1:8000/api/hardware/print/receipt/'
+            
+            # Preparar items en el formato esperado por el printer
+            items = []
+            for item in order.items.all():
+                items.append({
+                    'name': item.product.name,
+                    'quantity': item.quantity,
+                    'price': float(item.unit_price),
+                    'total': float(item.line_total)
+                })
+            
+            # Preparar datos de la orden en el formato esperado
+            order_data = {
+                'order_number': order.order_number,
+                'customer_name': order.customer.get_full_name() if order.customer else 'CONTADO',
+                'items': items,
+                'subtotal': float(order.subtotal),
+                'tax': float(order.tax_amount),
+                'total': float(order.total)
+            }
+            
+            # Payload completo
+            payload = {
+                'order': order_data
+            }
+            
+            # Headers con token de autenticación
+            headers = {
+                'Authorization': f'Bearer {settings.HARDWARE_SERVICE_TOKEN}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Hacer la petición con timeout corto
+            response = requests.post(
+                printer_url, 
+                json=payload, 
+                headers=headers, 
+                timeout=5
+            )
+            
+            if response.status_code in [200, 201]:
+                logger.info(f'✅ Orden {order.order_number} enviada a impresora exitosamente')
+                logger.info(f'   Job ID: {response.json().get("job_id")}')
+            else:
+                logger.warning(f'⚠️ Error imprimiendo orden {order.order_number}: HTTP {response.status_code}')
+                logger.warning(f'   Respuesta: {response.text}')
+                
+        except requests.Timeout:
+            logger.warning(f'⚠️ Timeout al imprimir orden {order.order_number}')
+        except requests.ConnectionError:
+            logger.error(f'❌ No se pudo conectar al servicio de impresión para orden {order.order_number}')
+        except Exception as e:
+            logger.error(f'❌ Error inesperado al imprimir orden {order.order_number}: {str(e)}')
+            import traceback
+            logger.error(traceback.format_exc())
 
 
 class OrderUpdateSerializer(serializers.ModelSerializer):
@@ -431,6 +506,8 @@ class OrderStatsSerializer(serializers.Serializer):
     cancelled_orders = serializers.IntegerField()
     total_revenue = serializers.DecimalField(max_digits=12, decimal_places=2)
     average_order_value = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class OrderReportDetailSerializer(serializers.ModelSerializer):
     """
     Serializer optimizado para ser usado en el detalle de órdenes del Reporte (PDF/Web).
@@ -445,7 +522,6 @@ class OrderReportDetailSerializer(serializers.ModelSerializer):
     
     # Asumo que Order tiene un método get_payment_method_display() o un campo simple
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
-
 
     class Meta:
         model = Order

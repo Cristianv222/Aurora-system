@@ -186,3 +186,14 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
     }
 }
+
+# ========================================
+# CONFIGURACIÓN DE SERVICIOS INTERNOS
+# ========================================
+import os
+
+# URL base del servicio (para comunicación interna)
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8002')
+
+# Token para comunicación con el servicio de hardware
+HARDWARE_SERVICE_TOKEN = os.getenv('HARDWARE_SERVICE_TOKEN', '4ab1eb1da612019e57b1803e83185649564f12ae')

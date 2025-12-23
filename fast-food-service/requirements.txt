@@ -1,6 +1,6 @@
 Django==5.0.1
 djangorestframework==3.14.0
-django-filter==23.5  # CAMBIADO: de 23.0 a 23.5
+django-filter==24.2  # CAMBIADO: de 23.0 a 23.5
 psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 django-cors-headers==4.3.1
