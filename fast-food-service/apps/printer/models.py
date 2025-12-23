@@ -199,7 +199,6 @@ class PrintTemplate(models.Model):
         verbose_name = 'Plantilla de Impresión'
         verbose_name_plural = 'Plantillas de Impresión'
         ordering = ['template_type', 'name']
-        # ✅ CORRECCIÓN: Usar constraints en lugar de unique_together
         constraints = [
             models.UniqueConstraint(
                 fields=['template_type'],
@@ -243,11 +242,14 @@ class PrintJob(models.Model):
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # ✅ CORREGIDO: Aumentado a 35 caracteres
     job_number = models.CharField(
-        max_length=20,
+        max_length=35,
         unique=True,
         verbose_name='Número de Trabajo',
-        db_index=True
+        db_index=True,
+        editable=False
     )
     
     # Impresora utilizada
@@ -275,38 +277,7 @@ class PrintJob(models.Model):
         verbose_name='Tipo de Documento'
     )
     
-    # ✅ CORRECCIÓN: Relaciones opcionales comentadas hasta que existan las apps
-    # Descomenta cuando tengas las apps 'orders' y 'payments'
-    """
-    order = models.ForeignKey(
-        'orders.Order',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='print_jobs',
-        verbose_name='Orden'
-    )
-    
-    payment = models.ForeignKey(
-        'payments.Payment',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='print_jobs',
-        verbose_name='Pago'
-    )
-    
-    cash_register = models.ForeignKey(
-        'payments.CashRegister',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='print_jobs',
-        verbose_name='Caja Registradora'
-    )
-    """
-    
-    # Referencia genérica como alternativa temporal
+    # Referencia genérica para relacionar con otros modelos
     related_model = models.CharField(
         max_length=50,
         blank=True,
@@ -399,9 +370,20 @@ class PrintJob(models.Model):
     def generate_job_number():
         """Genera un número de trabajo único"""
         from datetime import datetime
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        random_suffix = str(uuid.uuid4().hex[:4]).upper()
-        return f'PRINT-{timestamp}-{random_suffix}'
+        import random
+        
+        # Formato: PRINT-YYMMDDHHMMSS-XXXX (25 chars)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')  # 14 chars
+        random_suffix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=4))  # 4 chars
+        
+        job_number = f'PRINT-{timestamp}-{random_suffix}'  # PRINT- (6) + 14 + - (1) + 4 = 25 chars
+        
+        # Verificar unicidad (por si acaso)
+        while PrintJob.objects.filter(job_number=job_number).exists():
+            random_suffix = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', k=4))
+            job_number = f'PRINT-{timestamp}-{random_suffix}'
+        
+        return job_number
     
     def mark_as_printing(self):
         """Marca el trabajo como en impresión"""
@@ -460,18 +442,6 @@ class CashDrawerEvent(models.Model):
         verbose_name='Trabajo de Impresión'
     )
     
-    # ✅ Comentado hasta que exista la app payments
-    """
-    cash_register = models.ForeignKey(
-        'payments.CashRegister',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='drawer_events',
-        verbose_name='Caja Registradora'
-    )
-    """
-    
     # Tipo de evento
     event_type = models.CharField(
         max_length=20,
@@ -510,7 +480,6 @@ class CashDrawerEvent(models.Model):
 
 class PrinterSettings(models.Model):
     """Configuración global del sistema de impresión (Singleton)"""
-    # ✅ CORRECCIÓN: Usar AutoField en lugar de UUID para singleton
     id = models.AutoField(primary_key=True)
     
     # Logo de la empresa (imagen en base64 o ruta)
@@ -612,13 +581,13 @@ class PrinterSettings(models.Model):
         return f'Configuración de {self.get_company_name()}'
     
     def save(self, *args, **kwargs):
-        # ✅ Forzar singleton
+        # Forzar singleton
         self.pk = 1
         super().save(*args, **kwargs)
         # Eliminar cualquier otro registro
         PrinterSettings.objects.exclude(pk=1).delete()
     
-    # ✅ MÉTODOS PARA OBTENER VALORES (BD o settings.py)
+    # Métodos para obtener valores (BD o settings.py)
     
     def get_company_name(self):
         """Obtiene nombre de empresa (BD o settings)"""

@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',  # ← NUEVO: Para tokens del agente
     'corsheaders',
 ]
 
@@ -94,11 +95,14 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# REST Framework
+# ============================================
+# 🔥 REST Framework - MODIFICADO
+# ============================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-         'core.authentication.JWTAuthentication',
-         'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.TokenAuthentication',  # ← NUEVO: Para agente Windows
+        'core.authentication.JWTAuthentication',              # Para frontend React
+        'rest_framework.authentication.SessionAuthentication', # Para admin Django
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -118,10 +122,10 @@ CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
 
 # Middleware de autenticación JWT
-MIDDLEWARE.insert(
-    MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1,
-    'core.middleware.JWTAuthenticationMiddleware'
-)
+#MIDDLEWARE.insert(
+    ##MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1,
+    #'core.middleware.JWTAuthenticationMiddleware'
+#)
 
 # Logging
 LOGGING = {
@@ -151,7 +155,7 @@ LOGGING = {
 }
 
 # ============================================
-# 🖨️ CONFIGURACIÓN DE EMPRESA E IMPRESIÓN
+#  CONFIGURACIÓN DE EMPRESA E IMPRESIÓN
 # ============================================
 
 # Configuración de la Empresa
