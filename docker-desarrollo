@@ -1,0 +1,290 @@
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_MULTIPLE_DATABASES: auth_service_db,fast_food_service_db,hotel_service_db,pool_service_db,restaurant_service_db,reporting_service_db,notification_service_db
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/create-multiple-postgresql-databases.sh:/docker-entrypoint-initdb.d/create-multiple-postgresql-databases.sh
+    ports:
+      - "5432:5432"
+    networks:
+      - aurora-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - aurora-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  auth-service:
+    build: ./auth-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./auth-service:/app
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_service_db
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_HOSTS=localhost,127.0.0.1,auth-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Servicio de Comida Rapida
+  fast-food-service:
+    build: ./fast-food-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./fast-food-service:/app
+    ports:
+      - "8002:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fast_food_service_db
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,fast-food-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Servicio de Hotel
+  hotel-service:
+    build: ./hotel-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./hotel-service:/app
+    ports:
+      - "8003:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotel_service_db
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,hotel-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Servicio de Piscinas
+  pool-service:
+    build: ./pool-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./pool-service:/app
+    ports:
+      - "8004:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/pool_service_db
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - HOTEL_SERVICE_URL=http://hotel-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,pool-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      hotel-service:
+        condition: service_started
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Servicio de Restaurante
+  restaurant-service:
+    build: ./restaurant-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./restaurant-service:/app
+    ports:
+      - "8005:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/restaurant_service_db
+      - AUTH_SERVICE_URL=http://auth-service:8000
+      - HOTEL_SERVICE_URL=http://hotel-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,restaurant-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      hotel-service:
+        condition: service_started
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Servicio de Reportes
+  reporting-service:
+    build: ./reporting-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./reporting-service:/app
+    ports:
+      - "8006:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/reporting_service_db
+      - FAST_FOOD_SERVICE_URL=http://fast-food-service:8000
+      - HOTEL_SERVICE_URL=http://hotel-service:8000
+      - POOL_SERVICE_URL=http://pool-service:8000
+      - RESTAURANT_SERVICE_URL=http://restaurant-service:8000
+      - ALLOWED_HOSTS=localhost,127.0.0.1,reporting-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      fast-food-service:
+        condition: service_started
+      hotel-service:
+        condition: service_started
+      pool-service:
+        condition: service_started
+      restaurant-service:
+        condition: service_started
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Servicio de Notificaciones
+  notification-service:
+    build: ./notification-service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py runserver 0.0.0.0:8000
+      "
+    volumes:
+      - ./notification-service:/app
+    ports:
+      - "8007:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/notification_service_db
+      - REDIS_URL=redis://redis:6379/1
+      - ALLOWED_HOSTS=localhost,127.0.0.1,notification-service,0.0.0.0
+      - DEBUG=True
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aurora-network
+    restart: on-failure
+
+  # Frontend React (sin cambios)
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_AUTH_SERVICE=http://localhost:8001
+      - REACT_APP_FAST_FOOD_SERVICE=http://localhost:8002
+      - REACT_APP_HOTEL_SERVICE=http://localhost:8003
+      - REACT_APP_POOL_SERVICE=http://localhost:8004
+      - REACT_APP_RESTAURANT_SERVICE=http://localhost:8005
+      - REACT_APP_REPORTING_SERVICE=http://localhost:8006
+      - REACT_APP_NOTIFICATION_SERVICE=http://localhost:8007
+    networks:
+      - aurora-network
+
+networks:
+  aurora-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
