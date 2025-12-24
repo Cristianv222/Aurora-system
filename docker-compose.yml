@@ -47,7 +47,7 @@ services:
       - ALLOWED_HOSTS=*
       - DEBUG=False
     ports:
-      - "8001:8000"
+      - "9001:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,7 +78,7 @@ services:
       - ALLOWED_HOSTS=*
       - DEBUG=False
     ports:
-      - "8002:8000"
+      - "9002:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -93,11 +93,11 @@ services:
     volumes:
       - /app/node_modules
     environment:
-      - REACT_APP_API_BASE_URL=http://146.190.217.68:8001
-      - REACT_APP_AUTH_SERVICE=http://146.190.217.68:8001/auth
-      - REACT_APP_FAST_FOOD_SERVICE=http://146.190.217.68:8002/fast-food
+      - REACT_APP_API_BASE_URL=https://aurorabackend.fronteratech.ec
+      - REACT_APP_AUTH_SERVICE=http://aurorabackend.fronteratech.ec/auth
+      - REACT_APP_FAST_FOOD_SERVICE=https://aurorabackend.fronteratech.ec/fast-food
     ports:
-      - "3000:3000"
+      - "9000:3000"
     networks:
       - aurora-network
     restart: on-failure

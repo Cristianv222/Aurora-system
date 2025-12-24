@@ -2,15 +2,15 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/menu/', include('apps.menu.urls')),
-    path('api/pos/', include('apps.pos.urls')),
-    path('api/orders/', include('apps.orders.urls')),
-    path('api/payments/', include('apps.payments.urls')),
-    path('api/kitchen/', include('apps.kitchen.urls')),
-    path('api/hardware/', include('apps.printer.urls')),
-    path('api/customers/', include('apps.customers.urls')),
-    path('api/reports/', include('apps.reports.urls')),
+    path('fast-food/admin/', admin.site.urls),
+    path('fast-food/api/menu/', include('apps.menu.urls')),
+    path('fast-fooda/pi/pos/', include('apps.pos.urls')),
+    path('fast-food/api/orders/', include('apps.orders.urls')),
+    path('fast-food/api/payments/', include('apps.payments.urls')),
+    path('fast-food/api/kitchen/', include('apps.kitchen.urls')),
+    path('fast-food/api/hardware/', include('apps.printer.urls')),
+    path('fast-food/api/customers/', include('apps.customers.urls')),
+    path('fast-food/api/reports/', include('apps.reports.urls')),
 ]
 
 from django.conf import settings
