@@ -111,9 +111,9 @@ services:
     volumes:
       - /app/node_modules
     environment:
-      - REACT_APP_API_BASE_URL=http://146.190.217.68
-      - REACT_APP_AUTH_SERVICE=http://146.190.217.68/api/auth
-      - REACT_APP_FAST_FOOD_SERVICE=http://146.190.217.68/api/fast-food
+      - REACT_APP_API_BASE_URL=https://aurora.fronteratech.ec
+      - REACT_APP_AUTH_SERVICE=https://aurora.fronteratech.ec/api/auth
+      - REACT_APP_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
     expose:
       - "3000"
     networks:
