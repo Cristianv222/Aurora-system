@@ -1,5 +1,5 @@
 import os
 from django.core.wsgi import get_wsgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fast-food_service.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fast_food_service.settings')
 application = get_wsgi_application()

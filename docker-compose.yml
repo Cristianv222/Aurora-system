@@ -104,7 +104,7 @@ services:
       - frontend
     networks:
       - aurora-network
-    restart: on-failuree
+    restart: on-failure
 
   frontend:
     build: ./frontend
