@@ -22,20 +22,19 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework_simplejwt',  # ✅ AGREGADO
-    'rest_framework_simplejwt.token_blacklist',  # ✅ AGREGADO (para blacklist)
-    'corsheaders',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
+    'corsheaders',  # CORS debe estar aquí
+    # Apps del servicio
+    'apps.authentication',
+    'apps.users',
+    'apps.roles',
 ]
-
-# Apps del servicio
-INSTALLED_APPS.append('apps.authentication')
-INSTALLED_APPS.append('apps.users')
-INSTALLED_APPS.append('apps.roles')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ✅ Ya lo tienes
-    'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS debe estar ANTES de CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -85,18 +84,12 @@ USE_I18N = True
 USE_TZ = True
 
 # ============================================
-# 🔥 STATIC FILES - CONFIGURACIÓN COMPLETA
+# STATIC FILES
 # ============================================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# ✅ AGREGADO: Configuración de WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# ✅ AGREGADO: Directorios adicionales de archivos estáticos (si tienes)
-STATICFILES_DIRS = [
-    # os.path.join(BASE_DIR, 'static'),  # Descomenta si tienes una carpeta /static
-]
+STATICFILES_DIRS = []
 
 # Media files
 MEDIA_URL = '/media/'
@@ -105,19 +98,18 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ============================================
-# 🔥 REST Framework
+# REST Framework
 # ============================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',  # ✅ AGREGADO (para admin Django)
+        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    # ✅ AGREGADO: Mejores defaults para producción
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ] if not DEBUG else [
@@ -127,17 +119,18 @@ REST_FRAMEWORK = {
 }
 
 # ============================================
-# 🔥 CORS - MEJORADO
+# CORS - CORREGIDO PARA PRODUCCIÓN
 # ============================================
-CORS_ALLOWED_ORIGINS = [
-    "http://aurora.fronteratech.ec",
-    "https://aurora.fronteratech.ec",
-    "http://aurorabackend.fronteratech.ec",
-    "https://aurorabackend.fronteratech.ec",
-    "http://localhost:3000",
-]
+# Obtener orígenes desde variable de entorno o usar defaults
+cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if cors_origins:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://146.190.217.68",
+        "http://localhost:3000",
+    ]
 
-# ✅ AGREGADO: Configuración adicional de CORS
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -151,16 +144,18 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# ✅ AGREGADO: Si necesitas CSRF token desde frontend
-CSRF_TRUSTED_ORIGINS = [
-    "http://aurora.fronteratech.ec",
-    "https://aurora.fronteratech.ec",
-    "http://aurorabackend.fronteratech.ec",
-    "https://aurorabackend.fronteratech.ec",
-]
+# CSRF trusted origins
+csrf_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if csrf_origins:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins.split(',')]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://146.190.217.68",
+        "http://localhost:3000",
+    ]
 
 # ============================================
-# 🔥 CELERY
+# CELERY
 # ============================================
 CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
@@ -170,7 +165,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 # ============================================
-# 🔥 CACHE
+# CACHE
 # ============================================
 CACHES = {
     'default': {
@@ -183,12 +178,12 @@ CACHES = {
 }
 
 # ============================================
-# 🔥 USUARIO PERSONALIZADO
+# USUARIO PERSONALIZADO
 # ============================================
 AUTH_USER_MODEL = 'users.User'
 
 # ============================================
-# 🔥 SIMPLE JWT - MEJORADO
+# SIMPLE JWT
 # ============================================
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
@@ -209,14 +204,13 @@ SIMPLE_JWT = {
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
     'TOKEN_TYPE_CLAIM': 'token_type',
     'JTI_CLAIM': 'jti',
-    # ✅ AGREGADO: Configuración de blacklist
     'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
 # ============================================
-# 🔥 LOGGING - MEJORADO
+# LOGGING
 # ============================================
 LOGGING = {
     'version': 1,
@@ -235,13 +229,6 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'auth.log'),
-            'formatter': 'verbose',
-        } if not DEBUG else {
-            'class': 'logging.StreamHandler',
         },
     },
     'root': {
@@ -263,25 +250,15 @@ LOGGING = {
 }
 
 # ============================================
-# 🔥 SEGURIDAD PARA PRODUCCIÓN
+# SEGURIDAD PARA PRODUCCIÓN
 # ============================================
-# ✅ AGREGADO: Configuración para funcionar detrás de proxy (Nginx)
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# ✅ AGREGADO: Headers de seguridad (solo en producción)
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    # SECURE_SSL_REDIRECT = True  # Descomenta cuando tengas SSL
-    # SESSION_COOKIE_SECURE = True  # Descomenta cuando tengas SSL
-    # CSRF_COOKIE_SECURE = True  # Descomenta cuando tengas SSL
-    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-
-# ✅ AGREGADO: Crear directorio de logs si no existe
-if not DEBUG:
-    LOGS_DIR = os.path.join(BASE_DIR, 'logs')
-    os.makedirs(LOGS_DIR, exist_ok=True)

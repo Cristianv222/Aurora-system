@@ -22,23 +22,22 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
-    'corsheaders',
+    'corsheaders',  # CORS debe estar aquí
+    # Apps del servicio
+    'apps.menu',
+    'apps.pos',
+    'apps.orders',
+    'apps.payments',
+    'apps.kitchen',
+    'apps.printer',
+    'apps.customers',
+    'apps.reports',
 ]
-
-# Apps del servicio
-INSTALLED_APPS.append('apps.menu')
-INSTALLED_APPS.append('apps.pos')
-INSTALLED_APPS.append('apps.orders')
-INSTALLED_APPS.append('apps.payments')
-INSTALLED_APPS.append('apps.kitchen')
-INSTALLED_APPS.append('apps.printer')
-INSTALLED_APPS.append('apps.customers')
-INSTALLED_APPS.append('apps.reports')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # ✅ Ya lo tienes
-    'corsheaders.middleware.CorsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'corsheaders.middleware.CorsMiddleware',  # CORS debe estar ANTES de CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -47,7 +46,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'fast-food_service.urls'
+ROOT_URLCONF = 'fast_food_service.urls'  # CORREGIDO: guion bajo en lugar de guion
 
 TEMPLATES = [
     {
@@ -65,7 +64,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'fast-food_service.wsgi.application'
+WSGI_APPLICATION = 'fast_food_service.wsgi.application'  # CORREGIDO: guion bajo
 
 # Database
 DATABASES = {
@@ -88,18 +87,12 @@ USE_I18N = True
 USE_TZ = True
 
 # ============================================
-# 🔥 STATIC FILES - CONFIGURACIÓN COMPLETA
+# STATIC FILES
 # ============================================
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# ✅ AGREGADO: Configuración de WhiteNoise
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-# ✅ AGREGADO: Directorios adicionales de archivos estáticos (si tienes)
-STATICFILES_DIRS = [
-    # os.path.join(BASE_DIR, 'static'),  # Descomenta si tienes una carpeta /static
-]
+STATICFILES_DIRS = []
 
 # Media files
 MEDIA_URL = '/media/'
@@ -108,7 +101,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ============================================
-# 🔥 REST Framework
+# REST Framework
 # ============================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -121,7 +114,6 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
-    # ✅ AGREGADO: Mejores defaults para producción
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ] if not DEBUG else [
@@ -131,17 +123,18 @@ REST_FRAMEWORK = {
 }
 
 # ============================================
-# 🔥 CORS - MEJORADO
+# CORS - CORREGIDO PARA PRODUCCIÓN
 # ============================================
-CORS_ALLOWED_ORIGINS = [
-    "http://aurora.fronteratech.ec",
-    "https://aurora.fronteratech.ec",
-    "http://aurorabackend.fronteratech.ec",
-    "https://aurorabackend.fronteratech.ec",
-    "http://localhost:3000",
-]
+# Obtener orígenes desde variable de entorno o usar defaults
+cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if cors_origins:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://146.190.217.68",
+        "http://localhost:3000",
+    ]
 
-# ✅ AGREGADO: Configuración adicional de CORS
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -155,16 +148,18 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# ✅ AGREGADO: Si necesitas CSRF token desde frontend
-CSRF_TRUSTED_ORIGINS = [
-    "http://aurora.fronteratech.ec",
-    "https://aurora.fronteratech.ec",
-    "http://aurorabackend.fronteratech.ec",
-    "https://aurorabackend.fronteratech.ec",
-]
+# CSRF trusted origins
+csrf_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if csrf_origins:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins.split(',')]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://146.190.217.68",
+        "http://localhost:3000",
+    ]
 
 # ============================================
-# 🔥 CELERY
+# CELERY
 # ============================================
 CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
@@ -174,57 +169,27 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 # ============================================
-# 🔥 SERVICIOS
+# SERVICIOS
 # ============================================
 AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:8002')
 HARDWARE_SERVICE_TOKEN = os.getenv('HARDWARE_SERVICE_TOKEN', '4ab1eb1da612019e57b1803e83185649564f12ae')
 
 # ============================================
-# 🔥 LOGGING - MEJORADO
+# CACHE
 # ============================================
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-        'file': {
-            'class': 'logging.FileHandler',
-            'filename': os.path.join(BASE_DIR, 'logs', 'django.log'),
-            'formatter': 'verbose',
-        } if not DEBUG else {
-            'class': 'logging.StreamHandler',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'INFO',
-            'propagate': False,
-        },
-        'apps.printer': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-    },
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://redis:6379/1'),
+    } if not DEBUG else {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
 }
 
 # ============================================
-# 🔥 CONFIGURACIÓN DE EMPRESA E IMPRESIÓN
+# CONFIGURACIÓN DE EMPRESA E IMPRESIÓN
 # ============================================
 COMPANY_CONFIG = {
     'name': os.getenv('COMPANY_NAME', 'Mi Restaurante'),
@@ -246,38 +211,51 @@ PRINTING_CONFIG = {
 }
 
 # ============================================
-# 🔥 CACHE
+# LOGGING
 # ============================================
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': os.getenv('REDIS_URL', 'redis://redis:6379/1'),
-    } if not DEBUG else {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake',
-    }
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps.printer': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
 }
 
 # ============================================
-# 🔥 SEGURIDAD PARA PRODUCCIÓN
+# SEGURIDAD PARA PRODUCCIÓN
 # ============================================
-# ✅ AGREGADO: Configuración para funcionar detrás de proxy (Nginx)
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# ✅ AGREGADO: Headers de seguridad (solo en producción)
 if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    # SECURE_SSL_REDIRECT = True  # Descomenta cuando tengas SSL
-    # SESSION_COOKIE_SECURE = True  # Descomenta cuando tengas SSL
-    # CSRF_COOKIE_SECURE = True  # Descomenta cuando tengas SSL
-    SECURE_HSTS_SECONDS = 31536000  # 1 año
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
-
-# ✅ AGREGADO: Crear directorio de logs si no existe
-if not DEBUG:
-    LOGS_DIR = os.path.join(BASE_DIR, 'logs')
-    os.makedirs(LOGS_DIR, exist_ok=True)
