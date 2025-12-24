@@ -44,8 +44,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_service_db
       - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_HOSTS=146.190.217.68,localhost
-      - CORS_ALLOWED_ORIGINS=http://146.190.217.68,http://localhost:3000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
       - DEBUG=False
     expose:
       - "8000"
@@ -76,8 +76,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fast_food_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000
-      - ALLOWED_HOSTS=146.190.217.68,localhost
-      - CORS_ALLOWED_ORIGINS=http://146.190.217.68,http://localhost:3000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
       - DEBUG=False
     expose:
       - "8000"
