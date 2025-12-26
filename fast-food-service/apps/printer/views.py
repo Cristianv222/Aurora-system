@@ -37,12 +37,13 @@ class PrinterViewSet(viewsets.ModelViewSet):
     """API para gestión de impresoras"""
     queryset = Printer.objects.all()
     serializer_class = PrinterSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'test_connection', 'test_print']:
-            return [IsAuthenticated()]
-        return [IsAdminUser()]
+    # COMENTADO TEMPORALMENTE PARA DESARROLLO
+    # def get_permissions(self):
+    #     if self.action in ['list', 'retrieve', 'test_connection', 'test_print']:
+    #         return [IsAuthenticated()]
+    #     return [IsAdminUser()]
     
     @action(detail=True, methods=['post'])
     def test_print(self, request, pk=None):
@@ -154,7 +155,7 @@ class PrintJobViewSet(mixins.ListModelMixin,
     """API para historial de trabajos de impresión"""
     queryset = PrintJob.objects.all().order_by('-created_at')
     serializer_class = PrintJobSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -191,7 +192,7 @@ class PrintJobViewSet(mixins.ListModelMixin,
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Rate limiting para evitar spam
-        cache_key = f'print_retry_{print_job.id}_{request.user.id}'
+        cache_key = f'print_retry_{print_job.id}_{request.user.id if request.user.is_authenticated else "system"}'
         if cache.get(cache_key):
             return Response({
                 'error': 'Debe esperar 30 segundos antes de reintentar'
@@ -263,7 +264,7 @@ class CashDrawerEventViewSet(mixins.ListModelMixin,
     """API para historial de eventos de caja"""
     queryset = CashDrawerEvent.objects.all().order_by('-created_at')
     serializer_class = CashDrawerEventSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -290,7 +291,7 @@ class PrinterSettingsView(generics.RetrieveUpdateAPIView):
     """API para configuración global de impresión"""
     queryset = PrinterSettings.objects.all()
     serializer_class = PrinterSettingsSerializer
-    permission_classes = [IsAdminUser]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     
     def get_object(self):
         return PrinterSettings.get_settings()
@@ -301,7 +302,7 @@ class PrinterSettingsView(generics.RetrieveUpdateAPIView):
 # ============================================================================
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def agente_registrar(request):
     """
     Endpoint para registro del agente de Windows
@@ -329,15 +330,16 @@ def agente_registrar(request):
     data = serializer.validated_data
     
     # Guardar información del agente en cache
-    cache_key = f"agente_{request.user.username}_{data['computadora']}"
+    username = request.user.username if request.user.is_authenticated else 'system'
+    cache_key = f"agente_{username}_{data['computadora']}"
     cache.set(cache_key, {
         'computadora': data['computadora'],
         'usuario': data['usuario'],
         'version_agente': data['version_agente'],
         'impresoras': data['impresoras'],
         'ultima_conexion': timezone.now().isoformat(),
-        'user_id': request.user.id,
-        'username': request.user.username
+        'user_id': request.user.id if request.user.is_authenticated else 'system',
+        'username': username
     }, timeout=3600)  # 1 hora
     
     logger.info(
@@ -347,19 +349,19 @@ def agente_registrar(request):
     )
     
     # Verificar si el usuario es superusuario o staff (modo SISTEMA)
-    es_sistema = request.user.is_superuser or request.user.is_staff
+    es_sistema = request.user.is_superuser or request.user.is_staff if request.user.is_authenticated else True
     
     return Response({
         'message': 'Agente registrado exitosamente',
         'es_sistema': es_sistema,
-        'usuario': request.user.username,
+        'usuario': username,
         'impresoras_detectadas': len(data['impresoras']),
         'servidor_time': timezone.now().isoformat()
     })
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def agente_trabajos_pendientes(request):
     """
     Endpoint para obtener trabajos pendientes
@@ -367,7 +369,7 @@ def agente_trabajos_pendientes(request):
     GET /api/hardware/agente/trabajos/
     """
     # Determinar si es usuario sistema (puede ver todos los trabajos)
-    es_sistema = request.user.is_superuser or request.user.is_staff
+    es_sistema = (request.user.is_superuser or request.user.is_staff) if request.user.is_authenticated else True
     
     # Obtener trabajos pendientes
     if es_sistema:
@@ -414,8 +416,9 @@ def agente_trabajos_pendientes(request):
             trabajo.mark_as_failed(f"Error al preparar impresión: {str(e)}")
             continue
     
+    username = request.user.username if request.user.is_authenticated else 'system'
     logger.info(
-        f"📥 Agente {request.user.username} consultó trabajos: "
+        f"📥 Agente {username} consultó trabajos: "
         f"{len(trabajos_data)} pendientes [{'SISTEMA' if es_sistema else 'NORMAL'}]"
     )
     
@@ -426,7 +429,7 @@ def agente_trabajos_pendientes(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def agente_reportar_resultado(request):
     """
     Endpoint para reportar resultado de impresión
@@ -470,12 +473,13 @@ def agente_reportar_resultado(request):
         trabajo.cash_drawer_opened = True
         trabajo.save(update_fields=['cash_drawer_opened'])
         
+        username = request.user.username if request.user.is_authenticated else 'system'
         CashDrawerEvent.objects.create(
             printer=trabajo.printer,
             print_job=trabajo,
             event_type='print',
             success=True,
-            triggered_by=request.user.username,
+            triggered_by=username,
             notes=f"Apertura automática - Trabajo #{trabajo.job_number}"
         )
     
@@ -488,7 +492,7 @@ def agente_reportar_resultado(request):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def agente_estado(request):
     """
     Endpoint para obtener estado del sistema
@@ -497,7 +501,8 @@ def agente_estado(request):
     """
     # Obtener info del agente desde cache
     computadora = request.query_params.get('computadora', 'unknown')
-    cache_key = f"agente_{request.user.username}_{computadora}"
+    username = request.user.username if request.user.is_authenticated else 'system'
+    cache_key = f"agente_{username}_{computadora}"
     agente_data = cache.get(cache_key, {})
     
     # Estadísticas
@@ -523,7 +528,7 @@ def agente_estado(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def agente_abrir_caja(request):
     """
     Endpoint para abrir caja registradora manualmente
@@ -560,6 +565,7 @@ def agente_abrir_caja(request):
     # Crear trabajo de impresión para abrir caja
     comandos_hex = generar_comando_abrir_caja(printer)
     
+    username = request.user.username if request.user.is_authenticated else 'system'
     job = PrintJob.objects.create(
         printer=printer,
         document_type='other',
@@ -567,7 +573,7 @@ def agente_abrir_caja(request):
         data={'accion': 'abrir_caja', 'notas': notas},
         open_cash_drawer=True,
         status='pending',
-        created_by=request.user.username
+        created_by=username
     )
     
     # Registrar evento
@@ -577,10 +583,10 @@ def agente_abrir_caja(request):
         event_type='manual',
         success=True,
         notes=notas,
-        triggered_by=request.user.username
+        triggered_by=username
     )
     
-    logger.info(f"🔓 Caja abierta manualmente por {request.user.username} - Impresora: {printer.name}")
+    logger.info(f"🔓 Caja abierta manualmente por {username} - Impresora: {printer.name}")
     
     return Response({
         'message': 'Solicitud de apertura de caja enviada',
@@ -695,7 +701,7 @@ def generar_comando_abrir_caja(printer):
 
 class PrintAPIView(APIView):
     """API principal para impresión directa"""
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     
     @transaction.atomic
     def post(self, request):
@@ -713,6 +719,7 @@ class PrintAPIView(APIView):
             copies = data['copies']
             
             # Crear trabajo de impresión
+            username = request.user.username if request.user.is_authenticated else 'system'
             print_job = PrintJob.objects.create(
                 printer=printer,
                 document_type=document_type,
@@ -720,7 +727,7 @@ class PrintAPIView(APIView):
                 data={'request_data': request.data},
                 open_cash_drawer=open_cash_drawer,
                 copies=copies,
-                created_by=request.user.username if request.user.is_authenticated else 'system',
+                created_by=username,
                 status='pending'
             )
             
@@ -780,13 +787,14 @@ class PrintReceiptView(APIView):
             content = self.generate_receipt_content(printer, order_data)
             
             # Crear trabajo de impresión
+            username = request.user.username if request.user.is_authenticated else 'system'
             print_job = PrintJob.objects.create(
                 printer=printer,
                 document_type='receipt',
                 content=content,
                 data=order_data,
                 open_cash_drawer=True,  # Siempre abrir caja para ventas
-                created_by=request.user.username,
+                created_by=username,
                 status='pending'
             )
             
@@ -862,7 +870,7 @@ class PrintReceiptView(APIView):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def print_status(request):
     """Estado del sistema de impresión"""
     try:
@@ -895,7 +903,7 @@ def print_status(request):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])  # ← CAMBIADO
 def open_cash_drawer(request):
     """Abrir caja registradora manualmente"""
     printer_id = request.data.get('printer_id')
@@ -922,13 +930,14 @@ def open_cash_drawer(request):
     
     try:
         # Crear trabajo para abrir caja
+        username = request.user.username if request.user.is_authenticated else 'system'
         job = PrintJob.objects.create(
             printer=printer,
             document_type='other',
             content='Apertura manual de caja',
             open_cash_drawer=True,
             status='pending',
-            created_by=request.user.username
+            created_by=username
         )
         
         return Response({
