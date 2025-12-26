@@ -86,7 +86,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -98,9 +98,9 @@ class CategoryViewSet(viewsets.ModelViewSet):
         """Optimiza queries con prefetch"""
         queryset = super().get_queryset()
         
-        # Si es listado público, solo mostrar activas
-        if self.action == 'list' and not self.request.user.is_authenticated:
-            queryset = queryset.filter(is_active=True)
+        # COMENTADO para desarrollo - mostrar todas las categorías
+        # if self.action == 'list' and not self.request.user.is_authenticated:
+        #     queryset = queryset.filter(is_active=True)
         
         return queryset
     
@@ -140,7 +140,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     destroy: Elimina un producto
     """
     queryset = Product.objects.all()
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['category', 'is_active', 'is_available', 'is_featured', 'is_new']
     search_fields = ['name', 'description', 'ingredients']
@@ -164,9 +164,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         if max_price:
             queryset = queryset.filter(price__lte=max_price)
         
-        # Si es listado público, solo mostrar activos y disponibles
-        if self.action == 'list' and not self.request.user.is_authenticated:
-            queryset = queryset.filter(is_active=True, is_available=True)
+        # COMENTADO para desarrollo - mostrar todos los productos
+        # if self.action == 'list' and not self.request.user.is_authenticated:
+        #     queryset = queryset.filter(is_active=True, is_available=True)
         
         return queryset
     
@@ -254,7 +254,7 @@ class SizeViewSet(viewsets.ModelViewSet):
     destroy: Elimina un tamaño
     """
     queryset = Size.objects.all()
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['product', 'is_active', 'is_default']
     ordering_fields = ['display_order', 'price_adjustment']
@@ -302,7 +302,7 @@ class ExtraViewSet(viewsets.ModelViewSet):
     destroy: Elimina un extra
     """
     queryset = Extra.objects.all()
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -385,7 +385,7 @@ class ComboViewSet(viewsets.ModelViewSet):
     destroy: Elimina un combo
     """
     queryset = Combo.objects.all()
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active', 'is_featured']
     search_fields = ['name', 'description']
@@ -411,9 +411,9 @@ class ComboViewSet(viewsets.ModelViewSet):
         if max_price:
             queryset = queryset.filter(price__lte=max_price)
         
-        # Si es listado público, solo mostrar activos
-        if self.action == 'list' and not self.request.user.is_authenticated:
-            queryset = queryset.filter(is_active=True)
+        # COMENTADO para desarrollo - mostrar todos los combos
+        # if self.action == 'list' and not self.request.user.is_authenticated:
+        #     queryset = queryset.filter(is_active=True)
         
         return queryset
     
