@@ -86,7 +86,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -140,7 +140,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     destroy: Elimina un producto
     """
     queryset = Product.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['category', 'is_active', 'is_available', 'is_featured', 'is_new']
     search_fields = ['name', 'description', 'ingredients']
@@ -254,7 +254,7 @@ class SizeViewSet(viewsets.ModelViewSet):
     destroy: Elimina un tamaño
     """
     queryset = Size.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['product', 'is_active', 'is_default']
     ordering_fields = ['display_order', 'price_adjustment']
@@ -302,7 +302,7 @@ class ExtraViewSet(viewsets.ModelViewSet):
     destroy: Elimina un extra
     """
     queryset = Extra.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -385,7 +385,7 @@ class ComboViewSet(viewsets.ModelViewSet):
     destroy: Elimina un combo
     """
     queryset = Combo.objects.all()
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [AllowAny]  # ← CAMBIADO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active', 'is_featured']
     search_fields = ['name', 'description']
