@@ -86,13 +86,13 @@ class CategoryViewSet(viewsets.ModelViewSet):
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
     ordering_fields = ['display_order', 'name', 'created_at']
     ordering = ['display_order', 'name']
-    lookup_field = 'slug'
+    lookup_field = 'pk'  # ← CAMBIADO de 'slug' a 'pk'
     
     def get_queryset(self):
         """Optimiza queries con prefetch"""
@@ -100,7 +100,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return queryset
     
     @action(detail=True, methods=['get'])
-    def products(self, request, slug=None):
+    def products(self, request, pk=None):  # ← CAMBIADO slug a pk
         """Obtiene todos los productos de una categoría"""
         category = self.get_object()
         products = category.products.filter(
@@ -135,13 +135,13 @@ class ProductViewSet(viewsets.ModelViewSet):
     destroy: Elimina un producto
     """
     queryset = Product.objects.all()
-    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['category', 'is_active', 'is_available', 'is_featured', 'is_new']
     search_fields = ['name', 'description', 'ingredients']
     ordering_fields = ['display_order', 'name', 'price', 'created_at']
     ordering = ['category__display_order', 'display_order', 'name']
-    lookup_field = 'slug'
+    lookup_field = 'pk'  # ← CAMBIADO de 'slug' a 'pk'
     
     def get_queryset(self):
         """Optimiza queries y filtra según contexto"""
@@ -194,7 +194,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
-    def sizes(self, request, slug=None):
+    def sizes(self, request, pk=None):  # ← CAMBIADO slug a pk
         """Obtiene tamaños disponibles del producto"""
         product = self.get_object()
         sizes = product.sizes.filter(is_active=True).order_by('display_order')
@@ -203,7 +203,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
-    def extras(self, request, slug=None):
+    def extras(self, request, pk=None):  # ← CAMBIADO slug a pk
         """Obtiene extras disponibles del producto"""
         product = self.get_object()
         extras = product.extras.filter(is_active=True).order_by('display_order')
@@ -245,7 +245,7 @@ class SizeViewSet(viewsets.ModelViewSet):
     destroy: Elimina un tamaño
     """
     queryset = Size.objects.all()
-    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['product', 'is_active', 'is_default']
     ordering_fields = ['display_order', 'price_adjustment']
@@ -293,7 +293,7 @@ class ExtraViewSet(viewsets.ModelViewSet):
     destroy: Elimina un extra
     """
     queryset = Extra.objects.all()
-    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -376,13 +376,13 @@ class ComboViewSet(viewsets.ModelViewSet):
     destroy: Elimina un combo
     """
     queryset = Combo.objects.all()
-    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
+    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active', 'is_featured']
     search_fields = ['name', 'description']
     ordering_fields = ['display_order', 'name', 'price', 'created_at']
     ordering = ['display_order', 'name']
-    lookup_field = 'slug'
+    lookup_field = 'pk'  # ← CAMBIADO de 'slug' a 'pk'
     
     def get_queryset(self):
         """Optimiza queries"""
@@ -424,7 +424,7 @@ class ComboViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
-    def products(self, request, slug=None):
+    def products(self, request, pk=None):  # ← CAMBIADO slug a pk
         """Obtiene productos incluidos en el combo"""
         combo = self.get_object()
         combo_products = combo.combo_products.all().select_related('product')
@@ -473,7 +473,7 @@ class MenuViewSet(viewsets.ViewSet):
     ViewSet para obtener el menú completo
     Endpoints personalizados para el menú
     """
-    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
+    permission_classes = [AllowAny]
     
     @action(detail=False, methods=['get'])
     def full(self, request):
