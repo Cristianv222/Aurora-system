@@ -23,7 +23,7 @@ from .serializers import (
 
 
 # ============================================================================
-# VIEWS DE PRUEBA Y HEALTH CHECK (MANTENER)
+# VIEWS DE PRUEBA Y HEALTH CHECK
 # ============================================================================
 
 @api_view(['GET'])
@@ -86,7 +86,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -97,11 +97,6 @@ class CategoryViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Optimiza queries con prefetch"""
         queryset = super().get_queryset()
-        
-        # COMENTADO para desarrollo - mostrar todas las categorías
-        # if self.action == 'list' and not self.request.user.is_authenticated:
-        #     queryset = queryset.filter(is_active=True)
-        
         return queryset
     
     @action(detail=True, methods=['get'])
@@ -140,7 +135,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     destroy: Elimina un producto
     """
     queryset = Product.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['category', 'is_active', 'is_available', 'is_featured', 'is_new']
     search_fields = ['name', 'description', 'ingredients']
@@ -163,10 +158,6 @@ class ProductViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(price__gte=min_price)
         if max_price:
             queryset = queryset.filter(price__lte=max_price)
-        
-        # COMENTADO para desarrollo - mostrar todos los productos
-        # if self.action == 'list' and not self.request.user.is_authenticated:
-        #     queryset = queryset.filter(is_active=True, is_available=True)
         
         return queryset
     
@@ -254,7 +245,7 @@ class SizeViewSet(viewsets.ModelViewSet):
     destroy: Elimina un tamaño
     """
     queryset = Size.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['product', 'is_active', 'is_default']
     ordering_fields = ['display_order', 'price_adjustment']
@@ -302,7 +293,7 @@ class ExtraViewSet(viewsets.ModelViewSet):
     destroy: Elimina un extra
     """
     queryset = Extra.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active']
     search_fields = ['name', 'description']
@@ -385,7 +376,7 @@ class ComboViewSet(viewsets.ModelViewSet):
     destroy: Elimina un combo
     """
     queryset = Combo.objects.all()
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
     filterset_fields = ['is_active', 'is_featured']
     search_fields = ['name', 'description']
@@ -410,10 +401,6 @@ class ComboViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(price__gte=min_price)
         if max_price:
             queryset = queryset.filter(price__lte=max_price)
-        
-        # COMENTADO para desarrollo - mostrar todos los combos
-        # if self.action == 'list' and not self.request.user.is_authenticated:
-        #     queryset = queryset.filter(is_active=True)
         
         return queryset
     
@@ -486,7 +473,7 @@ class MenuViewSet(viewsets.ViewSet):
     ViewSet para obtener el menú completo
     Endpoints personalizados para el menú
     """
-    permission_classes = [AllowAny]
+    permission_classes = [AllowAny]  # ← YA ESTÁ CORRECTO
     
     @action(detail=False, methods=['get'])
     def full(self, request):
