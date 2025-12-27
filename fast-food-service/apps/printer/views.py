@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django.views.decorators.csrf import csrf_exempt  # ← AGREGADO
 from rest_framework import viewsets, status, generics, mixins
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
@@ -37,13 +38,7 @@ class PrinterViewSet(viewsets.ModelViewSet):
     """API para gestión de impresoras"""
     queryset = Printer.objects.all()
     serializer_class = PrinterSerializer
-    permission_classes = [AllowAny]  # ← CAMBIADO
-    
-    # COMENTADO TEMPORALMENTE PARA DESARROLLO
-    # def get_permissions(self):
-    #     if self.action in ['list', 'retrieve', 'test_connection', 'test_print']:
-    #         return [IsAuthenticated()]
-    #     return [IsAdminUser()]
+    permission_classes = [AllowAny]
     
     @action(detail=True, methods=['post'])
     def test_print(self, request, pk=None):
@@ -51,7 +46,6 @@ class PrinterViewSet(viewsets.ModelViewSet):
         printer = self.get_object()
         
         try:
-            # Usar el método mejorado del PrinterManager
             success, message = PrinterManager.print_test_page(
                 printer,
                 user=request.user.username if request.user.is_authenticated else 'system'
@@ -84,7 +78,6 @@ class PrinterViewSet(viewsets.ModelViewSet):
             success, message = PrinterManager.open_cash_drawer(printer)
             
             if success:
-                # Registrar evento
                 CashDrawerEvent.objects.create(
                     printer=printer,
                     event_type='test',
@@ -155,22 +148,19 @@ class PrintJobViewSet(mixins.ListModelMixin,
     """API para historial de trabajos de impresión"""
     queryset = PrintJob.objects.all().order_by('-created_at')
     serializer_class = PrintJobSerializer
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Filtrar por estado si se proporciona
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         
-        # Filtrar por impresora
         printer_id = self.request.query_params.get('printer_id')
         if printer_id:
             queryset = queryset.filter(printer_id=printer_id)
         
-        # Filtrar por fecha
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         
@@ -191,7 +181,6 @@ class PrintJobViewSet(mixins.ListModelMixin,
                 'error': 'Solo se pueden reintentar trabajos fallidos'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Rate limiting para evitar spam
         cache_key = f'print_retry_{print_job.id}_{request.user.id if request.user.is_authenticated else "system"}'
         if cache.get(cache_key):
             return Response({
@@ -203,7 +192,6 @@ class PrintJobViewSet(mixins.ListModelMixin,
             print_job.error_message = ''
             print_job.save(update_fields=['status', 'error_message'])
             
-            # Reimprimir
             success, message = PrinterManager.print_job(print_job)
             
             if success:
@@ -226,7 +214,6 @@ class PrintJobViewSet(mixins.ListModelMixin,
                 'message': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         finally:
-            # Establecer rate limit de 30 segundos
             cache.set(cache_key, True, 30)
     
     @action(detail=False, methods=['get'])
@@ -235,7 +222,6 @@ class PrintJobViewSet(mixins.ListModelMixin,
         from datetime import timedelta
         from django.db.models import Count
         
-        # Últimas 24 horas
         hace_24h = timezone.now() - timedelta(hours=24)
         
         stats = {
@@ -264,22 +250,19 @@ class CashDrawerEventViewSet(mixins.ListModelMixin,
     """API para historial de eventos de caja"""
     queryset = CashDrawerEvent.objects.all().order_by('-created_at')
     serializer_class = CashDrawerEventSerializer
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Filtrar por impresora
         printer_id = self.request.query_params.get('printer_id')
         if printer_id:
             queryset = queryset.filter(printer_id=printer_id)
         
-        # Filtrar por fecha
         date = self.request.query_params.get('date')
         if date:
             queryset = queryset.filter(created_at__date=date)
         
-        # Filtrar por éxito
         success = self.request.query_params.get('success')
         if success is not None:
             queryset = queryset.filter(success=success.lower() == 'true')
@@ -291,7 +274,7 @@ class PrinterSettingsView(generics.RetrieveUpdateAPIView):
     """API para configuración global de impresión"""
     queryset = PrinterSettings.objects.all()
     serializer_class = PrinterSettingsSerializer
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
     
     def get_object(self):
         return PrinterSettings.get_settings()
@@ -302,19 +285,10 @@ class PrinterSettingsView(generics.RetrieveUpdateAPIView):
 # ============================================================================
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
+@csrf_exempt  # ← AGREGADO
 def agente_registrar(request):
-    """
-    Endpoint para registro del agente de Windows
-    
-    POST /api/hardware/agente/registrar/
-    {
-        "computadora": "PC-CAJA-01",
-        "usuario": "usuario_windows",
-        "version_agente": "3.0.1",
-        "impresoras": [...]
-    }
-    """
+    """Endpoint para registro del agente de Windows"""
     logger.info(f"🔍 Headers recibidos: {request.META.get('HTTP_AUTHORIZATION', 'NO HAY HEADER')}")
     logger.info(f"🔍 Usuario autenticado: {request.user}")
     logger.info(f"🔍 Is authenticated: {request.user.is_authenticated}")
@@ -329,7 +303,6 @@ def agente_registrar(request):
     
     data = serializer.validated_data
     
-    # Guardar información del agente en cache
     username = request.user.username if request.user.is_authenticated else 'system'
     cache_key = f"agente_{username}_{data['computadora']}"
     cache.set(cache_key, {
@@ -340,7 +313,7 @@ def agente_registrar(request):
         'ultima_conexion': timezone.now().isoformat(),
         'user_id': request.user.id if request.user.is_authenticated else 'system',
         'username': username
-    }, timeout=3600)  # 1 hora
+    }, timeout=3600)
     
     logger.info(
         f"✅ Agente registrado: {data['computadora']} "
@@ -348,7 +321,6 @@ def agente_registrar(request):
         f"Impresoras: {len(data['impresoras'])})"
     )
     
-    # Verificar si el usuario es superusuario o staff (modo SISTEMA)
     es_sistema = request.user.is_superuser or request.user.is_staff if request.user.is_authenticated else True
     
     return Response({
@@ -361,43 +333,31 @@ def agente_registrar(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
 def agente_trabajos_pendientes(request):
-    """
-    Endpoint para obtener trabajos pendientes
-    
-    GET /api/hardware/agente/trabajos/
-    """
-    # Determinar si es usuario sistema (puede ver todos los trabajos)
+    """Endpoint para obtener trabajos pendientes"""
     es_sistema = (request.user.is_superuser or request.user.is_staff) if request.user.is_authenticated else True
     
-    # Obtener trabajos pendientes
     if es_sistema:
-        # Usuario sistema: todos los trabajos pendientes
         trabajos = PrintJob.objects.filter(
             status='pending'
         ).select_related('printer').order_by('created_at')[:10]
     else:
-        # Usuario normal: solo sus propios trabajos
         trabajos = PrintJob.objects.filter(
             status='pending',
             created_by=request.user.username
         ).select_related('printer').order_by('created_at')[:10]
     
-    # Convertir a formato para el agente
     trabajos_data = []
     for trabajo in trabajos:
         try:
-            # Validar que tenga impresora asignada
             if not trabajo.printer:
                 logger.warning(f"⚠️ Trabajo {trabajo.id} sin impresora asignada, marcando como fallido")
                 trabajo.mark_as_failed("Impresora no asignada")
                 continue
             
-            # Marcar como "printing"
             trabajo.mark_as_printing()
             
-            # Generar comandos ESC/POS en hex
             comandos_hex = generar_comandos_escpos(trabajo)
             
             trabajos_data.append({
@@ -412,7 +372,6 @@ def agente_trabajos_pendientes(request):
             
         except Exception as e:
             logger.error(f"❌ Error procesando trabajo {trabajo.id}: {e}")
-            # Marcar trabajo como fallido
             trabajo.mark_as_failed(f"Error al preparar impresión: {str(e)}")
             continue
     
@@ -429,19 +388,10 @@ def agente_trabajos_pendientes(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
+@csrf_exempt  # ← AGREGADO
 def agente_reportar_resultado(request):
-    """
-    Endpoint para reportar resultado de impresión
-    
-    POST /api/hardware/agente/resultado/
-    {
-        "trabajo_id": "uuid",
-        "success": true,
-        "mensaje": "Impresión exitosa",
-        "detalles": {}
-    }
-    """
+    """Endpoint para reportar resultado de impresión"""
     serializer = AgenteResultadoSerializer(data=request.data)
     
     if not serializer.is_valid():
@@ -460,7 +410,6 @@ def agente_reportar_resultado(request):
             status=status.HTTP_404_NOT_FOUND
         )
     
-    # Actualizar estado del trabajo
     if data['success']:
         trabajo.mark_as_completed()
         logger.info(f"✅ Trabajo {trabajo.job_number} completado exitosamente")
@@ -468,7 +417,6 @@ def agente_reportar_resultado(request):
         trabajo.mark_as_failed(data.get('mensaje', 'Error desconocido'))
         logger.error(f"❌ Trabajo {trabajo.job_number} falló: {data.get('mensaje')}")
     
-    # Registrar evento de caja si se abrió
     if trabajo.open_cash_drawer and data['success'] and trabajo.printer:
         trabajo.cash_drawer_opened = True
         trabajo.save(update_fields=['cash_drawer_opened'])
@@ -492,20 +440,14 @@ def agente_reportar_resultado(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
 def agente_estado(request):
-    """
-    Endpoint para obtener estado del sistema
-    
-    GET /api/hardware/agente/estado/
-    """
-    # Obtener info del agente desde cache
+    """Endpoint para obtener estado del sistema"""
     computadora = request.query_params.get('computadora', 'unknown')
     username = request.user.username if request.user.is_authenticated else 'system'
     cache_key = f"agente_{username}_{computadora}"
     agente_data = cache.get(cache_key, {})
     
-    # Estadísticas
     trabajos_pendientes = PrintJob.objects.filter(status='pending').count()
     trabajos_completados_hoy = PrintJob.objects.filter(
         status='completed',
@@ -528,17 +470,10 @@ def agente_estado(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
+@csrf_exempt  # ← AGREGADO
 def agente_abrir_caja(request):
-    """
-    Endpoint para abrir caja registradora manualmente
-    
-    POST /api/hardware/agente/abrir-caja/
-    {
-        "printer_id": "uuid",
-        "notas": "Apertura manual"
-    }
-    """
+    """Endpoint para abrir caja registradora manualmente"""
     printer_id = request.data.get('printer_id')
     notas = request.data.get('notas', '')
     
@@ -562,7 +497,6 @@ def agente_abrir_caja(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # Crear trabajo de impresión para abrir caja
     comandos_hex = generar_comando_abrir_caja(printer)
     
     username = request.user.username if request.user.is_authenticated else 'system'
@@ -576,7 +510,6 @@ def agente_abrir_caja(request):
         created_by=username
     )
     
-    # Registrar evento
     CashDrawerEvent.objects.create(
         printer=printer,
         print_job=job,
@@ -596,32 +529,21 @@ def agente_abrir_caja(request):
 
 
 # ============================================================================
-# FUNCIONES AUXILIARES PARA COMANDOS ESC/POS - CORREGIDAS ✅
+# FUNCIONES AUXILIARES PARA COMANDOS ESC/POS
 # ============================================================================
 
 def generar_comandos_escpos(trabajo):
-    """
-    Genera comandos ESC/POS en hexadecimal para el trabajo de impresión
-    
-    Esta es una función básica - expándela según tus necesidades
-    """
+    """Genera comandos ESC/POS en hexadecimal para el trabajo de impresión"""
     try:
-        # Comandos ESC/POS básicos
         ESC = b'\x1b'
         GS = b'\x1d'
         
         comandos = bytearray()
         
-        # Inicializar impresora
         comandos.extend(ESC + b'@')
-        
-        # Configurar alineación al centro
         comandos.extend(ESC + b'a' + b'\x01')
-        
-        # Texto en negrita
         comandos.extend(ESC + b'E' + b'\x01')
         
-        # Contenido del trabajo (manejo seguro de encoding)
         try:
             contenido = trabajo.content.encode('utf-8', errors='ignore')
         except Exception as e:
@@ -629,24 +551,16 @@ def generar_comandos_escpos(trabajo):
             contenido = b'Error en contenido\n'
         
         comandos.extend(contenido)
-        
-        # Desactivar negrita
         comandos.extend(ESC + b'E' + b'\x00')
-        
-        # Saltos de línea
         comandos.extend(b'\n\n\n')
-        
-        # Cortar papel (si la impresora lo soporta)
         comandos.extend(GS + b'V' + b'\x41' + b'\x00')
         
-        # Abrir caja si está configurado
         if trabajo.open_cash_drawer and trabajo.printer and trabajo.printer.has_cash_drawer:
             try:
                 pin = trabajo.printer.cash_drawer_pin if trabajo.printer.cash_drawer_pin is not None else 0
                 on_time = trabajo.printer.cash_drawer_on_time if trabajo.printer.cash_drawer_on_time is not None else 50
                 off_time = trabajo.printer.cash_drawer_off_time if trabajo.printer.cash_drawer_off_time is not None else 50
                 
-                # Validar rangos (0-255)
                 pin = max(0, min(255, pin))
                 on_time = max(0, min(255, on_time))
                 off_time = max(0, min(255, off_time))
@@ -657,12 +571,10 @@ def generar_comandos_escpos(trabajo):
             except Exception as e:
                 logger.warning(f"⚠️ No se pudo agregar comando de caja: {e}")
         
-        # Convertir a hexadecimal
         return comandos.hex()
         
     except Exception as e:
         logger.error(f"❌ Error generando comandos ESC/POS: {e}")
-        # Retornar comando básico de emergencia
         ESC = b'\x1b'
         comando_emergencia = ESC + b'@' + b'Error generando ticket\n\n\n'
         return comando_emergencia.hex()
@@ -673,12 +585,10 @@ def generar_comando_abrir_caja(printer):
     try:
         ESC = b'\x1b'
         
-        # Obtener parámetros con valores por defecto seguros
         pin = printer.cash_drawer_pin if hasattr(printer, 'cash_drawer_pin') and printer.cash_drawer_pin is not None else 0
         on_time = printer.cash_drawer_on_time if hasattr(printer, 'cash_drawer_on_time') and printer.cash_drawer_on_time is not None else 50
         off_time = printer.cash_drawer_off_time if hasattr(printer, 'cash_drawer_off_time') and printer.cash_drawer_off_time is not None else 50
         
-        # Validar rangos (0-255)
         pin = max(0, min(255, pin))
         on_time = max(0, min(255, on_time))
         off_time = max(0, min(255, off_time))
@@ -691,7 +601,6 @@ def generar_comando_abrir_caja(printer):
         
     except Exception as e:
         logger.error(f"❌ Error generando comando de caja: {e}")
-        # Retornar comando por defecto seguro (pin 0, 50ms, 50ms)
         return b'\x1bp\x00\x32\x32'.hex()
 
 
@@ -701,7 +610,11 @@ def generar_comando_abrir_caja(printer):
 
 class PrintAPIView(APIView):
     """API principal para impresión directa"""
-    permission_classes = [AllowAny]  # ← CAMBIADO
+    permission_classes = [AllowAny]
+    
+    @csrf_exempt  # ← AGREGADO
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
     
     @transaction.atomic
     def post(self, request):
@@ -718,7 +631,6 @@ class PrintAPIView(APIView):
             open_cash_drawer = data['open_cash_drawer']
             copies = data['copies']
             
-            # Crear trabajo de impresión
             username = request.user.username if request.user.is_authenticated else 'system'
             print_job = PrintJob.objects.create(
                 printer=printer,
@@ -731,7 +643,6 @@ class PrintAPIView(APIView):
                 status='pending'
             )
             
-            # El agente lo detectará y procesará automáticamente
             return Response({
                 'status': 'success',
                 'message': 'Trabajo de impresión creado',
@@ -751,15 +662,17 @@ class PrintReceiptView(APIView):
     """API para imprimir tickets de venta preformateados"""
     permission_classes = [AllowAny]
     
+    @csrf_exempt  # ← AGREGADO
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+    
     def post(self, request):
-        # Validar datos
         order_data = request.data.get('order')
         if not order_data:
             return Response({
                 'error': 'Debe proporcionar datos de la orden'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Validar items
         items = order_data.get('items', [])
         if not items:
             return Response({
@@ -783,17 +696,15 @@ class PrintReceiptView(APIView):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
-            # Generar contenido del ticket
             content = self.generate_receipt_content(printer, order_data)
             
-            # Crear trabajo de impresión
             username = request.user.username if request.user.is_authenticated else 'system'
             print_job = PrintJob.objects.create(
                 printer=printer,
                 document_type='receipt',
                 content=content,
                 data=order_data,
-                open_cash_drawer=True,  # Siempre abrir caja para ventas
+                open_cash_drawer=True,
                 created_by=username,
                 status='pending'
             )
@@ -819,20 +730,17 @@ class PrintReceiptView(APIView):
         
         lines = []
         
-        # Encabezado
         lines.append(settings.get_company_name().center(chars_per_line))
         lines.append(settings.get_company_address().center(chars_per_line))
         lines.append(f"RUC: {settings.get_tax_id()}".center(chars_per_line))
         lines.append("=" * chars_per_line)
         
-        # Info del ticket
         lines.append("TICKET DE VENTA".center(chars_per_line))
         lines.append(f"Fecha: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}")
         lines.append(f"Ticket #: {order_data.get('order_number', 'N/A')}")
         lines.append(f"Cliente: {order_data.get('customer_name', 'CONTADO')}")
         lines.append("-" * chars_per_line)
         
-        # Productos
         lines.append("PRODUCTO       CANT  PRECIO  TOTAL")
         lines.append("-" * chars_per_line)
         
@@ -847,7 +755,6 @@ class PrintReceiptView(APIView):
         
         lines.append("-" * chars_per_line)
         
-        # Totales
         subtotal = float(order_data.get('subtotal', 0))
         tax = float(order_data.get('tax', 0))
         total = float(order_data.get('total', 0))
@@ -858,32 +765,29 @@ class PrintReceiptView(APIView):
         lines.append(f"{'TOTAL:':30} ${total:>10.2f}")
         lines.append("=" * chars_per_line)
         
-        # Pie de página
         footer = settings.get_receipt_footer()
         if footer:
             lines.append("")
             lines.append(footer.center(chars_per_line))
         
-        lines.append("\n" * 3)  # Espacio para cortar
+        lines.append("\n" * 3)
         
         return "\n".join(lines)
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
 def print_status(request):
     """Estado del sistema de impresión"""
     try:
         from django.db.models import Count
         
-        # Estadísticas básicas
         total_jobs = PrintJob.objects.count()
         pending_jobs = PrintJob.objects.filter(status='pending').count()
         today_jobs = PrintJob.objects.filter(
             created_at__date=timezone.now().date()
         ).count()
         
-        # Impresoras activas
         active_printers = Printer.objects.filter(is_active=True)
         
         return Response({
@@ -903,7 +807,8 @@ def print_status(request):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])  # ← CAMBIADO
+@permission_classes([AllowAny])
+@csrf_exempt  # ← AGREGADO
 def open_cash_drawer(request):
     """Abrir caja registradora manualmente"""
     printer_id = request.data.get('printer_id')
@@ -929,7 +834,6 @@ def open_cash_drawer(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        # Crear trabajo para abrir caja
         username = request.user.username if request.user.is_authenticated else 'system'
         job = PrintJob.objects.create(
             printer=printer,
