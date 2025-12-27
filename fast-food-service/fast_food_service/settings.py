@@ -89,7 +89,7 @@ USE_TZ = True
 # ============================================
 # STATIC FILES
 # ============================================
-STATIC_URL = '/static/'
+STATIC_URL = '/fast-food/static/'  # ← CAMBIADO de '/static/' a '/fast-food/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATICFILES_DIRS = []
