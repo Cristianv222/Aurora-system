@@ -22,7 +22,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework.authtoken',
-    'corsheaders',  # CORS debe estar aquí
+    'corsheaders',
     # Apps del servicio
     'apps.menu',
     'apps.pos',
@@ -37,16 +37,16 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORS debe estar ANTES de CommonMiddleware
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # ← DESACTIVADO PARA DESARROLLO
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'fast_food_service.urls'  # CORREGIDO: guion bajo en lugar de guion
+ROOT_URLCONF = 'fast_food_service.urls'
 
 TEMPLATES = [
     {
@@ -64,7 +64,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'fast_food_service.wsgi.application'  # CORREGIDO: guion bajo
+WSGI_APPLICATION = 'fast_food_service.wsgi.application'
 
 # Database
 DATABASES = {
@@ -89,7 +89,7 @@ USE_TZ = True
 # ============================================
 # STATIC FILES
 # ============================================
-STATIC_URL = '/fast-food/static/'  # ← CAMBIADO de '/static/' a '/fast-food/static/'
+STATIC_URL = '/fast-food/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 STATICFILES_DIRS = []
@@ -105,11 +105,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # ============================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        #'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-    'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
@@ -120,15 +119,16 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.BrowsableAPIRenderer',
     ],
 }
+
 # ============================================
-# CORS - CORREGIDO PARA PRODUCCIÓN
+# CORS - CONFIGURACIÓN ACTUALIZADA
 # ============================================
-# Obtener orígenes desde variable de entorno o usar defaults
 cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
 if cors_origins:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
 else:
     CORS_ALLOWED_ORIGINS = [
+        "https://aurora.fronteratech.ec",  # ← AGREGADO
         "http://146.190.217.68",
         "http://localhost:3000",
     ]
@@ -146,12 +146,13 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
-# CSRF trusted origins
-csrf_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+# CSRF trusted origins (aunque CSRF está desactivado)
+csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if csrf_origins:
     CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins.split(',')]
 else:
     CSRF_TRUSTED_ORIGINS = [
+        "https://aurora.fronteratech.ec",  # ← AGREGADO
         "http://146.190.217.68",
         "http://localhost:3000",
     ]
