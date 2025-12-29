@@ -52,3 +52,7 @@ yarn-error.log
 # Databases
 *.sqlite3
 *.db
+
+# Docker override para desarrollo local
+docker-compose.override.yml
+nginx-dev.conf

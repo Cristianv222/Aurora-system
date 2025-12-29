@@ -1,0 +1,94 @@
+events {
+    worker_connections 1024;
+}
+
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    upstream auth_backend {
+        server auth-service:8000;
+    }
+
+    upstream fastfood_backend {
+        server fast-food-service:8000;
+    }
+
+    upstream frontend_app {
+        server frontend:3000;
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+        client_max_body_size 100M;
+
+        location /fast-food/admin {
+            proxy_pass http://fastfood_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/authentication/ {
+            rewrite ^/api/authentication/(.*) /auth/api/authentication/$1 break;
+            proxy_pass http://auth_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/users/ {
+            rewrite ^/api/users/(.*) /auth/api/users/$1 break;
+            proxy_pass http://auth_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/roles/ {
+            rewrite ^/api/roles/(.*) /auth/api/roles/$1 break;
+            proxy_pass http://auth_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /api/fast-food/ {
+            rewrite ^/api/fast-food/(.*) /fast-food/$1 break;
+            proxy_pass http://fastfood_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /static/auth/ {
+            alias /usr/share/nginx/html/static/auth/;
+        }
+
+        location /static/fastfood/ {
+            alias /usr/share/nginx/html/static/fastfood/;
+        }
+
+        location /fast-food/static/ {
+            alias /usr/share/nginx/html/static/fastfood/;
+        }
+
+        location / {
+            proxy_pass http://frontend_app;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}

@@ -1,0 +1,55 @@
+# docker-compose.override.yml
+# Configuración para desarrollo local
+# Este archivo NO se versiona en Git (debe estar en .gitignore)
+# Docker Compose lo fusiona automáticamente con docker-compose.yml
+
+services:
+  # Nginx - Exponer puertos al host para acceso local
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: "no"  # En desarrollo no reiniciar automáticamente
+
+  # Frontend - Variables de entorno para desarrollo local
+  frontend:
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost
+      - REACT_APP_AUTH_SERVICE=http://localhost/api/auth
+      - REACT_APP_FAST_FOOD_SERVICE=http://localhost/api/fastfood
+      - CHOKIDAR_USEPOLLING=true  # Para hot reload en Windows
+    stdin_open: true  # Para que React funcione correctamente
+    tty: true
+    restart: "no"
+
+  # Auth Service - Configuración de desarrollo
+  auth-service:
+    environment:
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost,http://127.0.0.1:3000
+    volumes:
+      - ./auth-service:/app  # Hot reload para desarrollo
+    restart: "no"
+
+  # Fast Food Service - Configuración de desarrollo
+  fast-food-service:
+    environment:
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost,http://127.0.0.1:3000
+    volumes:
+      - ./fast-food-service:/app  # Hot reload para desarrollo
+    restart: "no"
+
+  # PostgreSQL - Exponer puerto para herramientas locales (pgAdmin, DBeaver, etc)
+  postgres:
+    ports:
+      - "5432:5432"
+    restart: "no"
+
+  # Redis - Exponer puerto para herramientas locales (Redis Commander, etc)
+  redis:
+    ports:
+      - "6379:6379"
+    restart: "no"
