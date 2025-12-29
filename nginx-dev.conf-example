@@ -31,6 +31,14 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
+        # MEDIA FILES - Imágenes de productos
+        location /media/ {
+            alias /usr/share/nginx/html/media/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+            add_header Access-Control-Allow-Origin *;
+        }
+
         location /api/authentication/ {
             rewrite ^/api/authentication/(.*) /auth/api/authentication/$1 break;
             proxy_pass http://auth_backend;
