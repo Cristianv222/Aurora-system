@@ -745,12 +745,14 @@ class PrintReceiptView(APIView):
         
         if printed_at_str:
             from django.utils.dateparse import parse_datetime
-            current_time = parse_datetime(printed_at_str)
+            dt = parse_datetime(printed_at_str)
+            if dt:
+                current_time = timezone.localtime(dt)
         
         if not current_time:
             current_time = timezone.localtime(timezone.now())
     
-        lines.append(f"Fecha: {current_time.strftime('%d/%m/%Y %H:%M')}")
+        lines.append(f"Fecha: {current_time.strftime('%d/%m/%Y')}  Hora: {current_time.strftime('%H:%M')}")
         
         lines.append(f"Ticket #: {order_data.get('order_number', 'N/A')}")
         lines.append(f"Cliente: {order_data.get('customer_name', 'CONSUMIDOR FINAL')}")
