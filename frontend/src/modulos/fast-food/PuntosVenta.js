@@ -1077,11 +1077,17 @@ const PuntosVenta = () => {
     // Renderizar vista con botones abajo (para pantallas <= 1366px - menos de 16 pulgadas)
     const renderCompactView = () => (
         <div style={{
-            height: '100vh',
+            height: '100dvh', // Usar dvh para móviles/tablets
+            maxHeight: '-webkit-fill-available', // Fallback iOS
             display: 'flex',
             flexDirection: 'column',
             backgroundColor: '#f9fafb',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            position: 'fixed', // Fijar viewport
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
         }}>
             {/* Header */}
             <div style={{
@@ -1089,7 +1095,8 @@ const PuntosVenta = () => {
                 borderBottom: '2px solid #e5e7eb',
                 padding: '0.75rem',
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
-                flexShrink: 0
+                flexShrink: 0,
+                zIndex: 10
             }}>
                 <h1 style={{
                     fontSize: screenWidth <= 768 ? '1.25rem' : '1.5rem',
@@ -1105,7 +1112,13 @@ const PuntosVenta = () => {
             {/* Contenido principal - Alterna entre productos y orden */}
             {!showOrderDetails ? (
                 // Vista de productos
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    minHeight: 0, // Clave para que el scroll interno funcione en flex
+                    overflow: 'hidden'
+                }}>
                     {/* Filtros */}
                     <div style={{
                         padding: '0.75rem',
