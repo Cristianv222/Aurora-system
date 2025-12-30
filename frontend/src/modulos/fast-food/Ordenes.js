@@ -517,6 +517,11 @@ const Ordenes = () => {
                                                     <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
                                                         Cantidad: {item.quantity} × ${item.unit_price}
                                                     </p>
+                                                    {item.notes && (
+                                                        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#d97706', fontStyle: 'italic', backgroundColor: '#fffbeb', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                                            Nota: {item.notes}
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <p style={{ margin: 0, fontWeight: '600', color: '#059669' }}>
                                                     ${item.line_total || item.subtotal}

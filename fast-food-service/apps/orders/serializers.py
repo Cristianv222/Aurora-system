@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.db import transaction
+from django.utils import timezone
 from decimal import Decimal
 import requests
 import logging
@@ -272,6 +273,16 @@ class OrderCreateSerializer(serializers.Serializer):
         # Extraer datos que no van directamente al modelo Order
         items_data = validated_data.pop('items')
         delivery_info_data = validated_data.pop('delivery_info', None)
+        
+        # FORZAR ESTADO COMPLETADO PARA ORDENES DE POS
+        # El usuario requiere que nazcan 'completadas' y 'pagadas'
+        validated_data['status'] = 'completed'
+        validated_data['payment_status'] = 'paid'
+        
+        now = timezone.now()
+        validated_data['confirmed_at'] = now
+        validated_data['ready_at'] = now
+        validated_data['delivered_at'] = now
         
         # Crear la orden
         order = Order.objects.create(**validated_data)

@@ -743,7 +743,7 @@ class PrintReceiptView(APIView):
         current_time = timezone.now()
     
         lines.append(f"Fecha: {current_time.strftime('%d/%m/%Y')}")
-        lines.append(f"Hora: {current_time.strftime('%I:%M:%S %p')}")
+        
         lines.append(f"Ticket #: {order_data.get('order_number', 'N/A')}")
         lines.append(f"Cliente: {order_data.get('customer_name', 'CONSUMIDOR FINAL')}")
         lines.append(f"Mesa: {order_data.get('table_number', 'N/A')}")

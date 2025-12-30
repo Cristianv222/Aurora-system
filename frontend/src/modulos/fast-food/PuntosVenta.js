@@ -59,8 +59,12 @@ const PuntosVenta = () => {
     const [selectedTable, setSelectedTable] = useState('');
     const [discountCode, setDiscountCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState(null);
-    
-    const [showReviewModal, setShowReviewModal] = useState(false); 
+
+    const [showReviewModal, setShowReviewModal] = useState(false);
+
+    // 3.5 ESTADO DE CALCULADORA DE VUELTO
+    const [cashGiven, setCashGiven] = useState(null);
+    const [inputCash, setInputCash] = useState('');
 
     // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
@@ -76,7 +80,7 @@ const PuntosVenta = () => {
         phone: '',
         address: '',
         city: '',
-        cedula: '' 
+        cedula: ''
     });
 
     // =====================================
@@ -84,58 +88,58 @@ const PuntosVenta = () => {
     // =====================================
     useEffect(() => {
         let isMounted = true;
-        
+
         const fetchData = async () => {
             try {
                 const productsRes = await api.get('/api/menu/products/', {
                     baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
                 });
-                
+
                 if (!isMounted) return;
-                
+
                 const loadedProducts = productsRes.data.results || productsRes.data || [];
                 setProducts(loadedProducts);
-                
+
             } catch (err) {
                 console.error('Error cargando productos:', err);
             }
-            
+
             try {
                 const categoriesRes = await api.get('/api/menu/categories/', {
                     baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
                 });
-                
+
                 if (!isMounted) return;
-                
+
                 const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
                 setCategories(loadedCategories);
-                
+
             } catch (err) {
                 console.error('Error cargando categorías:', err);
             }
-            
+
             try {
                 const tablesRes = await api.get('/api/pos/tables/', {
                     baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
                 });
-                
+
                 if (!isMounted) return;
                 setTables(tablesRes.data.results || tablesRes.data || []);
-                
+
             } catch (err) {
                 console.warn('Mesas no disponibles');
                 if (isMounted) {
                     setTables([]);
                 }
             }
-            
+
             if (isMounted) {
                 setLoading(false);
             }
         };
-        
+
         fetchData();
-        
+
         return () => {
             isMounted = false;
         };
@@ -149,7 +153,7 @@ const PuntosVenta = () => {
 
         handleResize(); // Ejecutar al inicio
         window.addEventListener('resize', handleResize);
-        
+
         return () => {
             window.removeEventListener('resize', handleResize);
         };
@@ -206,7 +210,7 @@ const PuntosVenta = () => {
 
     const saveNote = () => {
         if (!editingNoteForItem) return;
-        
+
         setCart(prevCart => {
             return prevCart.map(item => {
                 if (item.product_id === editingNoteForItem) {
@@ -215,7 +219,7 @@ const PuntosVenta = () => {
                 return item;
             });
         });
-        
+
         setEditingNoteForItem(null);
         setNoteText('');
     };
@@ -246,7 +250,7 @@ const PuntosVenta = () => {
     const calculateTotal = useMemo(() => {
         const subtotal = calculateSubtotal;
         const discount = calculateDiscountAmount;
-        return (subtotal - discount); 
+        return (subtotal - discount);
     }, [calculateSubtotal, calculateDiscountAmount]);
 
     // =====================================
@@ -282,7 +286,7 @@ const PuntosVenta = () => {
             return;
         }
         try {
-            const response = await api.post('/api/customers/admin/search/', { query }, { 
+            const response = await api.post('/api/customers/admin/search/', { query }, {
                 baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
             });
             setCustomers(response.data.data.customers || []);
@@ -294,11 +298,11 @@ const PuntosVenta = () => {
     const handleCreateCustomer = async (e) => {
         e.preventDefault();
         try {
-             const customerData = {
+            const customerData = {
                 ...newCustomer,
-                cedula: newCustomer.cedula || null 
+                cedula: newCustomer.cedula || null
             };
-            
+
             const response = await api.post('/api/customers/register/', customerData, {
                 baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
             });
@@ -316,7 +320,7 @@ const PuntosVenta = () => {
                 phone: '',
                 address: '',
                 city: '',
-                cedula: '' 
+                cedula: ''
             });
         } catch (err) {
             console.error('Error creating customer:', err);
@@ -360,7 +364,7 @@ const PuntosVenta = () => {
     // 🖨️ FUNCIÓN PRINCIPAL CON IMPRESIÓN
     const finalPlaceOrder = async () => {
         if (cart.length === 0) return;
-        
+
         setProcessingOrder(true);
         setShowReviewModal(false);
 
@@ -379,14 +383,22 @@ const PuntosVenta = () => {
             tableNumber = selectedTable;
         }
 
+        // Preparar notas con información de pago
+        let orderNotes = '';
+        if (cashGiven) {
+            const change = cashGiven - calculateTotal;
+            orderNotes = `Pago con: ${formatCurrency(cashGiven)} - Cambio: ${formatCurrency(change)}`;
+        }
+
         // Modificado para incluir notas en los items
         const orderPayload = {
             order_type: orderType,
             table_number: tableNumber,
+            notes: orderNotes, // Nueva nota general
             items: cart.map(item => ({
                 product_id: item.product_id,
                 quantity: item.quantity,
-                note: item.note || '' // Incluir nota en el payload
+                notes: item.note || '' // Corregido: 'notes' (plural) para coincidir con el serializer
             })),
             discount_code: appliedDiscount ? appliedDiscount.code : null,
             customer_id: selectedCustomer ? selectedCustomer.id : null
@@ -399,12 +411,12 @@ const PuntosVenta = () => {
             });
 
             const createdOrder = orderResponse.data;
-            
+
             // 2. PREPARAR DATOS PARA EL TICKET (incluyendo notas)
             const receiptData = {
                 order_number: createdOrder.order_number || createdOrder.id,
-                customer_name: selectedCustomer 
-                    ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` 
+                customer_name: selectedCustomer
+                    ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}`
                     : 'CONSUMIDOR FINAL',
                 table_number: selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA'),
                 items: cart.map(item => ({
@@ -424,7 +436,7 @@ const PuntosVenta = () => {
             try {
                 const printResult = await printerService.printReceipt(receiptData);
                 console.log('✅ Ticket enviado a impresión:', printResult);
-                
+
                 alert(
                     `✅ ¡Orden creada exitosamente!\n\n` +
                     `Orden: ${createdOrder.order_number || createdOrder.id}\n` +
@@ -434,7 +446,7 @@ const PuntosVenta = () => {
                 );
             } catch (printError) {
                 console.error('⚠️ Error al imprimir:', printError);
-                
+
                 alert(
                     `⚠️ Orden creada pero no se pudo imprimir\n\n` +
                     `Orden: ${createdOrder.order_number || createdOrder.id}\n\n` +
@@ -450,18 +462,20 @@ const PuntosVenta = () => {
             setSelectedTable('');
             setSelectedCustomer(null);
             setCustomerSearch('');
+            setCashGiven(null); // Resetear calculadora
+            setInputCash('');
 
         } catch (err) {
             console.error('❌ Error al procesar la orden:', err);
-            const errorMsg = err.response?.data 
-                ? JSON.stringify(err.response.data) 
+            const errorMsg = err.response?.data
+                ? JSON.stringify(err.response.data)
                 : 'Error al procesar la orden';
             alert(`❌ Error: ${errorMsg}`);
         } finally {
             setProcessingOrder(false);
         }
     };
-    
+
     // 🔓 FUNCIÓN PARA ABRIR CAJA MANUALMENTE
     const handleOpenCashDrawer = async () => {
         try {
@@ -471,7 +485,7 @@ const PuntosVenta = () => {
             alert('❌ Error al abrir caja. Verifica que el agente esté ejecutándose.');
         }
     };
-    
+
     const openOrderConfirmationModal = () => {
         if (cart.length === 0) {
             alert("El carrito está vacío.");
@@ -487,9 +501,9 @@ const PuntosVenta = () => {
     const renderReviewDetails = () => (
         <div style={{ padding: screenWidth <= 1366 ? '0.5rem' : '0 1rem' }}>
             {/* Sección de configuración de orden */}
-            <div style={{ 
-                backgroundColor: '#f3f4f6', 
-                borderRadius: '8px', 
+            <div style={{
+                backgroundColor: '#f3f4f6',
+                borderRadius: '8px',
                 padding: screenWidth <= 1366 ? '0.75rem' : '1rem',
                 marginBottom: '1rem'
             }}>
@@ -508,7 +522,7 @@ const PuntosVenta = () => {
                         <div style={{ position: 'relative', flex: 1 }}>
                             <input
                                 type="text"
-                                placeholder="Buscar por nombre, cédula o teléfono..." 
+                                placeholder="Buscar por nombre, cédula o teléfono..."
                                 style={{
                                     width: '100%',
                                     padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
@@ -568,7 +582,7 @@ const PuntosVenta = () => {
                                                     color: '#6b7280',
                                                     margin: 0
                                                 }}>
-                                                    {c.email} {c.cedula && `(${c.cedula})`} 
+                                                    {c.email} {c.cedula && `(${c.cedula})`}
                                                 </p>
                                             </div>
                                         </div>
@@ -716,34 +730,34 @@ const PuntosVenta = () => {
                 </p>
             </div>
 
-            <div style={{ 
-                maxHeight: screenWidth <= 1366 ? '40vh' : '30vh', 
-                overflowY: 'auto', 
+            <div style={{
+                maxHeight: screenWidth <= 1366 ? '40vh' : '30vh',
+                overflowY: 'auto',
                 marginBottom: '1rem',
                 fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem'
             }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead style={{ backgroundColor: '#f3f4f6' }}>
                         <tr>
-                            <th style={{ 
-                                textAlign: 'left', 
-                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem', 
-                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem', 
-                                color: '#4b5563' 
+                            <th style={{
+                                textAlign: 'left',
+                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem',
+                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem',
+                                color: '#4b5563'
                             }}>PRODUCTO</th>
-                            <th style={{ 
-                                width: '15%', 
-                                textAlign: 'right', 
-                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem', 
-                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem', 
-                                color: '#4b5563' 
+                            <th style={{
+                                width: '15%',
+                                textAlign: 'right',
+                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem',
+                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem',
+                                color: '#4b5563'
                             }}>CANT.</th>
-                            <th style={{ 
-                                width: '25%', 
-                                textAlign: 'right', 
-                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem', 
-                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem', 
-                                color: '#4b5563' 
+                            <th style={{
+                                width: '25%',
+                                textAlign: 'right',
+                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem',
+                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem',
+                                color: '#4b5563'
                             }}>TOTAL</th>
                         </tr>
                     </thead>
@@ -751,9 +765,9 @@ const PuntosVenta = () => {
                         {cart.map((item, index) => (
                             <React.Fragment key={index}>
                                 <tr>
-                                    <td style={{ 
-                                        padding: screenWidth <= 1366 ? '0.25rem 0' : '0.5rem 0', 
-                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem' 
+                                    <td style={{
+                                        padding: screenWidth <= 1366 ? '0.25rem 0' : '0.5rem 0',
+                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem'
                                     }}>
                                         <div>
                                             {item.name}
@@ -769,14 +783,14 @@ const PuntosVenta = () => {
                                             )}
                                         </div>
                                     </td>
-                                    <td style={{ 
-                                        textAlign: 'right', 
-                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem' 
+                                    <td style={{
+                                        textAlign: 'right',
+                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem'
                                     }}>{item.quantity}</td>
-                                    <td style={{ 
-                                        textAlign: 'right', 
-                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem', 
-                                        fontWeight: '600' 
+                                    <td style={{
+                                        textAlign: 'right',
+                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem',
+                                        fontWeight: '600'
                                     }}>
                                         {formatCurrency(item.price * item.quantity)}
                                     </td>
@@ -787,23 +801,119 @@ const PuntosVenta = () => {
                 </table>
             </div>
 
-            <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '1rem' }}>
-                <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    marginBottom: '0.5rem', 
-                    fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem', 
-                    color: '#6b7280' 
+            {/* SECCIÓN: CALCULADORA DE VUELTO */}
+            <div style={{
+                marginTop: '1rem',
+                padding: '1rem',
+                backgroundColor: '#eef2ff',
+                borderRadius: '8px',
+                border: '1px solid #c7d2fe'
+            }}>
+                <h4 style={{
+                    margin: '0 0 0.5rem 0',
+                    color: '#3730a3',
+                    fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem'
+                }}>
+                    🧮 Calculadora de Vuelto
+                </h4>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+                    {[1, 2, 5, 10, 20, 50, 100].map(bill => (
+                        <button
+                            key={bill}
+                            onClick={() => {
+                                setCashGiven(bill);
+                                setInputCash(bill.toString());
+                            }}
+                            style={{
+                                padding: '0.5rem',
+                                backgroundColor: cashGiven === bill ? '#4f46e5' : '#ffffff',
+                                color: cashGiven === bill ? '#ffffff' : '#3730a3',
+                                border: '1px solid #4f46e5',
+                                borderRadius: '6px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                minHeight: TOUCH_MIN_SIZE
+                            }}
+                        >
+                            ${bill}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => {
+                            setCashGiven(null);
+                            setInputCash('');
+                        }}
+                        style={{
+                            backgroundColor: '#fee2e2',
+                            color: '#b91c1c',
+                            border: '1px solid #ef4444',
+                            borderRadius: '6px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Borrar
+                    </button>
+                </div>
+
+                {cashGiven !== null && (
+                    <div style={{
+                        padding: '0.75rem',
+                        backgroundColor: '#ffffff',
+                        borderRadius: '6px',
+                        border: '1px solid #e0e7ff',
+                        textAlign: 'center'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ color: '#6b7280' }}>Total a Pagar:</span>
+                            <span style={{ fontWeight: 'bold' }}>{formatCurrency(calculateTotal)}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                            <span style={{ color: '#6b7280' }}>Efectivo Recibido:</span>
+                            <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>{formatCurrency(cashGiven)}</span>
+                        </div>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            marginTop: '0.5rem',
+                            paddingTop: '0.5rem',
+                            borderTop: '1px dashed #c7d2fe',
+                            fontSize: '1.2rem',
+                            fontWeight: '800'
+                        }}>
+                            <span style={{ color: '#3730a3' }}>VUELTO:</span>
+                            <span style={{ color: (cashGiven - calculateTotal) < 0 ? '#ef4444' : '#059669' }}>
+                                {formatCurrency(cashGiven - calculateTotal)}
+                            </span>
+                        </div>
+                        {(cashGiven - calculateTotal) < 0 && (
+                            <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: '0.5rem 0 0 0' }}>
+                                ⚠️ Monto insuficiente
+                            </p>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '1rem', marginTop: '1rem' }}>
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: '0.5rem',
+                    fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem',
+                    color: '#6b7280'
                 }}>
                     <span>Subtotal</span>
                     <span>{formatCurrency(calculateSubtotal)}</span>
                 </div>
-                
+
                 {appliedDiscount && (
-                    <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        marginBottom: '0.5rem', 
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '0.5rem',
                         color: '#dc2626',
                         fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem'
                     }}>
@@ -812,13 +922,13 @@ const PuntosVenta = () => {
                     </div>
                 )}
 
-                <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between', 
-                    fontSize: screenWidth <= 1366 ? '1.25rem' : '1.5rem', 
-                    fontWeight: 'bold', 
-                    borderTop: '1px solid #ccc', 
-                    paddingTop: '0.75rem' 
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: screenWidth <= 1366 ? '1.25rem' : '1.5rem',
+                    fontWeight: 'bold',
+                    borderTop: '1px solid #ccc',
+                    paddingTop: '0.75rem'
                 }}>
                     <span>Total Final</span>
                     <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
@@ -1033,8 +1143,8 @@ const PuntosVenta = () => {
                     }}>
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: screenWidth <= 768 ? 
-                                'repeat(auto-fill, minmax(140px, 1fr))' : 
+                            gridTemplateColumns: screenWidth <= 768 ?
+                                'repeat(auto-fill, minmax(140px, 1fr))' :
                                 'repeat(auto-fill, minmax(160px, 1fr))',
                             gap: '0.75rem'
                         }}>
@@ -1120,7 +1230,7 @@ const PuntosVenta = () => {
                 // Vista de orden
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* Header de orden */}
-                    <div style={{ 
+                    <div style={{
                         padding: '0.75rem',
                         backgroundColor: '#f3f4f6',
                         flexShrink: 0,
@@ -1154,12 +1264,12 @@ const PuntosVenta = () => {
                             ← Productos
                         </button>
                     </div>
-                    
+
                     {/* Contenido del carrito */}
                     <div style={{
-                        flex: 1, 
+                        flex: 1,
                         overflowY: 'auto',
-                        padding: '0.75rem', 
+                        padding: '0.75rem',
                         display: 'flex',
                         flexDirection: 'column'
                     }}>
@@ -1173,9 +1283,9 @@ const PuntosVenta = () => {
                                 <p style={{ margin: 0 }}>No hay productos en el carrito</p>
                             </div>
                         ) : (
-                            <div style={{ 
-                                display: 'flex', 
-                                flexDirection: 'column', 
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
                                 gap: '0.5rem',
                                 flex: 1
                             }}>
@@ -1328,7 +1438,7 @@ const PuntosVenta = () => {
                                                     </span>
                                                 )}
                                             </div>
-                                            
+
                                             <button
                                                 style={{
                                                     padding: '0.25rem 0.5rem',
@@ -1352,7 +1462,7 @@ const PuntosVenta = () => {
                                 ))}
                             </div>
                         )}
-                        
+
                         {/* Totales y Botones */}
                         {cart.length > 0 && (
                             <div style={{
@@ -1409,7 +1519,7 @@ const PuntosVenta = () => {
                                     style={{
                                         width: '100%',
                                         padding: '0.75rem',
-                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6', 
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
@@ -1540,9 +1650,9 @@ const PuntosVenta = () => {
                 </h1>
             </div>
 
-            <div style={{ 
-                display: 'flex', 
-                flex: 1, 
+            <div style={{
+                display: 'flex',
+                flex: 1,
                 overflow: 'hidden',
                 flexDirection: 'row'
             }}>
@@ -1713,7 +1823,7 @@ const PuntosVenta = () => {
                     flexShrink: 0
                 }}>
                     {/* Header de Orden Actual */}
-                    <div style={{ 
+                    <div style={{
                         padding: '1rem 1.5rem',
                         backgroundColor: '#f3f4f6',
                         flexShrink: 0,
@@ -1728,12 +1838,12 @@ const PuntosVenta = () => {
                             Orden Actual
                         </h3>
                     </div>
-                    
+
                     {/* Contenido del Carrito */}
                     <div style={{
-                        flex: 1, 
+                        flex: 1,
                         overflowY: 'auto',
-                        padding: '1.5rem', 
+                        padding: '1.5rem',
                         display: 'flex',
                         flexDirection: 'column'
                     }}>
@@ -1753,9 +1863,9 @@ const PuntosVenta = () => {
                                 </p>
                             </div>
                         ) : (
-                            <div style={{ 
-                                display: 'flex', 
-                                flexDirection: 'column', 
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
                                 gap: '0.75rem',
                                 flex: 1
                             }}>
@@ -1773,9 +1883,9 @@ const PuntosVenta = () => {
                                         }}
                                     >
                                         {/* Información del producto */}
-                                        <div style={{ 
-                                            display: 'flex', 
-                                            justifyContent: 'space-between', 
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
                                             alignItems: 'center',
                                             gap: '0.75rem'
                                         }}>
@@ -1913,7 +2023,7 @@ const PuntosVenta = () => {
                                                     </span>
                                                 )}
                                             </div>
-                                            
+
                                             <button
                                                 style={{
                                                     padding: '0.375rem 0.75rem',
@@ -1939,7 +2049,7 @@ const PuntosVenta = () => {
                                 ))}
                             </div>
                         )}
-                        
+
                         {/* Totales y Botones - SOLO se muestra cuando hay productos */}
                         {cart.length > 0 && (
                             <div style={{
@@ -1996,7 +2106,7 @@ const PuntosVenta = () => {
                                     style={{
                                         width: '100%',
                                         padding: '1rem',
-                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6', 
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
                                         border: 'none',
                                         borderRadius: '10px',
                                         color: '#ffffff',
@@ -2110,10 +2220,10 @@ const PuntosVenta = () => {
                                 }}>
                                     Confirmación de Orden
                                 </h3>
-                                <p style={{ 
-                                    color: '#d1d5db', 
-                                    fontSize: isSmallScreen ? '0.75rem' : '0.9rem', 
-                                    margin: '0.25rem 0 0 0' 
+                                <p style={{
+                                    color: '#d1d5db',
+                                    fontSize: isSmallScreen ? '0.75rem' : '0.9rem',
+                                    margin: '0.25rem 0 0 0'
                                 }}>
                                     Confirma la orden antes de procesar el pago.
                                 </p>
@@ -2147,7 +2257,7 @@ const PuntosVenta = () => {
                             >
                                 Editar Pedido
                             </button>
-                            
+
                             <button
                                 style={{
                                     padding: isSmallScreen ? '0.75rem' : '0.75rem 1.5rem',
@@ -2212,7 +2322,7 @@ const PuntosVenta = () => {
                         </div>
 
                         <form onSubmit={handleCreateCustomer} style={{ padding: isSmallScreen ? '1rem' : '1.5rem' }}>
-                            
+
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
@@ -2240,7 +2350,7 @@ const PuntosVenta = () => {
                                     }}
                                 />
                             </div>
-                            
+
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
@@ -2329,7 +2439,7 @@ const PuntosVenta = () => {
                                             transition: 'all 0.2s',
                                             boxSizing: 'border-box',
                                             minHeight: TOUCH_MIN_SIZE
-                                    }}
+                                        }}
                                     />
                                 </div>
                             </div>
