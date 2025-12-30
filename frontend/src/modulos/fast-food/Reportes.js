@@ -151,6 +151,8 @@ const Reportes = () => {
         }
     };
 
+
+
     // ========== GESTIÓN DE TURNOS ==========
     const checkCurrentShift = useCallback(async () => {
         try {
@@ -164,9 +166,7 @@ const Reportes = () => {
         }
     }, []);
 
-    useEffect(() => {
-        checkCurrentShift();
-    }, [checkCurrentShift]);
+
 
     const handleOpenShift = async (e) => {
         e?.preventDefault();
@@ -737,6 +737,28 @@ const Reportes = () => {
         }
     };
 
+    // POLLING: Actualización en tiempo real (cada 10s)
+    // POLLING: Actualización en tiempo real (cada 10s) + Carga Inicial
+    useEffect(() => {
+        // Carga inicial inmediata
+        checkCurrentShift();
+        fetchReports();
+
+        const interval = setInterval(() => {
+            checkCurrentShift();
+            fetchReports();
+            // Si hay un reporte diario seleccionado, actualizarlo también
+            if (currentReport && (currentReport.date || currentReport.start_date)) {
+                const d = currentReport.date || currentReport.start_date;
+                // Solo actualizar si es reporte diario
+                if (d && !currentReport.start_date) { // simple check for daily
+                    fetchDayShifts(d);
+                }
+            }
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [checkCurrentShift, fetchReports, currentReport, fetchDayShifts]);
+
     // --- Funciones de Renderizado ---
 
     // Renderizar estadísticas de dashboard
@@ -1041,6 +1063,11 @@ const Reportes = () => {
                                                         + {item.extras.map(e => e.extra_name).join(', ')}
                                                     </span>
                                                 }
+                                                {item.note && (
+                                                    <div style={{ fontSize: '0.75rem', color: '#666', fontStyle: 'italic', marginTop: '2px' }}>
+                                                        Nota: {item.note}
+                                                    </div>
+                                                )}
                                             </td>
                                             <td style={{ padding: 8, border: '1px solid #eee', textAlign: 'right', fontSize: '0.8rem' }}>{(item.quantity || 1).toLocaleString()}</td>
                                             <td style={{ padding: 8, border: '1px solid #eee', textAlign: 'right', fontSize: '0.8rem' }}>{formatCurrency(item.unit_price || 0)}</td>
@@ -1071,23 +1098,7 @@ const Reportes = () => {
                     <p className="subtitle">Datos en tiempo real desde la base de datos.</p>
                 </div>
                 <div className="actions-group">
-                    <button
-                        onClick={closeDay}
-                        disabled={currentReport?.is_closed || connectionError || !currentReport}
-                        className={`action-button ${currentReport?.is_closed ? 'closed' : 'open'}`}
-                    >
-                        {currentReport?.is_closed ? 'Día Cerrado' : 'Cerrar Día'}
-                    </button>
-                    {currentReport && (
-                        <button
-                            onClick={handlePrintPDF}
-                            disabled={loadingData || connectionError || !currentReport}
-                            className="action-button primary"
-                            style={{ backgroundColor: '#cc3333' }}
-                        >
-                            Imprimir PDF Detallado
-                        </button>
-                    )}
+                    {/* Botones de acción eliminados por solicitud */}
                 </div>
             </div>
 
@@ -1189,15 +1200,7 @@ const Reportes = () => {
                         </div>
                     </div>
 
-                    {/* Botón Generar Reporte - AHORA ES OPCIONAL */}
-                    <button
-                        onClick={forceGenerateReport}
-                        disabled={loadingData || connectionError}
-                        className={`generate-button ${loadingData ? 'loading' : ''}`}
-                        title="Forzar generación de nuevo reporte (solo si es necesario)"
-                    >
-                        {loadingData ? 'Generando...' : 'Generar Nuevo Reporte'}
-                    </button>
+                    {/* Botón Generar Reporte - ELIMINADO */}
                 </div>
 
                 {/* Filtros Rápidos */}

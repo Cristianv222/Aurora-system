@@ -520,8 +520,7 @@ class OrderReportDetailSerializer(serializers.ModelSerializer):
     total_amount = serializers.FloatField(source='total', read_only=True)
     timestamp = serializers.DateTimeField(source='created_at', read_only=True)
     
-    # Asumo que Order tiene un método get_payment_method_display() o un campo simple
-    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    payment_method_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Order
@@ -530,3 +529,10 @@ class OrderReportDetailSerializer(serializers.ModelSerializer):
             'items', 'payment_method_display',
             'total_amount', 'timestamp',
         ]
+        
+    def get_payment_method_display(self, obj):
+        """Obtiene el nombre del método de pago asociado"""
+        payment = obj.payments.filter(status='completed').first() or obj.payments.first()
+        if payment and payment.payment_method:
+            return payment.payment_method.name
+        return obj.get_payment_status_display()

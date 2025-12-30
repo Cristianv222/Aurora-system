@@ -47,8 +47,10 @@ const PuntosVenta = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [processingOrder, setProcessingOrder] = useState(false);
-    const [isMobileView, setIsMobileView] = useState(false);
     const [screenWidth, setScreenWidth] = useState(window.innerWidth);
+    const [showOrderDetails, setShowOrderDetails] = useState(false);
+    const [editingNoteForItem, setEditingNoteForItem] = useState(null);
+    const [noteText, setNoteText] = useState('');
 
     // 2. ESTADO DEL PUNTO DE VENTA
     const [cart, setCart] = useState([]);
@@ -59,9 +61,6 @@ const PuntosVenta = () => {
     const [appliedDiscount, setAppliedDiscount] = useState(null);
     
     const [showReviewModal, setShowReviewModal] = useState(false); 
-    const [showOrderDetails, setShowOrderDetails] = useState(false);
-    const [editingNoteForItem, setEditingNoteForItem] = useState(null);
-    const [noteText, setNoteText] = useState('');
 
     // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
@@ -145,9 +144,7 @@ const PuntosVenta = () => {
     // Detectar tamaño de pantalla
     useEffect(() => {
         const handleResize = () => {
-            const width = window.innerWidth;
-            setScreenWidth(width);
-            setIsMobileView(width <= 768); // 768px es el breakpoint para POS móvil
+            setScreenWidth(window.innerWidth);
         };
 
         handleResize(); // Ejecutar al inicio
@@ -488,19 +485,19 @@ const PuntosVenta = () => {
     // =====================================
 
     const renderReviewDetails = () => (
-        <div style={{ padding: isMobileView ? '0.5rem' : '0 1rem' }}>
+        <div style={{ padding: screenWidth <= 1366 ? '0.5rem' : '0 1rem' }}>
             {/* Sección de configuración de orden */}
             <div style={{ 
                 backgroundColor: '#f3f4f6', 
                 borderRadius: '8px', 
-                padding: isMobileView ? '0.75rem' : '1rem',
+                padding: screenWidth <= 1366 ? '0.75rem' : '1rem',
                 marginBottom: '1rem'
             }}>
                 {/* Cliente */}
                 <div style={{ marginBottom: '1rem' }}>
                     <label style={{
                         display: 'block',
-                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.875rem',
                         fontWeight: '600',
                         color: '#374151',
                         marginBottom: '0.5rem'
@@ -514,10 +511,10 @@ const PuntosVenta = () => {
                                 placeholder="Buscar por nombre, cédula o teléfono..." 
                                 style={{
                                     width: '100%',
-                                    padding: isMobileView ? '0.5rem' : '0.75rem',
+                                    padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
                                     border: '2px solid #d1d5db',
                                     borderRadius: '8px',
-                                    fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                    fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
                                     transition: 'all 0.2s',
                                     minHeight: TOUCH_MIN_SIZE
                                 }}
@@ -562,12 +559,12 @@ const PuntosVenta = () => {
                                                     fontWeight: '600',
                                                     color: '#1f2937',
                                                     marginBottom: '0.25rem',
-                                                    fontSize: isMobileView ? '0.875rem' : '0.9375rem'
+                                                    fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem'
                                                 }}>
                                                     {c.first_name} {c.last_name}
                                                 </p>
                                                 <p style={{
-                                                    fontSize: isMobileView ? '0.75rem' : '0.8125rem',
+                                                    fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8125rem',
                                                     color: '#6b7280',
                                                     margin: 0
                                                 }}>
@@ -608,7 +605,7 @@ const PuntosVenta = () => {
                 <div style={{ marginBottom: '1rem' }}>
                     <label style={{
                         display: 'block',
-                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.875rem',
                         fontWeight: '600',
                         color: '#374151',
                         marginBottom: '0.5rem'
@@ -618,10 +615,10 @@ const PuntosVenta = () => {
                     <select
                         style={{
                             width: '100%',
-                            padding: isMobileView ? '0.5rem' : '0.75rem',
+                            padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
                             border: '2px solid #d1d5db',
                             borderRadius: '8px',
-                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
                             color: '#1f2937',
                             backgroundColor: '#ffffff',
                             cursor: 'pointer',
@@ -649,7 +646,7 @@ const PuntosVenta = () => {
                 <div>
                     <label style={{
                         display: 'block',
-                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.875rem',
                         fontWeight: '600',
                         color: '#374151',
                         marginBottom: '0.5rem'
@@ -662,10 +659,10 @@ const PuntosVenta = () => {
                             placeholder="Ingresa el código"
                             style={{
                                 flex: 1,
-                                padding: isMobileView ? '0.5rem' : '0.75rem',
+                                padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
                                 border: '2px solid #d1d5db',
                                 borderRadius: '8px',
-                                fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
                                 transition: 'all 0.2s',
                                 minHeight: TOUCH_MIN_SIZE
                             }}
@@ -674,13 +671,13 @@ const PuntosVenta = () => {
                         />
                         <button
                             style={{
-                                padding: isMobileView ? '0 0.75rem' : '0 1.5rem',
+                                padding: screenWidth <= 1366 ? '0 0.75rem' : '0 1.5rem',
                                 backgroundColor: '#fbbf24',
                                 border: 'none',
                                 borderRadius: '8px',
                                 color: '#78350f',
                                 fontWeight: '600',
-                                fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
                                 cursor: 'pointer',
                                 transition: 'all 0.2s',
                                 whiteSpace: 'nowrap',
@@ -689,7 +686,7 @@ const PuntosVenta = () => {
                             }}
                             onClick={handleApplyDiscount}
                         >
-                            {isMobileView ? 'Aplicar' : 'Aplicar'}
+                            {screenWidth <= 1366 ? 'Aplicar' : 'Aplicar'}
                         </button>
                     </div>
                     {appliedDiscount && (
@@ -699,7 +696,7 @@ const PuntosVenta = () => {
                             backgroundColor: '#d1fae5',
                             border: '2px solid #86efac',
                             borderRadius: '8px',
-                            fontSize: isMobileView ? '0.75rem' : '0.875rem',
+                            fontSize: screenWidth <= 1366 ? '0.75rem' : '0.875rem',
                             fontWeight: '600',
                             color: '#065f46'
                         }}>
@@ -711,41 +708,41 @@ const PuntosVenta = () => {
 
             {/* Resumen de productos */}
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
-                <p style={{ fontSize: isMobileView ? '0.875rem' : '1rem', fontWeight: 'bold', color: '#1f2937' }}>
+                <p style={{ fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem', fontWeight: 'bold', color: '#1f2937' }}>
                     Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'CONSUMIDOR FINAL'}
                 </p>
-                <p style={{ fontSize: isMobileView ? '0.75rem' : '0.9rem', color: '#4b5563' }}>
+                <p style={{ fontSize: screenWidth <= 1366 ? '0.75rem' : '0.9rem', color: '#4b5563' }}>
                     Mesa/Tipo: {selectedTable === 'takeout' ? 'Para Llevar' : selectedTable || 'Mesa Genérica (DINE-IN)'}
                 </p>
             </div>
 
             <div style={{ 
-                maxHeight: isMobileView ? '40vh' : '30vh', 
+                maxHeight: screenWidth <= 1366 ? '40vh' : '30vh', 
                 overflowY: 'auto', 
                 marginBottom: '1rem',
-                fontSize: isMobileView ? '0.875rem' : '0.9rem'
+                fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem'
             }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead style={{ backgroundColor: '#f3f4f6' }}>
                         <tr>
                             <th style={{ 
                                 textAlign: 'left', 
-                                padding: isMobileView ? '0.25rem' : '0.5rem', 
-                                fontSize: isMobileView ? '0.75rem' : '0.8rem', 
+                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem', 
+                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem', 
                                 color: '#4b5563' 
                             }}>PRODUCTO</th>
                             <th style={{ 
                                 width: '15%', 
                                 textAlign: 'right', 
-                                padding: isMobileView ? '0.25rem' : '0.5rem', 
-                                fontSize: isMobileView ? '0.75rem' : '0.8rem', 
+                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem', 
+                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem', 
                                 color: '#4b5563' 
                             }}>CANT.</th>
                             <th style={{ 
                                 width: '25%', 
                                 textAlign: 'right', 
-                                padding: isMobileView ? '0.25rem' : '0.5rem', 
-                                fontSize: isMobileView ? '0.75rem' : '0.8rem', 
+                                padding: screenWidth <= 1366 ? '0.25rem' : '0.5rem', 
+                                fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem', 
                                 color: '#4b5563' 
                             }}>TOTAL</th>
                         </tr>
@@ -755,14 +752,14 @@ const PuntosVenta = () => {
                             <React.Fragment key={index}>
                                 <tr>
                                     <td style={{ 
-                                        padding: isMobileView ? '0.25rem 0' : '0.5rem 0', 
-                                        fontSize: isMobileView ? '0.875rem' : '0.9rem' 
+                                        padding: screenWidth <= 1366 ? '0.25rem 0' : '0.5rem 0', 
+                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem' 
                                     }}>
                                         <div>
                                             {item.name}
                                             {item.note && (
                                                 <div style={{
-                                                    fontSize: isMobileView ? '0.75rem' : '0.8rem',
+                                                    fontSize: screenWidth <= 1366 ? '0.75rem' : '0.8rem',
                                                     color: '#6b7280',
                                                     fontStyle: 'italic',
                                                     marginTop: '2px'
@@ -774,11 +771,11 @@ const PuntosVenta = () => {
                                     </td>
                                     <td style={{ 
                                         textAlign: 'right', 
-                                        fontSize: isMobileView ? '0.875rem' : '0.9rem' 
+                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem' 
                                     }}>{item.quantity}</td>
                                     <td style={{ 
                                         textAlign: 'right', 
-                                        fontSize: isMobileView ? '0.875rem' : '0.9rem', 
+                                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem', 
                                         fontWeight: '600' 
                                     }}>
                                         {formatCurrency(item.price * item.quantity)}
@@ -795,7 +792,7 @@ const PuntosVenta = () => {
                     display: 'flex', 
                     justifyContent: 'space-between', 
                     marginBottom: '0.5rem', 
-                    fontSize: isMobileView ? '0.875rem' : '1rem', 
+                    fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem', 
                     color: '#6b7280' 
                 }}>
                     <span>Subtotal</span>
@@ -808,7 +805,7 @@ const PuntosVenta = () => {
                         justifyContent: 'space-between', 
                         marginBottom: '0.5rem', 
                         color: '#dc2626',
-                        fontSize: isMobileView ? '0.875rem' : '1rem'
+                        fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem'
                     }}>
                         <span>Descuento</span>
                         <span>- {formatCurrency(calculateDiscountAmount)}</span>
@@ -818,7 +815,7 @@ const PuntosVenta = () => {
                 <div style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
-                    fontSize: isMobileView ? '1.25rem' : '1.5rem', 
+                    fontSize: screenWidth <= 1366 ? '1.25rem' : '1.5rem', 
                     fontWeight: 'bold', 
                     borderTop: '1px solid #ccc', 
                     paddingTop: '0.75rem' 
@@ -843,17 +840,17 @@ const PuntosVenta = () => {
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 1001,
-            padding: isMobileView ? '0.5rem' : '1rem'
+            padding: screenWidth <= 1366 ? '0.5rem' : '1rem'
         }}>
             <div style={{
                 backgroundColor: '#ffffff',
                 borderRadius: '12px',
                 width: '100%',
-                maxWidth: isMobileView ? '95%' : '500px',
+                maxWidth: screenWidth <= 1366 ? '95%' : '500px',
                 maxHeight: '80vh',
                 overflowY: 'auto',
                 boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-                padding: isMobileView ? '1rem' : '1.5rem'
+                padding: screenWidth <= 1366 ? '1rem' : '1.5rem'
             }}>
                 <div style={{
                     marginBottom: '1rem',
@@ -861,7 +858,7 @@ const PuntosVenta = () => {
                     paddingBottom: '0.75rem'
                 }}>
                     <h3 style={{
-                        fontSize: isMobileView ? '1.125rem' : '1.25rem',
+                        fontSize: screenWidth <= 1366 ? '1.125rem' : '1.25rem',
                         fontWeight: '700',
                         color: '#111827',
                         margin: 0
@@ -869,7 +866,7 @@ const PuntosVenta = () => {
                         Agregar Nota Especial
                     </h3>
                     <p style={{
-                        fontSize: isMobileView ? '0.75rem' : '0.875rem',
+                        fontSize: screenWidth <= 1366 ? '0.75rem' : '0.875rem',
                         color: '#6b7280',
                         marginTop: '0.25rem'
                     }}>
@@ -887,7 +884,7 @@ const PuntosVenta = () => {
                         padding: '0.75rem',
                         border: '2px solid #d1d5db',
                         borderRadius: '8px',
-                        fontSize: isMobileView ? '0.875rem' : '1rem',
+                        fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem',
                         fontFamily: 'inherit',
                         resize: 'none',
                         boxSizing: 'border-box',
@@ -903,13 +900,13 @@ const PuntosVenta = () => {
                 }}>
                     <button
                         style={{
-                            padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
+                            padding: screenWidth <= 1366 ? '0.5rem 1rem' : '0.75rem 1.5rem',
                             backgroundColor: '#ffffff',
                             border: '2px solid #d1d5db',
                             borderRadius: '8px',
                             color: '#374151',
                             fontWeight: '600',
-                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
                             minHeight: TOUCH_MIN_SIZE
@@ -920,13 +917,13 @@ const PuntosVenta = () => {
                     </button>
                     <button
                         style={{
-                            padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
+                            padding: screenWidth <= 1366 ? '0.5rem 1rem' : '0.75rem 1.5rem',
                             backgroundColor: '#3b82f6',
                             border: 'none',
                             borderRadius: '8px',
                             color: '#ffffff',
                             fontWeight: '600',
-                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
                             minHeight: TOUCH_MIN_SIZE
@@ -940,8 +937,8 @@ const PuntosVenta = () => {
         </div>
     );
 
-    // Renderizar vista móvil
-    const renderMobileView = () => (
+    // Renderizar vista con botones abajo (para pantallas <= 1366px - menos de 16 pulgadas)
+    const renderCompactView = () => (
         <div style={{
             height: '100vh',
             display: 'flex',
@@ -958,7 +955,7 @@ const PuntosVenta = () => {
                 flexShrink: 0
             }}>
                 <h1 style={{
-                    fontSize: '1.25rem',
+                    fontSize: screenWidth <= 768 ? '1.25rem' : '1.5rem',
                     fontWeight: '700',
                     color: '#111827',
                     margin: 0,
@@ -1036,7 +1033,9 @@ const PuntosVenta = () => {
                     }}>
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                            gridTemplateColumns: screenWidth <= 768 ? 
+                                'repeat(auto-fill, minmax(140px, 1fr))' : 
+                                'repeat(auto-fill, minmax(160px, 1fr))',
                             gap: '0.75rem'
                         }}>
                             {filteredProducts.map(product => (
@@ -1052,9 +1051,19 @@ const PuntosVenta = () => {
                                         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                                     }}
                                     onClick={() => addToCart(product)}
+                                    onMouseEnter={screenWidth > 768 ? (e) => {
+                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                                        e.currentTarget.style.borderColor = '#3b82f6';
+                                    } : undefined}
+                                    onMouseLeave={screenWidth > 768 ? (e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                                        e.currentTarget.style.borderColor = '#e5e7eb';
+                                    } : undefined}
                                 >
                                     <div style={{
-                                        height: '80px',
+                                        height: screenWidth <= 768 ? '80px' : '100px',
                                         backgroundColor: '#f8fafc',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -1083,7 +1092,7 @@ const PuntosVenta = () => {
                                     </div>
                                     <div style={{ padding: '0.5rem' }}>
                                         <h3 style={{
-                                            fontSize: '0.875rem',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                             fontWeight: '600',
                                             color: '#1f2937',
                                             marginBottom: '0.25rem',
@@ -1094,7 +1103,7 @@ const PuntosVenta = () => {
                                             {product.name}
                                         </h3>
                                         <p style={{
-                                            fontSize: '1rem',
+                                            fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                                             fontWeight: '700',
                                             color: '#059669',
                                             margin: 0
@@ -1121,7 +1130,7 @@ const PuntosVenta = () => {
                         alignItems: 'center'
                     }}>
                         <h3 style={{
-                            fontSize: '1rem',
+                            fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                             fontWeight: '700',
                             color: '#111827',
                             margin: 0
@@ -1135,7 +1144,7 @@ const PuntosVenta = () => {
                                 border: 'none',
                                 borderRadius: '6px',
                                 color: '#ffffff',
-                                fontSize: '0.875rem',
+                                fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                 fontWeight: '600',
                                 cursor: 'pointer',
                                 minHeight: TOUCH_MIN_SIZE
@@ -1159,7 +1168,7 @@ const PuntosVenta = () => {
                                 textAlign: 'center',
                                 padding: '3rem 1rem',
                                 color: '#9ca3af',
-                                fontSize: '0.875rem'
+                                fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem'
                             }}>
                                 <p style={{ margin: 0 }}>No hay productos en el carrito</p>
                             </div>
@@ -1187,7 +1196,7 @@ const PuntosVenta = () => {
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <h4 style={{
-                                                    fontSize: '0.875rem',
+                                                    fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                                     fontWeight: '600',
                                                     color: '#1f2937',
                                                     marginBottom: '0.25rem',
@@ -1197,7 +1206,7 @@ const PuntosVenta = () => {
                                                     {item.name}
                                                 </h4>
                                                 <p style={{
-                                                    fontSize: '0.75rem',
+                                                    fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
                                                     color: '#6b7280',
                                                     margin: 0
                                                 }}>
@@ -1220,12 +1229,12 @@ const PuntosVenta = () => {
                                                 }}>
                                                     <button
                                                         style={{
-                                                            width: '36px',
-                                                            height: '36px',
+                                                            width: screenWidth <= 768 ? '36px' : '40px',
+                                                            height: screenWidth <= 768 ? '36px' : '40px',
                                                             border: 'none',
                                                             backgroundColor: 'transparent',
                                                             color: '#6b7280',
-                                                            fontSize: '1rem',
+                                                            fontSize: screenWidth <= 768 ? '1rem' : '1.25rem',
                                                             fontWeight: '600',
                                                             cursor: 'pointer',
                                                             display: 'flex',
@@ -1237,9 +1246,9 @@ const PuntosVenta = () => {
                                                         −
                                                     </button>
                                                     <span style={{
-                                                        width: '30px',
+                                                        width: screenWidth <= 768 ? '30px' : '34px',
                                                         textAlign: 'center',
-                                                        fontSize: '0.875rem',
+                                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                                         fontWeight: '600',
                                                         color: '#1f2937'
                                                     }}>
@@ -1247,12 +1256,12 @@ const PuntosVenta = () => {
                                                     </span>
                                                     <button
                                                         style={{
-                                                            width: '36px',
-                                                            height: '36px',
+                                                            width: screenWidth <= 768 ? '36px' : '40px',
+                                                            height: screenWidth <= 768 ? '36px' : '40px',
                                                             border: 'none',
                                                             backgroundColor: 'transparent',
                                                             color: '#6b7280',
-                                                            fontSize: '1rem',
+                                                            fontSize: screenWidth <= 768 ? '1rem' : '1.25rem',
                                                             fontWeight: '600',
                                                             cursor: 'pointer',
                                                             display: 'flex',
@@ -1267,13 +1276,13 @@ const PuntosVenta = () => {
 
                                                 <button
                                                     style={{
-                                                        width: '36px',
-                                                        height: '36px',
+                                                        width: screenWidth <= 768 ? '36px' : '40px',
+                                                        height: screenWidth <= 768 ? '36px' : '40px',
                                                         backgroundColor: '#fee2e2',
                                                         border: '2px solid #fecaca',
                                                         borderRadius: '6px',
                                                         color: '#dc2626',
-                                                        fontSize: '1rem',
+                                                        fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                                                         fontWeight: '600',
                                                         cursor: 'pointer',
                                                         display: 'flex',
@@ -1299,18 +1308,19 @@ const PuntosVenta = () => {
                                             <div style={{ flex: 1 }}>
                                                 {item.note ? (
                                                     <div style={{
-                                                        fontSize: '0.75rem',
+                                                        fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
                                                         color: '#6b7280',
                                                         fontStyle: 'italic',
                                                         backgroundColor: '#f3f4f6',
                                                         padding: '0.25rem 0.5rem',
-                                                        borderRadius: '4px'
+                                                        borderRadius: '4px',
+                                                        wordBreak: 'break-word'
                                                     }}>
                                                         <strong>Nota:</strong> {item.note}
                                                     </div>
                                                 ) : (
                                                     <span style={{
-                                                        fontSize: '0.75rem',
+                                                        fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
                                                         color: '#9ca3af',
                                                         fontStyle: 'italic'
                                                     }}>
@@ -1326,11 +1336,12 @@ const PuntosVenta = () => {
                                                     border: `1px solid ${item.note ? '#fbbf24' : '#d1d5db'}`,
                                                     borderRadius: '4px',
                                                     color: item.note ? '#92400e' : '#374151',
-                                                    fontSize: '0.75rem',
+                                                    fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
                                                     fontWeight: '500',
                                                     cursor: 'pointer',
                                                     marginLeft: '0.5rem',
-                                                    whiteSpace: 'nowrap'
+                                                    whiteSpace: 'nowrap',
+                                                    minHeight: TOUCH_MIN_SIZE
                                                 }}
                                                 onClick={() => handleAddNote(item.product_id)}
                                             >
@@ -1358,7 +1369,7 @@ const PuntosVenta = () => {
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         marginBottom: '0.5rem',
-                                        fontSize: '0.875rem',
+                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                         color: '#6b7280'
                                     }}>
                                         <span>Subtotal</span>
@@ -1370,7 +1381,7 @@ const PuntosVenta = () => {
                                             display: 'flex',
                                             justifyContent: 'space-between',
                                             marginBottom: '0.5rem',
-                                            fontSize: '0.875rem',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                             color: '#dc2626',
                                             fontWeight: '600'
                                         }}>
@@ -1384,7 +1395,7 @@ const PuntosVenta = () => {
                                         justifyContent: 'space-between',
                                         paddingTop: '0.75rem',
                                         borderTop: '2px solid #e5e7eb',
-                                        fontSize: '1.25rem',
+                                        fontSize: screenWidth <= 768 ? '1.25rem' : '1.5rem',
                                         fontWeight: '700',
                                         color: '#111827'
                                     }}>
@@ -1402,7 +1413,7 @@ const PuntosVenta = () => {
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
-                                        fontSize: '1rem',
+                                        fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                                         fontWeight: '700',
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
                                         marginBottom: '0.5rem',
@@ -1422,7 +1433,7 @@ const PuntosVenta = () => {
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
-                                        fontSize: '0.875rem',
+                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                         fontWeight: '600',
                                         cursor: 'pointer',
                                         minHeight: TOUCH_MIN_SIZE
@@ -1437,13 +1448,14 @@ const PuntosVenta = () => {
                 </div>
             )}
 
-            {/* Barra inferior móvil */}
+            {/* Barra inferior con botones */}
             <div style={{
                 backgroundColor: '#ffffff',
                 borderTop: '2px solid #e5e7eb',
                 padding: '0.5rem',
                 display: 'flex',
-                gap: '0.5rem'
+                gap: '0.5rem',
+                flexShrink: 0
             }}>
                 <button
                     style={{
@@ -1453,7 +1465,7 @@ const PuntosVenta = () => {
                         border: 'none',
                         borderRadius: '8px',
                         color: showOrderDetails ? '#374151' : '#ffffff',
-                        fontSize: '0.875rem',
+                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                         fontWeight: '600',
                         cursor: 'pointer',
                         minHeight: TOUCH_MIN_SIZE
@@ -1470,7 +1482,7 @@ const PuntosVenta = () => {
                         border: 'none',
                         borderRadius: '8px',
                         color: !showOrderDetails ? '#374151' : '#ffffff',
-                        fontSize: '0.875pend',
+                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                         fontWeight: '600',
                         cursor: 'pointer',
                         minHeight: TOUCH_MIN_SIZE,
@@ -1501,7 +1513,7 @@ const PuntosVenta = () => {
         </div>
     );
 
-    // Renderizar vista de escritorio
+    // Renderizar vista de escritorio dividida (para pantallas > 1366px - más de 16 pulgadas)
     const renderDesktopView = () => (
         <div style={{
             height: '100vh',
@@ -1518,7 +1530,7 @@ const PuntosVenta = () => {
                 boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
             }}>
                 <h1 style={{
-                    fontSize: screenWidth <= 1024 ? '1.5rem' : '1.75rem',
+                    fontSize: '1.75rem',
                     fontWeight: '700',
                     color: '#111827',
                     margin: 0,
@@ -1532,40 +1544,39 @@ const PuntosVenta = () => {
                 display: 'flex', 
                 flex: 1, 
                 overflow: 'hidden',
-                flexDirection: screenWidth <= 1024 ? 'column' : 'row'
+                flexDirection: 'row'
             }}>
                 {/* Panel Izquierdo: Catálogo */}
                 <div style={{
-                    flex: screenWidth <= 1024 ? '0 0 60%' : '1 1 60%',
+                    flex: '1 1 60%',
                     display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: '#ffffff',
-                    borderRight: screenWidth <= 1024 ? 'none' : '2px solid #e5e7eb',
-                    borderBottom: screenWidth <= 1024 ? '2px solid #e5e7eb' : 'none',
-                    minHeight: screenWidth <= 1024 ? '50vh' : 'auto'
+                    borderRight: '2px solid #e5e7eb',
+                    minHeight: 'auto'
                 }}>
                     {/* Filtros */}
                     <div style={{
-                        padding: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                        padding: '1rem',
                         borderBottom: '1px solid #e5e7eb',
                         backgroundColor: '#fafafa',
                         flexShrink: 0
                     }}>
                         <div style={{
                             display: 'flex',
-                            gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                            gap: '0.75rem',
                             overflowX: 'auto',
                             paddingBottom: '0.25rem'
                         }}>
                             <button
                                 style={{
-                                    padding: screenWidth <= 1024 ? '0.5rem 1rem' : '0.625rem 1.25rem',
+                                    padding: '0.625rem 1.25rem',
                                     borderRadius: '6px',
                                     border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
                                     backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
                                     color: selectedCategory === 'all' ? '#ffffff' : '#374151',
                                     fontWeight: '600',
-                                    fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                    fontSize: '0.9375rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     whiteSpace: 'nowrap',
@@ -1574,19 +1585,19 @@ const PuntosVenta = () => {
                                 }}
                                 onClick={() => setSelectedCategory('all')}
                             >
-                                {screenWidth <= 1024 ? 'Todos' : 'Todos los productos'}
+                                Todos los productos
                             </button>
                             {categories.map(cat => (
                                 <button
                                     key={cat.id}
                                     style={{
-                                        padding: screenWidth <= 1024 ? '0.5rem 1rem' : '0.625rem 1.25rem',
+                                        padding: '0.625rem 1.25rem',
                                         borderRadius: '6px',
                                         border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
                                         backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
                                         color: selectedCategory === cat.id ? '#ffffff' : '#374151',
                                         fontWeight: '600',
-                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                        fontSize: '0.9375rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
@@ -1595,7 +1606,7 @@ const PuntosVenta = () => {
                                     }}
                                     onClick={() => setSelectedCategory(cat.id)}
                                 >
-                                    {screenWidth <= 1024 && cat.name.length > 12 ? cat.name.substring(0, 10) + '...' : cat.name}
+                                    {cat.name}
                                 </button>
                             ))}
                         </div>
@@ -1605,17 +1616,13 @@ const PuntosVenta = () => {
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
-                        padding: screenWidth <= 1024 ? '0.75rem' : '1.5rem',
+                        padding: '1.5rem',
                         backgroundColor: '#f9fafb'
                     }}>
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: screenWidth <= 1024 ? 
-                                'repeat(auto-fill, minmax(140px, 1fr))' : 
-                                screenWidth <= 1366 ?
-                                'repeat(auto-fill, minmax(160px, 1fr))' :
-                                'repeat(auto-fill, minmax(180px, 1fr))',
-                            gap: screenWidth <= 1024 ? '0.75rem' : '1rem'
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                            gap: '1rem'
                         }}>
                             {filteredProducts.map(product => (
                                 <div
@@ -1642,7 +1649,7 @@ const PuntosVenta = () => {
                                     }}
                                 >
                                     <div style={{
-                                        height: screenWidth <= 1024 ? '100px' : screenWidth <= 1366 ? '120px' : '140px',
+                                        height: '140px',
                                         backgroundColor: '#f8fafc',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -1669,9 +1676,9 @@ const PuntosVenta = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <div style={{ padding: screenWidth <= 1024 ? '0.5rem' : '0.875rem' }}>
+                                    <div style={{ padding: '0.875rem' }}>
                                         <h3 style={{
-                                            fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                            fontSize: '0.9375rem',
                                             fontWeight: '600',
                                             color: '#1f2937',
                                             marginBottom: '0.375rem',
@@ -1682,7 +1689,7 @@ const PuntosVenta = () => {
                                             {product.name}
                                         </h3>
                                         <p style={{
-                                            fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                                            fontSize: '1.125rem',
                                             fontWeight: '700',
                                             color: '#059669',
                                             margin: 0
@@ -1698,22 +1705,22 @@ const PuntosVenta = () => {
 
                 {/* Panel Derecho: Orden Actual */}
                 <div style={{
-                    flex: screenWidth <= 1024 ? '0 0 40%' : '0 0 400px',
+                    flex: '0 0 400px',
                     backgroundColor: '#ffffff',
                     display: 'flex',
                     flexDirection: 'column',
-                    boxShadow: screenWidth <= 1024 ? 'none' : '-2px 0 8px rgba(0, 0, 0, 0.05)',
+                    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
                     flexShrink: 0
                 }}>
                     {/* Header de Orden Actual */}
                     <div style={{ 
-                        padding: screenWidth <= 1024 ? '0.75rem' : '1rem 1.5rem',
+                        padding: '1rem 1.5rem',
                         backgroundColor: '#f3f4f6',
                         flexShrink: 0,
                         borderBottom: '1px solid #e5e7eb'
                     }}>
                         <h3 style={{
-                            fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                            fontSize: '1.125rem',
                             fontWeight: '700',
                             color: '#111827',
                             margin: 0
@@ -1726,7 +1733,7 @@ const PuntosVenta = () => {
                     <div style={{
                         flex: 1, 
                         overflowY: 'auto',
-                        padding: screenWidth <= 1024 ? '0.75rem' : '1.5rem', 
+                        padding: '1.5rem', 
                         display: 'flex',
                         flexDirection: 'column'
                     }}>
@@ -1749,7 +1756,7 @@ const PuntosVenta = () => {
                             <div style={{ 
                                 display: 'flex', 
                                 flexDirection: 'column', 
-                                gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                                gap: '0.75rem',
                                 flex: 1
                             }}>
                                 {cart.map((item, index) => (
@@ -1758,11 +1765,11 @@ const PuntosVenta = () => {
                                         style={{
                                             backgroundColor: '#ffffff',
                                             border: '1px solid #e5e7eb',
-                                            borderRadius: screenWidth <= 1024 ? '8px' : '10px',
-                                            padding: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                            borderRadius: '10px',
+                                            padding: '1rem',
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem'
+                                            gap: '0.75rem'
                                         }}
                                     >
                                         {/* Información del producto */}
@@ -1770,21 +1777,21 @@ const PuntosVenta = () => {
                                             display: 'flex', 
                                             justifyContent: 'space-between', 
                                             alignItems: 'center',
-                                            gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem'
+                                            gap: '0.75rem'
                                         }}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <h4 style={{
-                                                    fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                                    fontSize: '0.9375rem',
                                                     fontWeight: '600',
                                                     color: '#1f2937',
-                                                    marginBottom: screenWidth <= 1024 ? '0.25rem' : '0.375rem',
+                                                    marginBottom: '0.375rem',
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis'
                                                 }}>
                                                     {item.name}
                                                 </h4>
                                                 <p style={{
-                                                    fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                    fontSize: '0.8125rem',
                                                     color: '#6b7280',
                                                     margin: 0
                                                 }}>
@@ -1801,18 +1808,18 @@ const PuntosVenta = () => {
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     border: '2px solid #e5e7eb',
-                                                    borderRadius: screenWidth <= 1024 ? '6px' : '8px',
+                                                    borderRadius: '8px',
                                                     overflow: 'hidden',
                                                     backgroundColor: '#ffffff'
                                                 }}>
                                                     <button
                                                         style={{
-                                                            width: screenWidth <= 1024 ? '32px' : '36px',
-                                                            height: screenWidth <= 1024 ? '32px' : '36px',
+                                                            width: '36px',
+                                                            height: '36px',
                                                             border: 'none',
                                                             backgroundColor: 'transparent',
                                                             color: '#6b7280',
-                                                            fontSize: screenWidth <= 1024 ? '1rem' : '1.25rem',
+                                                            fontSize: '1.25rem',
                                                             fontWeight: '600',
                                                             cursor: 'pointer',
                                                             display: 'flex',
@@ -1824,9 +1831,9 @@ const PuntosVenta = () => {
                                                         −
                                                     </button>
                                                     <span style={{
-                                                        width: screenWidth <= 1024 ? '30px' : '36px',
+                                                        width: '36px',
                                                         textAlign: 'center',
-                                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                                        fontSize: '0.9375rem',
                                                         fontWeight: '600',
                                                         color: '#1f2937'
                                                     }}>
@@ -1834,12 +1841,12 @@ const PuntosVenta = () => {
                                                     </span>
                                                     <button
                                                         style={{
-                                                            width: screenWidth <= 1024 ? '32px' : '36px',
-                                                            height: screenWidth <= 1024 ? '32px' : '36px',
+                                                            width: '36px',
+                                                            height: '36px',
                                                             border: 'none',
                                                             backgroundColor: 'transparent',
                                                             color: '#6b7280',
-                                                            fontSize: screenWidth <= 1024 ? '1rem' : '1.25rem',
+                                                            fontSize: '1.25rem',
                                                             fontWeight: '600',
                                                             cursor: 'pointer',
                                                             display: 'flex',
@@ -1854,13 +1861,13 @@ const PuntosVenta = () => {
 
                                                 <button
                                                     style={{
-                                                        width: screenWidth <= 1024 ? '32px' : '36px',
-                                                        height: screenWidth <= 1024 ? '32px' : '36px',
+                                                        width: '36px',
+                                                        height: '36px',
                                                         backgroundColor: '#fee2e2',
                                                         border: '2px solid #fecaca',
-                                                        borderRadius: screenWidth <= 1024 ? '6px' : '8px',
+                                                        borderRadius: '8px',
                                                         color: '#dc2626',
-                                                        fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                                                        fontSize: '1.125rem',
                                                         fontWeight: '600',
                                                         cursor: 'pointer',
                                                         display: 'flex',
@@ -1880,17 +1887,17 @@ const PuntosVenta = () => {
                                             display: 'flex',
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            paddingTop: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                                            paddingTop: '0.75rem',
                                             borderTop: '1px dashed #e5e7eb'
                                         }}>
                                             <div style={{ flex: 1 }}>
                                                 {item.note ? (
                                                     <div style={{
-                                                        fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                        fontSize: '0.8125rem',
                                                         color: '#6b7280',
                                                         fontStyle: 'italic',
                                                         backgroundColor: '#f3f4f6',
-                                                        padding: screenWidth <= 1024 ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                                                        padding: '0.375rem 0.75rem',
                                                         borderRadius: '4px',
                                                         wordBreak: 'break-word'
                                                     }}>
@@ -1898,7 +1905,7 @@ const PuntosVenta = () => {
                                                     </div>
                                                 ) : (
                                                     <span style={{
-                                                        fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                        fontSize: '0.8125rem',
                                                         color: '#9ca3af',
                                                         fontStyle: 'italic'
                                                     }}>
@@ -1909,12 +1916,12 @@ const PuntosVenta = () => {
                                             
                                             <button
                                                 style={{
-                                                    padding: screenWidth <= 1024 ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                                                    padding: '0.375rem 0.75rem',
                                                     backgroundColor: item.note ? '#fef3c7' : '#f3f4f6',
                                                     border: `1px solid ${item.note ? '#fbbf24' : '#d1d5db'}`,
                                                     borderRadius: '4px',
                                                     color: item.note ? '#92400e' : '#374151',
-                                                    fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                    fontSize: '0.8125rem',
                                                     fontWeight: '500',
                                                     cursor: 'pointer',
                                                     marginLeft: '0.5rem',
@@ -1937,19 +1944,19 @@ const PuntosVenta = () => {
                         {cart.length > 0 && (
                             <div style={{
                                 marginTop: 'auto',
-                                paddingTop: screenWidth <= 1024 ? '1rem' : '1.5rem',
+                                paddingTop: '1.5rem',
                                 borderTop: '2px solid #e5e7eb'
                             }}>
                                 {/* Totales */}
                                 <div style={{
-                                    paddingBottom: screenWidth <= 1024 ? '0.75rem' : '1rem',
-                                    marginBottom: screenWidth <= 1024 ? '0.75rem' : '1rem'
+                                    paddingBottom: '1rem',
+                                    marginBottom: '1rem'
                                 }}>
                                     <div style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
                                         marginBottom: '0.5rem',
-                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                        fontSize: '0.9375rem',
                                         color: '#6b7280'
                                     }}>
                                         <span>Subtotal</span>
@@ -1961,7 +1968,7 @@ const PuntosVenta = () => {
                                             display: 'flex',
                                             justifyContent: 'space-between',
                                             marginBottom: '0.5rem',
-                                            fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                            fontSize: '0.9375rem',
                                             color: '#dc2626',
                                             fontWeight: '600'
                                         }}>
@@ -1973,9 +1980,9 @@ const PuntosVenta = () => {
                                     <div style={{
                                         display: 'flex',
                                         justifyContent: 'space-between',
-                                        paddingTop: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                        paddingTop: '1rem',
                                         borderTop: '2px solid #e5e7eb',
-                                        fontSize: screenWidth <= 1024 ? '1.25rem' : '1.5rem',
+                                        fontSize: '1.5rem',
                                         fontWeight: '700',
                                         color: '#111827'
                                     }}>
@@ -1988,17 +1995,17 @@ const PuntosVenta = () => {
                                 <button
                                     style={{
                                         width: '100%',
-                                        padding: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                        padding: '1rem',
                                         backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6', 
                                         border: 'none',
                                         borderRadius: '10px',
                                         color: '#ffffff',
-                                        fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                                        fontSize: '1.125rem',
                                         fontWeight: '700',
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
                                         boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
-                                        marginBottom: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                                        marginBottom: '0.75rem',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={openOrderConfirmationModal}
@@ -2011,12 +2018,12 @@ const PuntosVenta = () => {
                                 <button
                                     style={{
                                         width: '100%',
-                                        padding: screenWidth <= 1024 ? '0.75rem' : '0.75rem',
+                                        padding: '0.75rem',
                                         backgroundColor: '#f59e0b',
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
-                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                        fontSize: '0.9375rem',
                                         fontWeight: '600',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
@@ -2051,10 +2058,13 @@ const PuntosVenta = () => {
     // 11. ESTRUCTURA PRINCIPAL CON RESPONSIVIDAD
     // =====================================
 
+    // 1366px es aproximadamente el ancho de pantallas de 15.6" o menos
+    const isSmallScreen = screenWidth <= 1366;
+
     return (
         <>
             {/* Vista responsiva basada en el tamaño de pantalla */}
-            {isMobileView ? renderMobileView() : renderDesktopView()}
+            {isSmallScreen ? renderCompactView() : renderDesktopView()}
 
             {/* Modal para agregar nota */}
             {editingNoteForItem && renderNoteModal()}
@@ -2072,19 +2082,19 @@ const PuntosVenta = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
-                    padding: isMobileView ? '0.5rem' : '1rem'
+                    padding: isSmallScreen ? '0.5rem' : '1rem'
                 }}>
                     <div style={{
                         backgroundColor: '#ffffff',
                         borderRadius: '12px',
                         width: '100%',
-                        maxWidth: isMobileView ? '95%' : '550px',
+                        maxWidth: isSmallScreen ? '95%' : '550px',
                         maxHeight: '90vh',
                         overflowY: 'auto',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                     }}>
                         <div style={{
-                            padding: isMobileView ? '1rem' : '1.5rem',
+                            padding: isSmallScreen ? '1rem' : '1.5rem',
                             borderBottom: '2px solid #e5e7eb',
                             backgroundColor: '#1f2937',
                             display: 'flex',
@@ -2093,7 +2103,7 @@ const PuntosVenta = () => {
                         }}>
                             <div>
                                 <h3 style={{
-                                    fontSize: isMobileView ? '1.25rem' : '1.5rem',
+                                    fontSize: isSmallScreen ? '1.25rem' : '1.5rem',
                                     fontWeight: '700',
                                     color: '#ffffff',
                                     margin: 0
@@ -2102,7 +2112,7 @@ const PuntosVenta = () => {
                                 </h3>
                                 <p style={{ 
                                     color: '#d1d5db', 
-                                    fontSize: isMobileView ? '0.75rem' : '0.9rem', 
+                                    fontSize: isSmallScreen ? '0.75rem' : '0.9rem', 
                                     margin: '0.25rem 0 0 0' 
                                 }}>
                                     Confirma la orden antes de procesar el pago.
@@ -2113,7 +2123,7 @@ const PuntosVenta = () => {
                         {renderReviewDetails()}
 
                         <div style={{
-                            padding: isMobileView ? '1rem' : '1.5rem',
+                            padding: isSmallScreen ? '1rem' : '1.5rem',
                             borderTop: '2px solid #e5e7eb',
                             display: 'flex',
                             gap: '0.75rem',
@@ -2121,13 +2131,13 @@ const PuntosVenta = () => {
                         }}>
                             <button
                                 style={{
-                                    padding: isMobileView ? '0.75rem' : '0.75rem 1.5rem',
+                                    padding: isSmallScreen ? '0.75rem' : '0.75rem 1.5rem',
                                     backgroundColor: '#9ca3af',
                                     border: 'none',
                                     borderRadius: '8px',
                                     color: '#ffffff',
                                     fontWeight: '600',
-                                    fontSize: isMobileView ? '0.875rem' : '1rem',
+                                    fontSize: isSmallScreen ? '0.875rem' : '1rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     flex: 1,
@@ -2140,13 +2150,13 @@ const PuntosVenta = () => {
                             
                             <button
                                 style={{
-                                    padding: isMobileView ? '0.75rem' : '0.75rem 1.5rem',
+                                    padding: isSmallScreen ? '0.75rem' : '0.75rem 1.5rem',
                                     backgroundColor: '#059669',
                                     border: 'none',
                                     borderRadius: '8px',
                                     color: '#ffffff',
                                     fontWeight: '700',
-                                    fontSize: isMobileView ? '0.875rem' : '1rem',
+                                    fontSize: isSmallScreen ? '0.875rem' : '1rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     flex: 1,
@@ -2175,24 +2185,24 @@ const PuntosVenta = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
-                    padding: isMobileView ? '0.5rem' : '1rem'
+                    padding: isSmallScreen ? '0.5rem' : '1rem'
                 }}>
                     <div style={{
                         backgroundColor: '#ffffff',
                         borderRadius: '12px',
                         width: '100%',
-                        maxWidth: isMobileView ? '95%' : '500px',
+                        maxWidth: isSmallScreen ? '95%' : '500px',
                         maxHeight: '90vh',
                         overflowY: 'auto',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                     }}>
                         <div style={{
-                            padding: isMobileView ? '1rem' : '1.5rem',
+                            padding: isSmallScreen ? '1rem' : '1.5rem',
                             borderBottom: '2px solid #e5e7eb',
                             backgroundColor: '#fafafa'
                         }}>
                             <h3 style={{
-                                fontSize: isMobileView ? '1.25rem' : '1.5rem',
+                                fontSize: isSmallScreen ? '1.25rem' : '1.5rem',
                                 fontWeight: '700',
                                 color: '#111827',
                                 margin: 0
@@ -2201,12 +2211,12 @@ const PuntosVenta = () => {
                             </h3>
                         </div>
 
-                        <form onSubmit={handleCreateCustomer} style={{ padding: isMobileView ? '1rem' : '1.5rem' }}>
+                        <form onSubmit={handleCreateCustomer} style={{ padding: isSmallScreen ? '1rem' : '1.5rem' }}>
                             
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                                    fontSize: isSmallScreen ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -2220,10 +2230,10 @@ const PuntosVenta = () => {
                                     onChange={handleInputChange}
                                     style={{
                                         width: '100%',
-                                        padding: isMobileView ? '0.5rem' : '0.75rem',
+                                        padding: isSmallScreen ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box',
                                         minHeight: TOUCH_MIN_SIZE
@@ -2234,7 +2244,7 @@ const PuntosVenta = () => {
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                                    fontSize: isSmallScreen ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -2249,10 +2259,10 @@ const PuntosVenta = () => {
                                     required
                                     style={{
                                         width: '100%',
-                                        padding: isMobileView ? '0.5rem' : '0.75rem',
+                                        padding: isSmallScreen ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box',
                                         minHeight: TOUCH_MIN_SIZE
@@ -2269,7 +2279,7 @@ const PuntosVenta = () => {
                                 <div>
                                     <label style={{
                                         display: 'block',
-                                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.875rem',
                                         fontWeight: '600',
                                         color: '#374151',
                                         marginBottom: '0.5rem'
@@ -2284,10 +2294,10 @@ const PuntosVenta = () => {
                                         required
                                         style={{
                                             width: '100%',
-                                            padding: isMobileView ? '0.5rem' : '0.75rem',
+                                            padding: isSmallScreen ? '0.5rem' : '0.75rem',
                                             border: '2px solid #d1d5db',
                                             borderRadius: '8px',
-                                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                            fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                             transition: 'all 0.2s',
                                             boxSizing: 'border-box',
                                             minHeight: TOUCH_MIN_SIZE
@@ -2297,7 +2307,7 @@ const PuntosVenta = () => {
                                 <div>
                                     <label style={{
                                         display: 'block',
-                                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.875rem',
                                         fontWeight: '600',
                                         color: '#374151',
                                         marginBottom: '0.5rem'
@@ -2312,14 +2322,14 @@ const PuntosVenta = () => {
                                         required
                                         style={{
                                             width: '100%',
-                                            padding: isMobileView ? '0.5rem' : '0.75rem',
+                                            padding: isSmallScreen ? '0.5rem' : '0.75rem',
                                             border: '2px solid #d1d5db',
                                             borderRadius: '8px',
-                                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                            fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                             transition: 'all 0.2s',
                                             boxSizing: 'border-box',
                                             minHeight: TOUCH_MIN_SIZE
-                                        }}
+                                    }}
                                     />
                                 </div>
                             </div>
@@ -2327,7 +2337,7 @@ const PuntosVenta = () => {
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                                    fontSize: isSmallScreen ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -2341,10 +2351,10 @@ const PuntosVenta = () => {
                                     onChange={handleInputChange}
                                     style={{
                                         width: '100%',
-                                        padding: isMobileView ? '0.5rem' : '0.75rem',
+                                        padding: isSmallScreen ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box',
                                         minHeight: TOUCH_MIN_SIZE
@@ -2355,7 +2365,7 @@ const PuntosVenta = () => {
                             <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                                    fontSize: isSmallScreen ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -2369,10 +2379,10 @@ const PuntosVenta = () => {
                                     onChange={handleInputChange}
                                     style={{
                                         width: '100%',
-                                        padding: isMobileView ? '0.5rem' : '0.75rem',
+                                        padding: isSmallScreen ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
                                         boxSizing: 'border-box',
                                         minHeight: TOUCH_MIN_SIZE
@@ -2390,13 +2400,13 @@ const PuntosVenta = () => {
                                 <button
                                     type="button"
                                     style={{
-                                        padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
+                                        padding: isSmallScreen ? '0.5rem 1rem' : '0.75rem 1.5rem',
                                         backgroundColor: '#ffffff',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
                                         color: '#374151',
                                         fontWeight: '600',
-                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         minHeight: TOUCH_MIN_SIZE
@@ -2408,13 +2418,13 @@ const PuntosVenta = () => {
                                 <button
                                     type="submit"
                                     style={{
-                                        padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
+                                        padding: isSmallScreen ? '0.5rem 1rem' : '0.75rem 1.5rem',
                                         backgroundColor: '#8b5cf6',
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
                                         fontWeight: '600',
-                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                        fontSize: isSmallScreen ? '0.875rem' : '0.9375rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         minHeight: TOUCH_MIN_SIZE

@@ -167,7 +167,13 @@ export const generateDetailedPDF = (report, reportType, dateRangeStr) => {
     // --- 4. Total Final ---
     doc.setFontSize(16);
     doc.setFont(undefined, 'bold');
-    const totalText = `Total: ${formatCurrency(report.total_sales || 0).replace('$', '')}`; // Quitar símbolo si la imagen no lo tiene, o dejarlo. Imagen: "Total: 1.620,20" (formato europeo/latino).
+
+    // Fix: total_sales puede estar en 'summary' (shift report) o en raíz (daily report)
+    const totalSalesVal = report.summary?.total_sales !== undefined
+        ? report.summary.total_sales
+        : (report.total_sales || 0);
+
+    const totalText = `Total: ${formatCurrency(totalSalesVal).replace('$', '')}`; // Quitar símbolo si la imagen no lo tiene, o dejarlo. Imagen: "Total: 1.620,20" (formato europeo/latino).
     // Nuestra formatCurrency usa $ y formato inglés/EC (.,). Ajustamos si es necesario.
     // El usuario pidió "como en la foto".
 
