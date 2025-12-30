@@ -106,7 +106,7 @@ const Reportes = () => {
         try {
             const response = await api.get('/api/pos/daily-summaries/dashboard/', {
                 baseURL: getFastFoodBaseURL(),
-                timeout: 10000
+                timeout: 20000
             });
             setDashboardStats(response.data);
             return true;
@@ -433,6 +433,7 @@ const Reportes = () => {
                 timeout: 15000
             });
 
+            const generatedSummary = response.data.data || response.data;
             if (generatedSummary) {
                 setCurrentReport(generatedSummary);
                 // Actualizar la lista de reportes
@@ -737,27 +738,77 @@ const Reportes = () => {
         }
     };
 
-    // POLLING: Actualización en tiempo real (cada 10s)
-    // POLLING: Actualización en tiempo real (cada 10s) + Carga Inicial
+    // ========== REFRESCAMIENTO SILENCIOSO DE DATOS (POLLING) ==========
+    const refreshCurrentData = useCallback(async () => {
+        if (!currentReport) return;
+
+        try {
+            // 1. Si es REPORTE DE TURNO
+            if (currentReport.is_shift_report && currentReport.shift_info?.id) {
+                const response = await api.get(`/api/pos/shifts/${currentReport.shift_info.id}/report/`, {
+                    baseURL: getFastFoodBaseURL()
+                });
+                const shiftData = response.data;
+                const normalizedReport = {
+                    ...shiftData.summary,
+                    shift_info: shiftData.shift_info,
+                    orders_detail: shiftData.orders_detail,
+                    payment_methods: shiftData.payment_methods,
+                    top_products: shiftData.top_products,
+                    date: shiftData.shift_info.opened_at,
+                    is_shift_report: true,
+                    generated_by: shiftData.shift_info.user
+                };
+                setCurrentReport(normalizedReport);
+            }
+            // 2. Si es REPORTE DIARIO (y estamos visualizando detalle)
+            else if (currentReport.date && !currentReport.start_date) {
+                const dateStr = currentReport.date;
+                // Re-generar reporte detallado sin loading
+                const response = await api.post('/api/pos/daily-summaries/generate/', {
+                    date: dateStr,
+                    detailed: true,
+                    include_orders_detail: true
+                }, {
+                    baseURL: getFastFoodBaseURL()
+                });
+
+                const newData = response.data.data || response.data;
+                if (newData) {
+                    setCurrentReport(newData);
+                    // También actualizar turnos del día si aplica
+                    fetchDayShifts(dateStr);
+                }
+            }
+            // 3. Si es RANGO (Custom/Semanal/Mensual) - Opcional, pero bueno tenerlo
+            else if (currentReport.start_date && currentReport.end_date) {
+                // Para rangos es más pesado, tal vez solo actualizar si el usuario lo pide
+                // o usar la misma logica de generateReport pero sin loading.
+                // Por ahora lo dejamos para no sobrecargar en rangos grandes.
+            }
+
+        } catch (err) {
+            console.warn('Error en refrescamiento silencioso:', err);
+        }
+    }, [currentReport, fetchDayShifts]);
+
+    // POLLING: Actualización en tiempo real (cada 5s)
     useEffect(() => {
         // Carga inicial inmediata
         checkCurrentShift();
         fetchReports();
+        fetchDashboardStats();
 
         const interval = setInterval(() => {
-            checkCurrentShift();
-            fetchReports();
-            // Si hay un reporte diario seleccionado, actualizarlo también
-            if (currentReport && (currentReport.date || currentReport.start_date)) {
-                const d = currentReport.date || currentReport.start_date;
-                // Solo actualizar si es reporte diario
-                if (d && !currentReport.start_date) { // simple check for daily
-                    fetchDayShifts(d);
-                }
-            }
-        }, 10000);
+            console.log('🔄 Actualizando datos en tiempo real...');
+            checkCurrentShift().catch(e => console.warn('Shift poll error', e));
+            fetchDashboardStats().catch(e => console.warn('Dashboard poll error', e)); // Actualizar tarjetas superiores
+            fetchReports().catch(e => console.warn('Reports poll error', e));        // Actualizar lista lateral
+            refreshCurrentData().catch(e => console.warn('Data poll error', e));  // Actualizar detalle central
+        }, 5000); // 5 segundos para mejor sensación de tiempo real
+
         return () => clearInterval(interval);
-    }, [checkCurrentShift, fetchReports, currentReport, fetchDayShifts]);
+    }, [checkCurrentShift, fetchReports, fetchDashboardStats, refreshCurrentData]);
 
     // --- Funciones de Renderizado ---
 

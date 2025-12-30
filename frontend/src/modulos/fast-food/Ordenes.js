@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
-import { printOrderPDF } from '../../utils/printOrderPDF';
+import printerService from '../../services/printerService';
 const Ordenes = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -9,6 +9,8 @@ const Ordenes = () => {
     const [updatingStatus, setUpdatingStatus] = useState({});
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [showModal, setShowModal] = useState(false);
+
+
 
     useEffect(() => {
         const fetchOrders = async () => {
@@ -85,9 +87,11 @@ const Ordenes = () => {
                 { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE }
             );
             // Preservamos el customer_name del listado por si la respuesta no lo incluye
+
+            const orderData = response.data;
             setSelectedOrder({
-                ...response.data,
-                customer_name: response.data.customer_name || order.customer_name
+                ...orderData,
+                customer_name: orderData.customer_name || order.customer_name
             });
         } catch (err) {
             console.error('Error fetching order details:', err);
@@ -101,6 +105,60 @@ const Ordenes = () => {
         setShowModal(false);
         setSelectedOrder(null);
     };
+
+    const handleDeleteOrder = async () => {
+        if (!selectedOrder) return;
+
+        if (!window.confirm(`¿Estás seguro de que quieres eliminar la Orden ${selectedOrder.order_number}? Esta acción no se puede deshacer.`)) {
+            return;
+        }
+
+        try {
+            await api.delete(`/api/orders/orders/${selectedOrder.order_number}/`, {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
+
+            // Eliminar del estado local
+            setOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
+            alert('Orden eliminada exitosamente');
+            closeModal();
+        } catch (err) {
+            console.error('Error deleting order:', err);
+            alert('Error al eliminar la orden');
+        }
+    };
+
+    const handlePrintTicket = async () => {
+        if (!selectedOrder) return;
+
+        try {
+            const receiptData = {
+                order_number: selectedOrder.order_number,
+                customer_name: selectedOrder.customer_name || 'CONSUMIDOR FINAL',
+                table_number: selectedOrder.table_number || (selectedOrder.order_type === 'takeout' ? 'PARA LLEVAR' : 'MESA GENÉRICA'),
+                items: selectedOrder.items.map(item => ({
+                    name: item.product_details?.name || item.product_name || 'Producto',
+                    quantity: item.quantity,
+                    price: parseFloat(item.unit_price),
+                    total: parseFloat(item.line_total || item.subtotal),
+                    note: item.notes || ''
+                })),
+                subtotal: parseFloat(selectedOrder.subtotal),
+                discount: parseFloat(selectedOrder.discount_amount || 0),
+                tax: parseFloat(selectedOrder.tax_amount || 0),
+                total: parseFloat(selectedOrder.total)
+            };
+
+            await printerService.printReceipt(receiptData);
+            alert('Ticket enviado a la impresora');
+        } catch (error) {
+            console.error('Error printing ticket:', error);
+            alert('Error al imprimir el ticket. Verifique la conexión con el agente de impresión.');
+        }
+    };
+
+
+
 
     const getStatusDisplay = (status) => {
         const statusMap = {
@@ -401,8 +459,9 @@ const Ordenes = () => {
                                 >
                                     ×
                                 </button>
+                                
                                 <button
-                                    onClick={() => printOrderPDF(selectedOrder)}
+                                    onClick={handlePrintTicket}
                                     style={{
                                         background: '#059669',
                                         color: '#fff',
@@ -498,40 +557,43 @@ const Ordenes = () => {
                                             }}></div>
                                             <p style={{ marginTop: '12px', color: '#6b7280' }}>Cargando productos...</p>
                                         </div>
-                                    ) : selectedOrder.items && selectedOrder.items.length > 0 ? (
-                                        selectedOrder.items.map((item, index) => (
-                                            <div
-                                                key={index}
-                                                style={{
-                                                    padding: '12px 16px',
-                                                    borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #e5e7eb' : 'none',
-                                                    display: 'flex',
-                                                    justifyContent: 'space-between',
-                                                    alignItems: 'center'
-                                                }}
-                                            >
-                                                <div>
-                                                    <p style={{ margin: 0, fontWeight: '500', color: '#1f2937' }}>
-                                                        {item.product_details?.name || item.product_name || 'Producto'}
-                                                    </p>
-                                                    <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
-                                                        Cantidad: {item.quantity} × ${item.unit_price}
-                                                    </p>
-                                                    {item.notes && (
-                                                        <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#d97706', fontStyle: 'italic', backgroundColor: '#fffbeb', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
-                                                            Nota: {item.notes}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <p style={{ margin: 0, fontWeight: '600', color: '#059669' }}>
-                                                    ${item.line_total || item.subtotal}
-                                                </p>
-                                            </div>
-                                        ))
                                     ) : (
-                                        <p style={{ padding: '16px', margin: 0, color: '#6b7280', textAlign: 'center' }}>
-                                            No hay productos en esta orden
-                                        </p>
+                                        // MODO VISUALIZACIÓN: LISTA NORMAL (Código Original)
+                                        selectedOrder.items && selectedOrder.items.length > 0 ? (
+                                            selectedOrder.items.map((item, index) => (
+                                                <div
+                                                    key={index}
+                                                    style={{
+                                                        padding: '12px 16px',
+                                                        borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #e5e7eb' : 'none',
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    <div>
+                                                        <p style={{ margin: 0, fontWeight: '500', color: '#1f2937' }}>
+                                                            {item.product_details?.name || item.product_name || 'Producto'}
+                                                        </p>
+                                                        <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
+                                                            Cantidad: {item.quantity} × ${item.unit_price}
+                                                        </p>
+                                                        {item.notes && (
+                                                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#d97706', fontStyle: 'italic', backgroundColor: '#fffbeb', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                                                Nota: {item.notes}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <p style={{ margin: 0, fontWeight: '600', color: '#059669' }}>
+                                                        ${item.line_total || item.subtotal}
+                                                    </p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p style={{ padding: '16px', margin: 0, color: '#6b7280', textAlign: 'center' }}>
+                                                No hay productos en esta orden
+                                            </p>
+                                        )
                                     )}
                                 </div>
                             </div>
@@ -561,6 +623,9 @@ const Ordenes = () => {
                             </div>
 
                             {/* Notes */}
+
+
+                            {/* SECCIÓN DE EDICIÓN DE NOTAS */}
                             {selectedOrder.notes && (
                                 <div style={{ marginTop: '24px' }}>
                                     <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
@@ -571,6 +636,39 @@ const Ordenes = () => {
                                     </p>
                                 </div>
                             )}
+
+                            {/* BOTONES DE ACCIÓN (FOOTER) */}
+                            <div style={{ marginTop: '32px', borderTop: '1px solid #e5e7eb', paddingTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={handleDeleteOrder}
+                                    style={{
+                                        padding: '10px 20px',
+                                        backgroundColor: '#fee2e2',
+                                        color: '#b91c1c',
+                                        border: '1px solid #fca5a5',
+                                        borderRadius: '8px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        marginRight: 'auto'
+                                    }}
+                                >
+                                    Eliminar Orden
+                                </button>
+                                <button
+                                    onClick={closeModal}
+                                    style={{
+                                        padding: '10px 20px',
+                                        backgroundColor: '#f3f4f6',
+                                        color: '#374151',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cerrar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

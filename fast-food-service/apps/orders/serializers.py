@@ -414,10 +414,11 @@ class OrderUpdateSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Validar que la orden pueda ser modificada"""
-        if not self.instance.can_be_modified():
-            raise serializers.ValidationError(
-                'Esta orden no puede ser modificada en su estado actual'
-            )
+        # Relaxed validation: Allow editing notes and table number even if completed
+        # if not self.instance.can_be_modified():
+        #     raise serializers.ValidationError(
+        #         'Esta orden no puede ser modificada en su estado actual'
+        #     )
         return data
     
     def update(self, instance, validated_data):
