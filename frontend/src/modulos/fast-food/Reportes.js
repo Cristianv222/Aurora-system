@@ -373,6 +373,10 @@ const Reportes = () => {
                     baseURL: getFastFoodBaseURL()
                 });
                 setCurrentReport(response.data);
+                // Cargar turnos si tenemos fecha disponible
+                if (response.data.date) {
+                    fetchDayShifts(response.data.date).catch(e => console.warn("Error fetching shifts for detail:", e));
+                }
             }
 
         } catch (err) {
@@ -412,6 +416,8 @@ const Reportes = () => {
                 // Si ya existe un reporte y no debemos generarlo, lo usamos
                 console.log("Usando reporte existente para:", dateStr);
                 setCurrentReport(existingReport);
+                // Asegurar que se carguen los turnos del día para el desglose
+                fetchDayShifts(dateStr).catch(err => console.warn("Error fetching shifts in background:", err));
                 return;
             }
 
@@ -433,7 +439,10 @@ const Reportes = () => {
                 timeout: 15000
             });
 
-            const generatedSummary = response.data.data || response.data;
+            // FIX: El backend devuelve { message: "...", summary: { ... } }
+            const responseData = response.data.data || response.data;
+            const generatedSummary = responseData.summary || responseData;
+
             if (generatedSummary) {
                 setCurrentReport(generatedSummary);
                 // Actualizar la lista de reportes
@@ -585,6 +594,9 @@ const Reportes = () => {
                 if (todayReport) {
                     setCurrentReport(todayReport);
                     setFilterType('today');
+                    if (todayReport.date) {
+                        fetchDayShifts(todayReport.date).catch(e => console.warn("Error init shifts:", e));
+                    }
                 } else {
                     setNoReportMessage('No hay reporte disponible para hoy. Puedes generar uno si es necesario.');
                 }
@@ -773,11 +785,14 @@ const Reportes = () => {
                     baseURL: getFastFoodBaseURL()
                 });
 
-                const newData = response.data.data || response.data;
+                // FIX: El backend devuelve { message: "...", summary: { ... } }
+                const responseData = response.data.data || response.data;
+                const newData = responseData.summary || responseData;
+
                 if (newData) {
                     setCurrentReport(newData);
                     // También actualizar turnos del día si aplica
-                    fetchDayShifts(dateStr);
+                    fetchDayShifts(dateStr).catch(e => console.warn(e));
                 }
             }
             // 3. Si es RANGO (Custom/Semanal/Mensual) - Opcional, pero bueno tenerlo
@@ -1158,11 +1173,11 @@ const Reportes = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                         <h3 style={{ margin: '0 0 5px 0', color: '#0369a1', fontSize: '1.2rem' }}>
-                            Gestión de Turno (Caja)
+                            Gestión de Turno
                         </h3>
                         <p style={{ margin: 0, fontSize: '0.95rem', color: '#0c4a6e' }}>
                             {currentShift
-                                ? <span>Turno en curso: <strong>#{currentShift.shift_number}</strong> | Abierto por: {currentShift.user?.first_name || 'Usuario'} | Inicio: {new Date(currentShift.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                ? <span>Turno: <strong>#{currentShift.shift_number}</strong> | Usuario: {currentShift.user_name || 'Usuario'} | Inicio: {new Date(currentShift.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} | <strong style={{ color: '#059669' }}>Ventas: {formatCurrency(currentShift.total_sales || 0)}</strong></span>
                                 : <span style={{ color: '#dc2626', fontWeight: 'bold' }}>⚠️ No hay turno abierto. Las ventas no se registrarán correctamente.</span>}
                         </p>
                     </div>
@@ -1508,9 +1523,9 @@ const Reportes = () => {
                                             <span>Órdenes Totales:</span>
                                             <strong>{currentReport?.total_orders}</strong>
                                         </div>
-                                        <div className="modal-stat">
-                                            <span>Clientes Únicos:</span>
-                                            <strong>{currentReport?.total_customers}</strong>
+                                        <div className="info-item">
+                                            <span className="material-icons">paid</span>
+                                            <span>Ventas: <strong>{formatCurrency(currentShift?.total_sales || 0)}</strong></span>
                                         </div>
                                         <div className="modal-stat">
                                             <span>Promedio/Orden:</span>

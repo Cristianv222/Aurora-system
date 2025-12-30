@@ -213,7 +213,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
                 'opened_at': shift.opened_at,
                 'closed_at': shift.closed_at,
                 'status': shift.status,
-                'cash_register': shift.cash_register.name if shift.cash_register else 'N/A'
+                'cash_register': shift.cash_register.register_number if shift.cash_register else 'N/A'
             },
             'summary': {
                 'total_sales': total_sales,

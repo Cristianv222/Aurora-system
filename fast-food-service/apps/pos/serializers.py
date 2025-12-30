@@ -22,6 +22,7 @@ class ShiftSerializer(serializers.ModelSerializer):
         source='cash_register.register_number',
         read_only=True
     )
+    total_sales = serializers.SerializerMethodField()
     
     class Meta:
         model = Shift
@@ -63,6 +64,28 @@ class ShiftSerializer(serializers.ModelSerializer):
             'closed_at',
         ]
     
+    def get_total_sales(self, obj):
+        """
+        Calcula las ventas totales.
+        - Si está CERRADO: Devuelve el valor guardado en DB.
+        - Si está ABIERTO: Calcula la suma de pagos desde la apertura hasta ahora (en tiempo real).
+        """
+        if obj.status == 'closed':
+            return obj.total_sales
+        
+        # Si está abierto, calculamos al vuelo
+        from django.utils import timezone
+        from django.db.models import Sum
+        from apps.orders.models import Order
+        
+        # Calcular ventas desde la apertura hasta ahora, usando Órdenes como el reporte diario
+        total = Order.objects.filter(
+            created_at__gte=obj.opened_at,
+            status__in=['delivered', 'completed']
+        ).aggregate(sum=Sum('total'))['sum'] or 0
+        
+        return total
+
     def get_duration_hours(self, obj):
         """Duración del turno en horas"""
         return round(obj.duration, 2)

@@ -202,15 +202,30 @@ class Shift(models.Model):
             return False, 'El turno ya está cerrado'
         
         from apps.payments.models import Payment
-        
-        # Pagos completados durante este turno
-        payments = Payment.objects.filter(
-            cash_register=self.cash_register,
+        # Calcular totales usando Órdenes, al igual que los reportes
+        from apps.orders.models import Order
+        from django.db.models import Sum
+        from django.utils import timezone
+
+        close_time = timezone.now()
+
+        orders = Order.objects.filter(
             created_at__gte=self.opened_at,
-            status='completed'
+            created_at__lte=close_time,
+            status__in=['delivered', 'completed']
         )
         
-        # Totales por método de pago
+        total_calculated = orders.aggregate(sum=Sum('total'))['sum'] or 0
+        self.total_sales = total_calculated
+        
+        # Para compatibilidad, si se necesita desglose cash/card, se puede mantener la consulta de payments
+        # pero para el total general, usamos Order para consistencia.     
+        payments = Payment.objects.filter(
+            created_at__gte=self.opened_at,
+            created_at__lte=close_time,
+            status='completed'
+        )
+
         self.total_cash_sales = payments.filter(
             payment_method__method_type='cash'
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
@@ -223,8 +238,10 @@ class Shift(models.Model):
             payment_method__method_type__in=['cash', 'credit_card', 'debit_card']
         ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
         
-        self.total_sales = self.total_cash_sales + self.total_card_sales + self.total_other_sales
-        self.total_transactions = payments.count()
+        # self.total_sales = self.total_cash_sales + self.total_card_sales + self.total_other_sales
+        # MANTENER el total calculado por Órdenes
+        
+        self.total_transactions = orders.count()
         
         # Calcular diferencia de caja
         expected_cash = self.opening_cash + self.total_cash_sales
