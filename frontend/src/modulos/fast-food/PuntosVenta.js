@@ -456,7 +456,8 @@ const PuntosVenta = () => {
                 subtotal: parseFloat(calculateSubtotal),
                 discount: parseFloat(calculateDiscountAmount),
                 tax: parseFloat(calculateSubtotal * 0.12), // IVA 12%
-                total: parseFloat(calculateTotal)
+                total: parseFloat(calculateTotal),
+                printed_at: new Date().toISOString() // Hora del cliente para el ticket
             };
 
             // 3. ENVIAR A IMPRIMIR (esto abre la caja automáticamente)

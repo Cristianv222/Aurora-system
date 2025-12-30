@@ -739,10 +739,18 @@ class PrintReceiptView(APIView):
     # Información del ticket
         lines.append("TICKET DE VENTA".center(chars_per_line))
     
-    # Usar la hora local del servidor
-        current_time = timezone.now()
+    # Usar hora del cliente si existe, sino hora local del servidor
+        printed_at_str = order_data.get('printed_at')
+        current_time = None
+        
+        if printed_at_str:
+            from django.utils.dateparse import parse_datetime
+            current_time = parse_datetime(printed_at_str)
+        
+        if not current_time:
+            current_time = timezone.localtime(timezone.now())
     
-        lines.append(f"Fecha: {current_time.strftime('%d/%m/%Y')}")
+        lines.append(f"Fecha: {current_time.strftime('%d/%m/%Y %H:%M')}")
         
         lines.append(f"Ticket #: {order_data.get('order_number', 'N/A')}")
         lines.append(f"Cliente: {order_data.get('customer_name', 'CONSUMIDOR FINAL')}")
