@@ -354,3 +354,173 @@ const Inventario = () => {
 };
 
 export default Inventario;
+
+const styles = `
+    .page-container {
+        padding: 20px;
+        max-width: 1600px;
+        margin: 0 auto;
+    }
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .page-header h2 {
+        margin: 0;
+        color: #1f2937;
+    }
+    
+    /* Tabs */
+    .tabs {
+        display: flex;
+        gap: 10px;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 20px;
+        overflow-x: auto;
+        padding-bottom: 5px;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    .tabs::-webkit-scrollbar {
+        height: 4px;
+    }
+    .tabs::-webkit-scrollbar-thumb {
+        background-color: #ccc;
+        border-radius: 4px;
+    }
+
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+    }
+    .btn-primary {
+        background-color: #3b82f6;
+        color: white;
+        border-color: #3b82f6;
+    }
+    .btn-primary:hover {
+        background-color: #2563eb;
+    }
+    .btn-secondary {
+        background-color: #f3f4f6;
+        color: #374151;
+        border-color: #d1d5db;
+    }
+    .btn-secondary:hover {
+        background-color: #e5e7eb;
+    }
+    .btn-danger {
+        background-color: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+    }
+    .btn-danger:hover {
+        background-color: #fecaca;
+    }
+
+    /* Table */
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        border: 1px solid #e5e7eb;
+    }
+    .table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: white;
+        min-width: 600px; /* Ensure table doesn't squash too much */
+    }
+    .table th, .table td {
+        padding: 0.75rem 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    .table th {
+        background-color: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.875rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .table td {
+        font-size: 0.875rem;
+        color: #4b5563;
+    }
+    .table tr:last-child td {
+        border-bottom: none;
+    }
+
+    /* Form */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: #374151;
+    }
+    .form-control, input[type="text"], input[type="number"], textarea, select {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+    }
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+
+    /* Alerts */
+    .alert {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 0.375rem;
+    }
+    .alert-error {
+        background-color: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+
+    /* Responsive Media Queries */
+    @media (max-width: 768px) {
+        .page-container {
+            padding: 10px;
+        }
+        .page-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        .page-header h2 {
+            font-size: 1.5rem;
+        }
+        .tabs {
+            padding-bottom: 10px;
+        }
+        .btn {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.9rem;
+        }
+    }
+`;
+
+// Inject styles
+const styleSheet = document.createElement("style");
+styleSheet.innerText = styles;
+document.head.appendChild(styleSheet);
+

@@ -1422,7 +1422,17 @@ const Reportes = () => {
                             )}
 
                             {/* Desglose de Turnos (NUEVO) */}
-                            <h3 className="section-title chart-section" style={{ marginTop: '20px' }}>Desglose de Turnos</h3>
+                            <h3 className="section-title chart-section" style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span>Desglose de Turnos</span>
+                                <button
+                                    className="action-button primary"
+                                    onClick={handlePrintPDF}
+                                    style={{ fontSize: '0.9rem', padding: '8px 15px' }}
+                                >
+                                    <span className="material-icons" style={{ fontSize: '1.1rem', marginRight: '5px' }}>print</span>
+                                    Imprimir Reporte del Día
+                                </button>
+                            </h3>
                             <div className="card" style={{ padding: '15px', marginBottom: '20px' }}>
                                 {dayShifts && dayShifts.length > 0 ? (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1457,9 +1467,7 @@ const Reportes = () => {
                             <h3 className="section-title">Métricas de Rendimiento</h3>
                             {renderMetrics()}
 
-                            {/* DETALLE DE ÓRDENES - POSICION PRIMARIA */}
-                            <h3 className="section-title detail-section">Detalle de Órdenes (Web)</h3>
-                            {renderDetailedOrdersTable()}
+                            {/* ELIMINADO: Detalle de Órdenes (Web) */}
 
                             {/* Gráficos Restantes (Ventas por Hora y Top Productos) */}
                             <h3 className="section-title chart-section" style={{ marginTop: '40px' }}>Análisis de Gráficos</h3>
@@ -1533,9 +1541,37 @@ const Reportes = () => {
                                         </div>
                                     </div>
 
-                                    {/* Aquí mostramos EXACTAMENTE lo mismo que en el panel principal */}
-                                    <h3 className="section-title detail-section" style={{ marginTop: '20px' }}>Detalle de Órdenes</h3>
-                                    {renderDetailedOrdersTable()}
+                                    {/* Desglose de Turnos EN MODAL (NUEVO REQUERIMIENTO) */}
+                                    <h3 className="section-title detail-section" style={{ marginTop: '20px' }}>Desglose de Turnos del Día</h3>
+                                    <div className="card" style={{ padding: '15px', marginBottom: '20px', border: '1px solid #eee' }}>
+                                        {dayShifts && dayShifts.length > 0 ? (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                {dayShifts.map((shift, idx) => (
+                                                    <div key={shift.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                                                        <div>
+                                                            <div style={{ fontWeight: 'bold' }}>Turno #{shift.shift_number} - {shift.user_name}</div>
+                                                            <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                                                                {format(new Date(shift.opened_at), 'HH:mm')} - {shift.closed_at ? format(new Date(shift.closed_at), 'HH:mm') : 'En curso'}
+                                                                <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#059669' }}>
+                                                                    Ventas: {formatCurrency(shift.total_sales || 0)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handlePrintShiftReport(shift.id)}
+                                                            className="action-button secondary"
+                                                            style={{ padding: '5px 10px', fontSize: '0.8rem' }}
+                                                        >
+                                                            <span className="material-icons" style={{ fontSize: '1rem', marginRight: '5px' }}>picture_as_pdf</span>
+                                                            PDF
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p style={{ color: '#666', fontStyle: 'italic' }}>No hay turnos registrados para este día.</p>
+                                        )}
+                                    </div>
 
                                     <div style={{ marginTop: '20px' }}>
                                         <h4 className="section-title chart-section">Análisis de Gráficos</h4>
@@ -1556,7 +1592,7 @@ const Reportes = () => {
 
                         <div className="modal-footer">
                             <button className="action-button" onClick={() => setShowModal(false)}>Cerrar</button>
-                            <button className="action-button primary" onClick={handlePrintPDF}>Imprimir PDF</button>
+                            <button className="action-button primary" onClick={handlePrintPDF}>Imprimir Reporte Completo</button>
                         </div>
                     </div>
                 </div>
@@ -2323,6 +2359,90 @@ const Reportes = () => {
                     padding: 40px;
                     color: #666;
                     font-style: italic;
+                }
+
+                /* RESPONSIVE DESIGN */
+                @media (max-width: 1366px) {
+                    .reportes-container {
+                        max-width: 100%;
+                        padding: 15px;
+                    }
+                    .content-layout {
+                         grid-template-columns: 300px 1fr;
+                         gap: 20px;
+                    }
+                    .charts-grid {
+                        grid-template-columns: 1fr; /* Stack charts on medium screens */
+                    }
+                }
+
+                @media (max-width: 1024px) {
+                     .content-layout {
+                         grid-template-columns: 1fr; /* Stack sidebar on top */
+                         gap: 30px;
+                    }
+                    .reports-list-panel {
+                        height: auto;
+                        max-height: 400px;
+                        margin-bottom: 20px;
+                    }
+                    .reports-scroll {
+                        max-height: 300px;
+                    }
+                    .report-detail-panel {
+                        min-height: auto;
+                        padding: 20px;
+                    }
+                }
+
+                @media (max-width: 768px) {
+                    .header-bar {
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 15px;
+                    }
+                    .header-bar .actions-group {
+                        width: 100%;
+                        justify-content: flex-start;
+                        flex-wrap: wrap;
+                    }
+                    .detail-header {
+                        flex-direction: column;
+                        gap: 15px;
+                    }
+                    .detail-status {
+                        text-align: left;
+                        width: 100%;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                    }
+                    .metrics-grid {
+                        grid-template-columns: repeat(2, 1fr); /* 2 cols on mobile */
+                    }
+                    .modal-container {
+                        width: 95%;
+                        max-height: 90vh;
+                        padding: 15px;
+                    }
+                    .modal-summary-grid {
+                        grid-template-columns: 1fr; /* Stack summary items */
+                    }
+                    .chart-section h3 {
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 10px;
+                    }
+                }
+
+                @media (max-width: 480px) {
+                    .metrics-grid {
+                        grid-template-columns: 1fr; /* 1 col on small mobile */
+                    }
+                    .action-button {
+                        width: 100%;
+                        justify-content: center;
+                    }
                 }
             `}</style>
         </div>
