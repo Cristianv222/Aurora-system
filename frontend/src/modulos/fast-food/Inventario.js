@@ -441,16 +441,19 @@ const styles = `
     .table-responsive {
         width: 100%;
         overflow-x: auto;
+        overflow-y: auto; /* Scroll vertical */
+        max-height: 70vh; /* Altura máxima para permitir scroll */
         -webkit-overflow-scrolling: touch;
         border-radius: 0.5rem;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         border: 1px solid #e5e7eb;
+        position: relative; /* Para sticky header */
     }
     .table {
         width: 100%;
         border-collapse: collapse;
         background-color: white;
-        min-width: 600px; /* Ensure table doesn't squash too much */
+        min-width: 600px; 
     }
     .table th, .table td {
         padding: 0.75rem 1rem;
@@ -464,6 +467,10 @@ const styles = `
         font-size: 0.875rem;
         text-transform: uppercase;
         letter-spacing: 0.05em;
+        position: sticky; /* Header fijo */
+        top: 0;
+        z-index: 10;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
     .table td {
         font-size: 0.875rem;

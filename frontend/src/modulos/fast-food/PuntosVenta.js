@@ -86,6 +86,31 @@ const PuntosVenta = () => {
     // =====================================
     // 4. EFECTOS - CARGA INICIAL DE DATOS Y RESPONSIVIDAD
     // =====================================
+    // Inject custom scrollbar styles
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+            ::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
+            }
+            ::-webkit-scrollbar-track {
+                background: #f1f1f1; 
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #c7d2fe; 
+                border-radius: 4px;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: #a5b4fc; 
+            }
+        `;
+        document.head.appendChild(style);
+        return () => {
+            document.head.removeChild(style);
+        };
+    }, []);
+
     useEffect(() => {
         let isMounted = true;
 
