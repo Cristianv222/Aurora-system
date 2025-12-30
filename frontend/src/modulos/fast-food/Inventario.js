@@ -86,15 +86,23 @@ const Inventario = () => {
     };
 
     const handleDeleteProduct = async (id) => {
-        if (window.confirm('¿Estás seguro de eliminar este producto?')) {
+        if (window.confirm('¿Estás seguro de eliminar este producto? (Se archivará para no afectar reportes históricos)')) {
             try {
-                await api.delete(`/api/menu/products/${id}/`, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                // "Soft Delete": Desactivar en lugar de borrar físicamente para mantener integridad referencial
+                const formData = new FormData();
+                formData.append('is_active', 'false');
+                formData.append('is_available', 'false');
+
+                // Backend usa lookup_field = 'pk' (UUID), así que usamos el ID.
+                await api.patch(`/api/menu/products/${id}/`, formData, {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 fetchProducts();
             } catch (err) {
                 console.error('Error deleting product:', err);
-                alert('Error al eliminar el producto');
+                const msg = err.response?.data?.detail || 'Error al eliminar el producto';
+                alert(`Error: ${msg}`);
             }
         }
     };
@@ -102,13 +110,8 @@ const Inventario = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        const slug = newProduct.name.toLowerCase()
-            .replace(/ /g, '-')
-            .replace(/[^\w-]+/g, '');
-
         const formData = new FormData();
         formData.append('name', newProduct.name);
-        formData.append('slug', slug);
         formData.append('description', newProduct.description);
         formData.append('price', newProduct.price);
         formData.append('category', newProduct.category);
@@ -118,9 +121,18 @@ const Inventario = () => {
             formData.append('image', newProduct.image);
         }
 
+        // Solo generar SLUG si es un producto nuevo.
+        if (!editingProduct) {
+            const slug = newProduct.name.toLowerCase()
+                .replace(/ /g, '-')
+                .replace(/[^\w-]+/g, '');
+            formData.append('slug', slug);
+        }
+
         try {
             if (editingProduct) {
-                await api.patch(`/api/menu/products/${editingProduct.slug}/`, formData, {
+                // Usar ID para el PATCH ya que el backend espera PK
+                await api.patch(`/api/menu/products/${editingProduct.id}/`, formData, {
                     baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
@@ -136,7 +148,8 @@ const Inventario = () => {
             fetchProducts();
         } catch (err) {
             console.error('Error saving product:', err);
-            alert('Error al guardar el producto. Verifique los datos.');
+            const msg = err.response?.data?.detail || err.response?.data?.name || 'Error al guardar el producto. Verifique los datos.';
+            alert(`Error: ${msg}`);
         }
     };
 

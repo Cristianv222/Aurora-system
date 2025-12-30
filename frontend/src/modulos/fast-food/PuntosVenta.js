@@ -357,7 +357,9 @@ const PuntosVenta = () => {
         return products.filter(product => {
             const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
             const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-            return matchesCategory && matchesSearch;
+            const isAvailable = product.is_active && product.is_available;
+
+            return matchesCategory && matchesSearch && isAvailable;
         });
     }, [products, selectedCategory, searchTerm]);
 
