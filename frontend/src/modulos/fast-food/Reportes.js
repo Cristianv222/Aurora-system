@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import {
-    BarChart, Bar, 
+    BarChart, Bar,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     AreaChart, Area
 } from 'recharts';
@@ -12,6 +12,7 @@ import { format, subDays, startOfWeek, endOfWeek, startOfMonth, isWithinInterval
 import { es } from 'date-fns/locale';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import { formatCurrency, formatDate, getValidDate, generateDetailedPDF } from '../../utils/reportUtils';
 
 // ====================================================================
 // 1. Funciones de Ayuda (Estilos, Formato)
@@ -22,67 +23,32 @@ const getFastFoodBaseURL = () => {
     return process.env.REACT_APP_FAST_FOOD_SERVICE || 'http://localhost:8002';
 };
 
-const formatCurrency = (amount) => {
-    if (amount === undefined || amount === null) return '$0.00';
-    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return new Intl.NumberFormat('es-MX', {
-        style: 'currency',
-        currency: 'MXN',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(num || 0);
-};
-
-const formatDate = (dateString) => {
-    try {
-        if (!dateString) return 'Fecha no disponible';
-        const date = new Date(dateString);
-        if (isNaN(date.getTime())) return dateString;
-
-        return date.toLocaleDateString('es-MX', {
-            weekday: 'short',
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    } catch (e) {
-        return dateString;
-    }
-};
-
-// FUNCIÓN CLAVE PARA EVITAR EL ERROR 'Invalid time value'
-const getValidDate = (dateValue) => {
-    if (!dateValue) return null;
-    const date = new Date(dateValue);
-    return isNaN(date.getTime()) ? null : date;
-};
-
 // Reemplaza la función isSameLocalDate con esta versión corregida:
 const isSameLocalDate = (date1, date2) => {
     if (!date1 || !date2) {
         console.log('isSameLocalDate: fecha(s) inválida(s)', { date1, date2 });
         return false;
     }
-    
+
     const d1 = getValidDate(date1);
     const d2 = getValidDate(date2);
-    
+
     if (!d1 || !d2) {
         console.log('isSameLocalDate: no se pudo obtener fecha válida', { d1, d2, date1, date2 });
         return false;
     }
-    
+
     // Obtener componentes de fecha local
     const year1 = d1.getFullYear();
     const month1 = d1.getMonth();
     const day1 = d1.getDate();
-    
+
     const year2 = d2.getFullYear();
     const month2 = d2.getMonth();
     const day2 = d2.getDate();
-    
+
     const result = (year1 === year2 && month1 === month2 && day1 === day2);
-    
+
     console.log('isSameLocalDate comparación:', {
         fecha1: d1.toISOString(),
         fecha1_local: `${day1}/${month1 + 1}/${year1}`,
@@ -90,191 +56,14 @@ const isSameLocalDate = (date1, date2) => {
         fecha2_local: `${day2}/${month2 + 1}/${year2}`,
         resultado: result
     });
-    
+
     return result;
 };
 // ====================================================================
 // 2. Lógica del PDF (Impresión Detallada) - SIN EMOJIS
 // ====================================================================
 
-const generateDetailedPDF = (report, reportType, dateRangeStr) => {
-    if (!report) {
-        alert('No hay reporte seleccionado para imprimir.');
-        return;
-    }
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 15;
-    const MARGIN = 10;
-    const PAGE_HEIGHT = doc.internal.pageSize.getHeight();
-    const MIN_SPACE_FOR_SECTION = 30;
-
-    // 1. Manejo de fechas para el TÍTULO y nombre de archivo
-    const reportDateForFilename = getValidDate(report.date || report.start_date) || new Date(); 
-
-    // Título y Subtítulo
-    doc.setFontSize(18);
-    doc.text(`Reporte de Ventas Detallado: ${reportType}`, pageWidth / 2, y, { align: 'center' });
-    y += 7;
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    
-    const formattedGenerationDate = format(new Date(), 'dd/MM/yyyy HH:mm');
-    doc.text(`Período: ${dateRangeStr} | Generado: ${formattedGenerationDate}`, pageWidth / 2, y, { align: 'center' });
-    y += 10;
-    doc.line(MARGIN, y, pageWidth - MARGIN, y);
-    y += 5;
-
-    // --- 1. Resumen Principal ---
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text('1. Resumen General', MARGIN, y);
-    y += 5;
-
-    const summaryData = [
-        ['Ventas Totales', formatCurrency(report.total_sales || 0)],
-        ['Órdenes Totales', (report.total_orders || 0).toLocaleString()],
-        ['Productos Vendidos (Unidades)', (report.total_items_sold || 0).toLocaleString()],
-        ['Clientes Únicos', (report.total_customers || 0).toLocaleString()],
-        ['Promedio por Orden', formatCurrency(report.average_order_value || 0)],
-        ['Total Descuentos', formatCurrency(report.total_discounts || 0)],
-    ];
-
-    doc.autoTable({
-        startY: y + 5,
-        head: [['Métrica', 'Valor']],
-        body: summaryData,
-        theme: 'striped',
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [44, 62, 80] },
-        margin: { left: MARGIN, right: MARGIN },
-        didParseCell: (data) => {
-            if (data.column.index === 1) {
-                data.cell.styles.halign = 'right';
-            }
-        }
-    });
-
-    y = doc.lastAutoTable.finalY + 10;
-
-    // --- 2. Detalle de Órdenes (Control de salto de página) ---
-
-    if (PAGE_HEIGHT - y < MIN_SPACE_FOR_SECTION) {
-        doc.addPage();
-        y = 20;
-    }
-
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text('2. Detalle de Órdenes (Listado Completo)', MARGIN, y);
-    y += 5;
-
-    const ordersDetail = report.orders_detail || [];
-
-    if (ordersDetail.length > 0) {
-        const orderData = [];
-        ordersDetail.forEach((order, index) => {
-            const orderDateValue = order.timestamp || report.date; 
-            const validOrderDate = getValidDate(orderDateValue);
-            const timeFormatted = validOrderDate ? format(validOrderDate, 'HH:mm:ss') : 'N/A';
-            
-            // Fila de la Orden (encabezado)
-            orderData.push([
-                { content: `ORDEN #${order.order_number || order.order_id || index + 1} (${order.customer_name || 'Anónimo'})`, colSpan: 4, styles: { fillColor: [230, 230, 250], fontStyle: 'bold' } },
-            ]);
-            orderData.push([
-                { content: 'Fecha/Hora', styles: { fontStyle: 'bold' } },
-                { content: 'Monto Total', styles: { fontStyle: 'bold', halign: 'right' } },
-                { content: 'Tipo Pago', styles: { fontStyle: 'bold' } },
-                { content: 'Estado', styles: { fontStyle: 'bold' } },
-            ]);
-            orderData.push([
-                timeFormatted,
-                formatCurrency(order.total_amount || 0), 
-                order.payment_method_display || 'N/A', 
-                order.status || 'Completada',
-            ]);
-            // Fila de los Ítems
-            orderData.push([
-                { content: 'Ítem', styles: { fontStyle: 'bold' } },
-                { content: 'Cantidad', styles: { fontStyle: 'bold', halign: 'right' } },
-                { content: 'Precio Unitario', styles: { fontStyle: 'bold', halign: 'right' } },
-                { content: 'Subtotal', styles: { fontStyle: 'bold', halign: 'right' } },
-            ]);
-            (order.items || []).forEach(item => {
-                const productName = item.product_details?.name || item.product_name || 'Producto Desconocido';
-                const itemLabel = productName + (item.size_details?.name ? ` (${item.size_details.name})` : '');
-                
-                orderData.push([
-                    itemLabel,
-                    (item.quantity || 1).toString(),
-                    formatCurrency(item.unit_price || 0),
-                    formatCurrency(item.line_total || item.subtotal || 0), 
-                ]);
-            });
-            // Separador
-            orderData.push([
-                { content: '', colSpan: 4, styles: { fillColor: [255, 255, 255], minCellHeight: 3 } }
-            ]);
-        });
-
-        doc.autoTable({
-            startY: y + 5,
-            head: [], 
-            body: orderData,
-            theme: 'plain',
-            styles: { fontSize: 8 },
-            columnStyles: {
-                0: { cellWidth: 55 },
-                1: { cellWidth: 25, halign: 'right' },
-                2: { cellWidth: 40, halign: 'right' },
-                3: { cellWidth: 40, halign: 'right' },
-            },
-            margin: { left: MARGIN, right: MARGIN },
-        });
-
-        y = doc.lastAutoTable.finalY + 10;
-    } else {
-        doc.setFontSize(10);
-        doc.setTextColor(150);
-        doc.text('No hay detalles de órdenes para este reporte.', MARGIN, y + 5);
-        y += 10;
-    }
-
-    // --- 3. Listado Completo de Productos Vendidos (Control de salto de página) ---
-
-    if (PAGE_HEIGHT - y < MIN_SPACE_FOR_SECTION) {
-        doc.addPage();
-        y = 20;
-    }
-
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    // Título actualizado: Listado Completo de Productos Vendidos
-    doc.text('3. Listado Completo de Productos Vendidos', MARGIN, y);
-    y += 5;
-
-    const topProducts = (report.top_products || [])
-        .map(p => [
-            p.product_name || 'Desconocido',
-            (p.quantity || p.quantity_sold || 0).toLocaleString(),
-            formatCurrency(p.total_amount || 0)
-        ]);
-
-    doc.autoTable({
-        startY: y + 5,
-        head: [['Producto', 'Unidades Vendidas', 'Monto Generado']],
-        body: topProducts.length > 0 ? topProducts : [['No hay datos de productos.']],
-        theme: 'grid',
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [243, 156, 18] },
-        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
-        margin: { left: MARGIN, right: MARGIN },
-    });
-
-    doc.save(`Reporte_Ventas_${reportType}_${format(reportDateForFilename, 'yyyyMMdd')}.pdf`);
-};
+// generateDetailedPDF importado de ../../../utils/reportUtils
 
 // ====================================================================
 // 3. Componente Principal (Reportes)
@@ -296,10 +85,20 @@ const Reportes = () => {
     const [connectionError, setConnectionError] = useState(false);
     const [debugInfo, setDebugInfo] = useState('');
     const [noReportMessage, setNoReportMessage] = useState('');
-    
+
     // ========== NUEVOS ESTADOS PARA EL MODAL ==========
     const [showModal, setShowModal] = useState(false);
     const [modalLoading, setModalLoading] = useState(false);
+
+    // ========== ESTADOS PARA GESTIÓN DE TURNOS (SOLICITADO POR USUARIO) ==========
+    const [currentShift, setCurrentShift] = useState(null);
+    const [showShiftModal, setShowShiftModal] = useState(false); // Para abrir turno
+    const [openingCash, setOpeningCash] = useState('');
+    const [closingCash, setClosingCash] = useState(''); // Para cerrar turno (opcional en flujo rápido, pero recomendado)
+    const [managerName, setManagerName] = useState(''); // Nombre del encargado (Nuevo, reemplaza selección de usuario compleja)
+    const [shiftNotes, setShiftNotes] = useState('');
+    const [processingShift, setProcessingShift] = useState(false);
+    const [dayShifts, setDayShifts] = useState([]); // Turnos del día seleccionado
     // ==================================================
 
     // Cargar estadísticas del dashboard
@@ -317,113 +116,265 @@ const Reportes = () => {
         }
     }, []);
 
-   // Obtener la lista de reportes recientes
-const fetchReports = useCallback(async () => {
-    try {
-        setLoadingData(true);
-        setConnectionError(false);
-        setError('');
-        setNoReportMessage('');
+    // Fetch shifts for a specific date
+    const fetchDayShifts = useCallback(async (dateStr) => {
+        if (!dateStr) return;
+        try {
+            const response = await api.get(`/api/pos/shifts/by_date/?date=${dateStr}`, {
+                baseURL: getFastFoodBaseURL()
+            });
+            if (response.data && response.data.shifts) {
+                setDayShifts(response.data.shifts);
+            } else {
+                setDayShifts([]);
+            }
+        } catch (err) {
+            console.error('Error fetching day shifts:', err);
+            setDayShifts([]);
+        }
+    }, []);
 
-        console.log('=== INICIO fetchReports ===');
-        const today = new Date();
-        console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'), today.toISOString());
+    // Print Shift Report (Fetch detailed data first)
+    const handlePrintShiftReport = async (shiftId) => {
+        if (!shiftId) return;
+        try {
+            const response = await api.get(`/api/pos/shifts/${shiftId}/report/`, {
+                baseURL: getFastFoodBaseURL()
+            });
+            const reportData = response.data;
+            // Add flag to satisfy reportUtils check
+            reportData.is_shift_report = true;
+            generateDetailedPDF(reportData, 'shift', '');
+        } catch (err) {
+            console.error('Error generating shift PDF:', err);
+            alert('Error al generar el PDF del turno.');
+        }
+    };
 
-        const listResponse = await api.get('/api/pos/daily-summaries/', {
-            baseURL: getFastFoodBaseURL(),
-            params: { ordering: '-date', limit: 30 },
-            timeout: 10000
-        });
+    // ========== GESTIÓN DE TURNOS ==========
+    const checkCurrentShift = useCallback(async () => {
+        try {
+            const response = await api.get('/api/pos/shifts/current/', {
+                baseURL: getFastFoodBaseURL()
+            });
+            // La respuesta es { shift: { ... } } o { message: "...", shift: null }
+            setCurrentShift(response.data.shift);
+        } catch (err) {
+            console.error('Error checking current shift:', err);
+        }
+    }, []);
 
-        let reportsData = listResponse.data.results || listResponse.data;
-        if (!Array.isArray(reportsData)) reportsData = [];
+    useEffect(() => {
+        checkCurrentShift();
+    }, [checkCurrentShift]);
 
-        console.log(`Se obtuvieron ${reportsData.length} reportes del servidor`);
-        
-        // Imprimir las fechas de los reportes para debug
-        reportsData.forEach((report, index) => {
-            const reportDate = report.date || report.start_date;
-            console.log(`Reporte ${index}: ${reportDate} (${formatDate(reportDate)})`);
-        });
+    const handleOpenShift = async (e) => {
+        e?.preventDefault();
 
-        const todayStr = format(today, 'yyyy-MM-dd');
-        console.log('Buscando reporte para hoy (str):', todayStr);
-        
-        // Buscar reporte de hoy en la lista recibida
-        let todayReport = null;
-        for (const report of reportsData) {
-            const reportDate = report.date || report.start_date;
-            if (reportDate) {
-                console.log(`Comparando reporte ${reportDate} con hoy ${todayStr}`);
-                if (isSameLocalDate(reportDate, todayStr)) {
-                    todayReport = report;
-                    console.log('¡Reporte de hoy encontrado en lista!');
-                    break;
+        if (!managerName.trim()) {
+            alert('Por favor, ingresa el nombre del encargado.');
+            return;
+        }
+
+        setProcessingShift(true);
+        try {
+            // Enviamos solo el nombre del encargado. El backend se encarga de la caja.
+            await api.post('/api/pos/shifts/', {
+                manager_name: managerName,
+                opening_cash: 0,
+                notes: shiftNotes || 'Apertura Simplificada'
+            }, { baseURL: getFastFoodBaseURL() });
+
+            await checkCurrentShift();
+            setShowShiftModal(false);
+            setManagerName(''); // Reset
+            setShiftNotes('');
+            alert('Turno abierto correctamente.');
+        } catch (err) {
+            console.error('Error opening shift:', err);
+            const msg = err.response?.data?.detail
+                || err.response?.data?.non_field_errors?.[0]
+                || (typeof err.response?.data === 'string' ? err.response?.data : '')
+                || err.message
+                || 'Error desconocido';
+            alert('Error al abrir turno: ' + msg);
+        } finally {
+            setProcessingShift(false);
+        }
+    };
+
+    const handleCloseShift = async () => {
+        if (!currentShift) return;
+        if (!window.confirm(`¿Seguro que deseas cerrar el Turno #${currentShift.shift_number}?`)) return;
+
+        setProcessingShift(true);
+        try {
+            await api.post(`/api/pos/shifts/${currentShift.id}/close/`, {
+                closing_cash: 0,
+                closing_notes: 'Cierre desde Reportes'
+            }, { baseURL: getFastFoodBaseURL() });
+
+            // Reporte y PDF
+            try {
+                const reportResponse = await api.get(`/api/pos/shifts/${currentShift.id}/report/`, {
+                    baseURL: getFastFoodBaseURL()
+                });
+
+                const shiftData = reportResponse.data;
+                const normalizedReport = {
+                    ...shiftData.summary,
+                    shift_info: shiftData.shift_info,
+                    orders_detail: shiftData.orders_detail,
+                    payment_methods: shiftData.payment_methods,
+                    top_products: shiftData.top_products,
+                    date: shiftData.shift_info.opened_at,
+                    is_shift_report: true,
+                    generated_by: shiftData.shift_info.user
+                };
+
+                generateDetailedPDF(normalizedReport, 'Reporte de Turno', `Cierre Turno #${currentShift.shift_number}`);
+            } catch (e) { console.error("Error PDF", e); }
+
+            setCurrentShift(null);
+            alert('Turno cerrado y reporte generado.');
+            fetchReports(); // Actualizar lista
+        } catch (err) {
+            console.error('Error closing shift:', err);
+            alert('Error al cerrar el turno.');
+        } finally {
+            setProcessingShift(false);
+        }
+    };
+
+    // Obtener la lista de reportes recientes
+    const fetchReports = useCallback(async () => {
+        try {
+            setLoadingData(true);
+            setConnectionError(false);
+            setError('');
+            setNoReportMessage('');
+
+            console.log('=== INICIO fetchReports ===');
+            const today = new Date();
+            console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'), today.toISOString());
+
+            const listResponse = await api.get('/api/pos/daily-summaries/', {
+                baseURL: getFastFoodBaseURL(),
+                params: { ordering: '-date', limit: 30 },
+                timeout: 10000
+            });
+
+            let reportsData = listResponse.data.results || listResponse.data;
+            if (!Array.isArray(reportsData)) reportsData = [];
+
+            console.log(`Se obtuvieron ${reportsData.length} reportes del servidor`);
+
+            // Imprimir las fechas de los reportes para debug
+            reportsData.forEach((report, index) => {
+                const reportDate = report.date || report.start_date;
+                console.log(`Reporte ${index}: ${reportDate} (${formatDate(reportDate)})`);
+            });
+
+            const todayStr = format(today, 'yyyy-MM-dd');
+            console.log('Buscando reporte para hoy (str):', todayStr);
+
+            // Buscar reporte de hoy en la lista recibida
+            let todayReport = null;
+            for (const report of reportsData) {
+                const reportDate = report.date || report.start_date;
+                if (reportDate) {
+                    console.log(`Comparando reporte ${reportDate} con hoy ${todayStr}`);
+                    if (isSameLocalDate(reportDate, todayStr)) {
+                        todayReport = report;
+                        console.log('¡Reporte de hoy encontrado en lista!');
+                        break;
+                    }
                 }
             }
-        }
 
-        // Si no hay reporte de hoy, intentar obtener del endpoint /today/
-        if (!todayReport) {
-            console.log('No se encontró reporte de hoy en lista, intentando endpoint /today/');
-            try {
-                const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
-                    baseURL: getFastFoodBaseURL(),
-                    timeout: 5000
-                });
-                todayReport = todayResponse.data;
-                console.log('Reporte de hoy obtenido de endpoint /today/:', todayReport?.date);
-            } catch (err) {
-                console.warn('No se pudo obtener reporte específico de hoy:', err);
+            // Si no hay reporte de hoy, intentar obtener del endpoint /today/
+            if (!todayReport) {
+                console.log('No se encontró reporte de hoy en lista, intentando endpoint /today/');
+                try {
+                    const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
+                        baseURL: getFastFoodBaseURL(),
+                        timeout: 5000
+                    });
+                    todayReport = todayResponse.data;
+                    console.log('Reporte de hoy obtenido de endpoint /today/:', todayReport?.date);
+                } catch (err) {
+                    console.warn('No se pudo obtener reporte específico de hoy:', err);
+                }
+            } else {
+                console.log('Reporte de hoy encontrado en lista:', todayReport.date);
             }
-        } else {
-            console.log('Reporte de hoy encontrado en lista:', todayReport.date);
+
+            // Procesar lista de reportes
+            const updatedReports = [];
+            if (todayReport) {
+                // Filtrar reportes que no sean de hoy
+                const todayDate = todayReport.date_formatted || todayReport.date;
+                console.log('Filtrando reportes que no sean de:', todayDate);
+
+                const otherReports = reportsData.filter(r => {
+                    const reportDate = r.date_formatted || r.date;
+                    const isSame = reportDate && isSameLocalDate(reportDate, todayDate);
+                    console.log(`  - Reporte ${reportDate}: ${isSame ? 'ES hoy' : 'NO es hoy'}`);
+                    return !isSame;
+                });
+
+                console.log(`Se encontraron ${otherReports.length} reportes que no son de hoy`);
+                updatedReports.push(...otherReports);
+                updatedReports.unshift(todayReport);
+            } else {
+                updatedReports.push(...reportsData);
+            }
+
+            console.log(`Total reportes finales: ${updatedReports.length}`);
+            console.log('=== FIN fetchReports ===');
+
+            setReports(updatedReports);
+            return updatedReports;
+
+        } catch (err) {
+            console.error('Error loading reports (fetchReports):', err);
+            // throw new Error('Error al cargar reportes listados.'); 
+            return []; // Retornar vacío para no romper inicialización
+        } finally {
+            setLoadingData(false);
         }
-
-        // Procesar lista de reportes
-        const updatedReports = [];
-        if (todayReport) {
-            // Filtrar reportes que no sean de hoy
-            const todayDate = todayReport.date_formatted || todayReport.date;
-            console.log('Filtrando reportes que no sean de:', todayDate);
-            
-            const otherReports = reportsData.filter(r => {
-                const reportDate = r.date_formatted || r.date;
-                const isSame = reportDate && isSameLocalDate(reportDate, todayDate);
-                console.log(`  - Reporte ${reportDate}: ${isSame ? 'ES hoy' : 'NO es hoy'}`);
-                return !isSame;
-            });
-            
-            console.log(`Se encontraron ${otherReports.length} reportes que no son de hoy`);
-            updatedReports.push(...otherReports);
-            updatedReports.unshift(todayReport);
-        } else {
-            updatedReports.push(...reportsData);
-        }
-
-        console.log(`Total reportes finales: ${updatedReports.length}`);
-        console.log('=== FIN fetchReports ===');
-        
-        setReports(updatedReports);
-
-    } catch (err) {
-        console.error('Error loading reports (fetchReports):', err);
-        throw new Error('Error al cargar reportes listados.');
-    } finally {
-        setLoadingData(false);
-    }
-}, []);
+    }, []);
     // ========== NUEVA FUNCIÓN PARA VER DETALLE DEL REPORTE ==========
-    const verDetalleReporte = async (reportId) => {
+    const verDetalleReporte = async (reportId, isShift = false) => {
         try {
             setModalLoading(true);
             setShowModal(true);
-            
-            const response = await api.get(`/api/pos/daily-summaries/${reportId}/detail_with_orders/`, {
-                baseURL: getFastFoodBaseURL()
-            });
 
-            setCurrentReport(response.data);
+            let response;
+            if (isShift) {
+                response = await api.get(`/api/pos/shifts/${reportId}/report/`, {
+                    baseURL: getFastFoodBaseURL()
+                });
+                // Normalizar datos del turno para que coincidan con la estructura esperada por el UI y PDF
+                const shiftData = response.data;
+                const normalizedReport = {
+                    ...shiftData.summary, // total_sales, total_orders, etc
+                    shift_info: shiftData.shift_info,
+                    orders_detail: shiftData.orders_detail,
+                    payment_methods: shiftData.payment_methods,
+                    top_products: shiftData.top_products,
+                    date: shiftData.shift_info.opened_at, // Para la fecha del reporte
+                    is_shift_report: true, // Flag para identificar
+                    generated_by: shiftData.shift_info.user
+                };
+                setCurrentReport(normalizedReport);
+            } else {
+                response = await api.get(`/api/pos/daily-summaries/${reportId}/detail_with_orders/`, {
+                    baseURL: getFastFoodBaseURL()
+                });
+                setCurrentReport(response.data);
+            }
+
         } catch (err) {
             console.error("Error al obtener detalle:", err);
             alert("No se pudo cargar el detalle del reporte.");
@@ -482,12 +433,12 @@ const fetchReports = useCallback(async () => {
                 timeout: 15000
             });
 
-            const generatedSummary = response.data.summary;
-
             if (generatedSummary) {
                 setCurrentReport(generatedSummary);
                 // Actualizar la lista de reportes
                 await fetchReports();
+                // Cargar turnos del día
+                await fetchDayShifts(dateStr);
             }
 
         } catch (err) {
@@ -504,11 +455,11 @@ const fetchReports = useCallback(async () => {
         } finally {
             setLoadingData(false);
         }
-    }, [reports, fetchReports]);
+    }, [reports, fetchReports, fetchDayShifts]);
 
     // ========== FUNCIÓN MODIFICADA: SOLO GENERA REPORTES CUANDO SE PIDE EXPLÍCITAMENTE ==========
     const generateReport = useCallback(async (currentReportType, currentRange, shouldGenerate = false) => {
-         try {
+        try {
             setLoadingData(true);
             setConnectionError(false);
             setError('');
@@ -530,7 +481,7 @@ const fetchReports = useCallback(async () => {
                 const filteredReports = reports.filter(report => {
                     const reportDate = getValidDate(report.date || report.start_date);
                     if (!reportDate) return false;
-                    
+
                     return isWithinInterval(reportDate, {
                         start: startOfDay(currentRange.startDate),
                         end: endOfDay(currentRange.endDate)
@@ -582,13 +533,13 @@ const fetchReports = useCallback(async () => {
 
             let errorMessage = 'Error al generar reporte de rango.';
             if (err.response) {
-                 if (err.response.status === 500) {
-                      errorMessage = `Error interno del servidor: ${err.response.data?.error || 'Revisa logs de Django.'}`;
-                 } else if (err.response.data?.detail) {
-                      errorMessage = `${err.response.data.detail}`;
-                 }
+                if (err.response.status === 500) {
+                    errorMessage = `Error interno del servidor: ${err.response.data?.error || 'Revisa logs de Django.'}`;
+                } else if (err.response.data?.detail) {
+                    errorMessage = `${err.response.data.detail}`;
+                }
             } else if (err.message) {
-                 errorMessage = `${err.message}`;
+                errorMessage = `${err.message}`;
             }
 
             setConnectionError(true);
@@ -605,24 +556,31 @@ const fetchReports = useCallback(async () => {
         const initializeReports = async () => {
             setLoading(true);
             try {
-                console.log('Inicializando reportes - Fecha local:', new Date().toLocaleString('es-MX'));
-                
+                console.log('Inicializando reportes - Fecha local:', new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' }));
+
                 await fetchDashboardStats();
-                await fetchReports();
+                const fetchedReports = await fetchReports();
                 setConnectionError(false);
-                
+
                 // Inicialmente cargar el reporte de hoy si existe
                 const today = new Date();
-                console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'));
-                
+                console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-EC', { timeZone: 'America/Guayaquil' }));
+
                 const todayStr = format(today, 'yyyy-MM-dd');
-                const todayReport = reports.find(r => {
+                const todayReport = (fetchedReports || []).find(r => {
                     const reportDate = r.date || r.start_date;
-                    return reportDate && isSameLocalDate(reportDate, todayStr);
+                    // Fix UTC date string comparison
+                    if (!reportDate) return false;
+
+                    // Si reportDate es "YYYY-MM-DD", aseguramos comparación local
+                    if (reportDate.length === 10) {
+                        return reportDate === todayStr;
+                    }
+                    return isSameLocalDate(reportDate, todayStr);
                 });
-                
+
                 console.log('Reporte de hoy encontrado:', todayReport ? 'Sí' : 'No');
-                
+
                 if (todayReport) {
                     setCurrentReport(todayReport);
                     setFilterType('today');
@@ -644,7 +602,7 @@ const fetchReports = useCallback(async () => {
     }, []);
 
     // Cerrar día
-   const closeDay = async () => {
+    const closeDay = async () => {
         if (!window.confirm('¿Estás seguro de cerrar el día? Esta acción generará un reporte final y cerrará todos los turnos abiertos.')) {
             return;
         }
@@ -666,7 +624,7 @@ const fetchReports = useCallback(async () => {
 
             await fetchReports();
             await fetchDashboardStats();
-            
+
             // Recargar el reporte de hoy
             const today = new Date();
             await loadDailyReport(today, true);
@@ -740,11 +698,40 @@ const fetchReports = useCallback(async () => {
         setDateRange(newRange);
     };
 
+    // ========== FUNCIÓN PARA OBTENER TURNOS ==========
+    const fetchShifts = useCallback(async (date) => {
+        try {
+            setLoadingData(true);
+            setConnectionError(false);
+            setReports([]); // Limpiar lista actual
+
+            const dateStr = format(date, 'yyyy-MM-dd');
+            console.log('Buscando turnos para:', dateStr);
+
+            const response = await api.get('/api/pos/shifts/by_date/', {
+                baseURL: getFastFoodBaseURL(),
+                params: { date: dateStr }
+            });
+
+            console.log('Turnos encontrados:', response.data.shifts);
+            setReports(response.data.shifts || []);
+
+        } catch (err) {
+            console.error('Error fetching shifts:', err);
+            setNoReportMessage('Error al cargar los turnos.');
+        } finally {
+            setLoadingData(false);
+        }
+    }, []);
+    // =================================================
+
     // Función para forzar la generación de un reporte (solo cuando el usuario lo pida explícitamente)
     const forceGenerateReport = () => {
         setNoReportMessage('');
         if (reportType === 'daily') {
             loadDailyReport(dateRange.startDate, true);
+        } else if (reportType === 'shift') {
+            fetchShifts(dateRange.startDate);
         } else {
             generateReport(reportType, dateRange, true);
         }
@@ -985,14 +972,14 @@ const fetchReports = useCallback(async () => {
             </div>
         );
     };
-    
+
     // Función para manejar la impresión a PDF
     const handlePrintPDF = () => {
         if (!currentReport) {
             alert('No hay reporte seleccionado para imprimir.');
             return;
         }
-        
+
         const start = formatDate(currentReport.date || currentReport.start_date);
         const end = currentReport.end_date && currentReport.date !== currentReport.end_date ? formatDate(currentReport.end_date) : '';
         const rangeStr = end ? `${start} - ${end}` : start;
@@ -1049,7 +1036,7 @@ const fetchReports = useCallback(async () => {
                                             <td style={{ padding: 8, border: '1px solid #eee', fontSize: '0.8rem' }}>
                                                 {item.product_details?.name || 'Producto Desconocido'}
                                                 {item.size_details?.name && ` (${item.size_details.name})`}
-                                                {item.extras && item.extras.length > 0 && 
+                                                {item.extras && item.extras.length > 0 &&
                                                     <span style={{ display: 'block', fontSize: '0.7rem', color: '#999' }}>
                                                         + {item.extras.map(e => e.extra_name).join(', ')}
                                                     </span>
@@ -1104,6 +1091,49 @@ const fetchReports = useCallback(async () => {
                 </div>
             </div>
 
+            {/* ========== GESTIÓN DE TURNOS (NUEVO) ========== */}
+            <div className="card" style={{ backgroundColor: '#f0f9ff', borderColor: '#bae6fd', borderWidth: '1px', borderStyle: 'solid' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <h3 style={{ margin: '0 0 5px 0', color: '#0369a1', fontSize: '1.2rem' }}>
+                            Gestión de Turno (Caja)
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.95rem', color: '#0c4a6e' }}>
+                            {currentShift
+                                ? <span>Turno en curso: <strong>#{currentShift.shift_number}</strong> | Abierto por: {currentShift.user?.first_name || 'Usuario'} | Inicio: {new Date(currentShift.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                : <span style={{ color: '#dc2626', fontWeight: 'bold' }}>⚠️ No hay turno abierto. Las ventas no se registrarán correctamente.</span>}
+                        </p>
+                    </div>
+                    <div>
+                        {currentShift ? (
+                            <button
+                                onClick={handleCloseShift}
+                                disabled={processingShift}
+                                style={{
+                                    backgroundColor: '#4f46e5', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                <span className="material-icons">lock_clock</span>
+                                {processingShift ? 'Procesando...' : 'Cerrar Turno y Reporte'}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setShowShiftModal(true)}
+                                disabled={processingShift}
+                                style={{
+                                    backgroundColor: '#059669', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                                }}
+                            >
+                                <span className="material-icons">access_time</span>
+                                Abrir Nuevo Turno
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
             {/* Dashboard Stats */}
             {renderDashboardStats()}
 
@@ -1121,6 +1151,7 @@ const fetchReports = useCallback(async () => {
                             className="form-select"
                         >
                             <option value="daily">Diario</option>
+                            <option value="shift">Por Turno</option>
                             <option value="weekly">Semanal</option>
                             <option value="monthly">Mensual</option>
                             <option value="custom">Personalizado</option>
@@ -1212,18 +1243,39 @@ const fetchReports = useCallback(async () => {
                         ) : (
                             <div className="reports-item-list">
                                 {reports.slice(0, 20).map((report, index) => {
-                                    const reportDate = report.date || report.start_date;
-                                    const isSelected = currentReport?.id === report.id ||
-                                        (currentReport?.date === reportDate && !currentReport?.id && !report.id);
+                                    // Lógica de renderizado diferenciada para Turnos vs Reportes Diarios
+                                    const isShiftItem = report.shift_number !== undefined;
+
+                                    let reportDate, displayDate, itemId, isClosed, totalSales, totalOrders, labelTitle;
+
+                                    if (isShiftItem) {
+                                        reportDate = report.opened_at;
+                                        displayDate = `${formatDate(report.opened_at)} ${format(new Date(report.opened_at), 'HH:mm')}`;
+                                        itemId = report.id;
+                                        isClosed = report.status === 'closed';
+                                        totalSales = report.total_sales;
+                                        totalOrders = report.total_transactions; // Shift model uses total_transactions
+                                        labelTitle = `Turno ${report.shift_number}`;
+                                    } else {
+                                        reportDate = report.date || report.start_date;
+                                        displayDate = formatDate(reportDate);
+                                        itemId = report.id;
+                                        isClosed = report.is_closed;
+                                        totalSales = report.total_sales;
+                                        totalOrders = report.total_orders;
+                                        labelTitle = displayDate;
+                                    }
+
+                                    const isSelected = currentReport?.id === itemId ||
+                                        (!isShiftItem && currentReport?.date === reportDate && !currentReport?.id && !report.id);
 
                                     return (
                                         <div
-                                            key={report.id || index}
+                                            key={itemId || index}
                                             onClick={() => {
-                                                if (report.id) {
-                                                    verDetalleReporte(report.id);
-                                                } else {
-                                                    // Si por alguna razón no tiene ID (es el de hoy recién creado)
+                                                if (itemId) {
+                                                    verDetalleReporte(itemId, isShiftItem);
+                                                } else if (!isShiftItem) {
                                                     const reportDateObj = getValidDate(reportDate);
                                                     if (reportDateObj) {
                                                         loadDailyReport(reportDateObj, false);
@@ -1231,42 +1283,34 @@ const fetchReports = useCallback(async () => {
                                                 }
                                             }}
                                             className={`report-item ${isSelected ? 'selected' : ''}`}
+                                            style={{ padding: '15px' }}
                                         >
                                             <div className="item-content">
-                                                <div className="item-status">
-                                                    <h4 className="item-date">{formatDate(reportDate)}</h4>
-                                                    {report.is_closed && (
-                                                        <span className="status-badge closed-badge">CERRADO</span>
+                                                <div className="item-status" style={{ marginBottom: '10px' }}>
+                                                    <h4 className="item-date" style={{ fontSize: '1.1rem', margin: 0 }}>{labelTitle}</h4>
+                                                    {isClosed ? (
+                                                        <span className="status-badge closed-badge" style={{ fontSize: '0.7rem' }}>CERRADO</span>
+                                                    ) : (
+                                                        <span className="status-badge open-badge" style={{ fontSize: '0.7rem' }}>ABIERTO</span>
                                                     )}
                                                 </div>
 
-                                                <div className="item-metrics">
-                                                    <div className="metric-row">
-                                                        <span className="metric-label">Ventas:</span>
-                                                        <strong className="metric-value sales-color">{formatCurrency(report.total_sales || 0)}</strong>
+                                                <div className="item-metrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                                    <div className="metric-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                                                        <span className="metric-label" style={{ fontSize: '0.8rem' }}>Ventas Totales</span>
+                                                        <strong className="metric-value sales-color" style={{ fontSize: '1.2rem' }}>{formatCurrency(totalSales || 0)}</strong>
                                                     </div>
-                                                    <div className="metric-row">
-                                                        <span className="metric-label">Órdenes:</span>
-                                                        <span className="metric-text">{(report.total_orders || 0).toLocaleString()}</span>
+                                                    <div className="metric-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                                                        <span className="metric-label" style={{ fontSize: '0.8rem' }}>Órdenes</span>
+                                                        <span className="metric-text" style={{ fontSize: '1.1rem' }}>{(totalOrders || 0).toLocaleString()}</span>
                                                     </div>
-                                                    {/* ========== NUEVOS CAMPOS DE CLIENTE ========== */}
-                                                    <div className="metric-row">
-                                                        <span className="metric-label">Clientes:</span>
-                                                        <span className="metric-text customer-count">{(report.total_customers || 0).toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="metric-row">
-                                                        <span className="metric-label">Prom/Orden:</span>
-                                                        <span className="metric-text">{formatCurrency(report.average_order_value || 0)}</span>
-                                                    </div>
-                                                    <div className="metric-row">
-                                                        <span className="metric-label">Items:</span>
-                                                        <span className="metric-text">{(report.total_items_sold || 0).toLocaleString()} unid.</span>
-                                                    </div>
-                                                    {/* ============================================== */}
+                                                    {!isShiftItem && (
+                                                        <div className="metric-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                                                            <span className="metric-label" style={{ fontSize: '0.8rem' }}>Clientes</span>
+                                                            <span className="metric-text" style={{ fontSize: '1.1rem' }}>{(report.total_customers || 0).toLocaleString()}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            </div>
-                                            <div className="item-footer">
-                                                <span className="item-source">Generado por: {report.generated_by || 'Sistema'}</span>
                                             </div>
                                         </div>
                                     );
@@ -1308,16 +1352,48 @@ const fetchReports = useCallback(async () => {
                                 </div>
                             )}
 
+                            {/* Desglose de Turnos (NUEVO) */}
+                            <h3 className="section-title chart-section" style={{ marginTop: '20px' }}>Desglose de Turnos</h3>
+                            <div className="card" style={{ padding: '15px', marginBottom: '20px' }}>
+                                {dayShifts && dayShifts.length > 0 ? (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                        {dayShifts.map((shift, idx) => (
+                                            <div key={shift.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: 'bold' }}>Turno #{shift.shift_number} - {shift.user_name}</div>
+                                                    <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                                                        {format(new Date(shift.opened_at), 'HH:mm')} - {shift.closed_at ? format(new Date(shift.closed_at), 'HH:mm') : 'En curso'}
+                                                        <span style={{ marginLeft: '10px', fontWeight: 'bold', color: '#059669' }}>
+                                                            Ventas: {formatCurrency(shift.total_sales || 0)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => handlePrintShiftReport(shift.id)}
+                                                    className="action-button secondary"
+                                                    style={{ padding: '5px 10px', fontSize: '0.8rem' }}
+                                                >
+                                                    <span className="material-icons" style={{ fontSize: '1rem', marginRight: '5px' }}>picture_as_pdf</span>
+                                                    PDF
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p style={{ color: '#666', fontStyle: 'italic' }}>No hay turnos registrados para este día.</p>
+                                )}
+                            </div>
+
                             {/* Métricas Principales */}
                             <h3 className="section-title">Métricas de Rendimiento</h3>
                             {renderMetrics()}
-                            
+
                             {/* DETALLE DE ÓRDENES - POSICION PRIMARIA */}
                             <h3 className="section-title detail-section">Detalle de Órdenes (Web)</h3>
                             {renderDetailedOrdersTable()}
 
                             {/* Gráficos Restantes (Ventas por Hora y Top Productos) */}
-                            <h3 className="section-title chart-section" style={{marginTop: '40px'}}>Análisis de Gráficos</h3>
+                            <h3 className="section-title chart-section" style={{ marginTop: '40px' }}>Análisis de Gráficos</h3>
 
                             <div className="charts-grid">
                                 {renderSalesByHourChart()}
@@ -1339,7 +1415,7 @@ const fetchReports = useCallback(async () => {
                                 {noReportMessage || 'Selecciona un reporte'}
                             </h3>
                             <p className="empty-message">
-                                {noReportMessage 
+                                {noReportMessage
                                     ? 'Puedes generar un nuevo reporte usando el botón "Generar Nuevo Reporte"'
                                     : 'Haz clic en un reporte de la lista para ver su información detallada, métricas y gráficos de análisis.'}
                             </p>
@@ -1363,7 +1439,7 @@ const fetchReports = useCallback(async () => {
                             <h2>Detalle Completo del Reporte</h2>
                             <button className="close-button" onClick={() => setShowModal(false)}>×</button>
                         </div>
-                        
+
                         <div className="modal-body">
                             {modalLoading ? (
                                 <div className="loading-spinner">Cargando detalles...</div>
@@ -1387,14 +1463,14 @@ const fetchReports = useCallback(async () => {
                                             <strong>{formatCurrency(currentReport?.average_order_value)}</strong>
                                         </div>
                                     </div>
-                                    
+
                                     {/* Aquí mostramos EXACTAMENTE lo mismo que en el panel principal */}
-                                    <h3 className="section-title detail-section" style={{marginTop: '20px'}}>Detalle de Órdenes</h3>
+                                    <h3 className="section-title detail-section" style={{ marginTop: '20px' }}>Detalle de Órdenes</h3>
                                     {renderDetailedOrdersTable()}
-                                    
+
                                     <div style={{ marginTop: '20px' }}>
                                         <h4 className="section-title chart-section">Análisis de Gráficos</h4>
-                                        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px'}}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                                             <div>
                                                 <h4 className="chart-title">Ventas por Hora</h4>
                                                 {renderSalesByHourChart()}
@@ -1408,10 +1484,63 @@ const fetchReports = useCallback(async () => {
                                 </>
                             )}
                         </div>
-                        
+
                         <div className="modal-footer">
                             <button className="action-button" onClick={() => setShowModal(false)}>Cerrar</button>
                             <button className="action-button primary" onClick={handlePrintPDF}>Imprimir PDF</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ========== MODAL PARA ABRIR TURNO ========== */}
+            {showShiftModal && (
+                <div className="modal-overlay">
+                    <div className="modal-container" style={{ maxWidth: '400px', height: 'auto' }}>
+                        <div className="modal-header">
+                            <h2>Abrir Nuevo Turno</h2>
+                            <button className="close-button" onClick={() => setShowShiftModal(false)}>×</button>
+                        </div>
+                        <div className="modal-body">
+                            <form onSubmit={handleOpenShift}>
+                                <div style={{ marginBottom: '15px' }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#333' }}>Nombre del Encargado:</label>
+                                    <input
+                                        type="text"
+                                        value={managerName}
+                                        onChange={(e) => setManagerName(e.target.value)}
+                                        placeholder="Ej: Juan Pérez"
+                                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }}
+                                        required
+                                        autoFocus
+                                    />
+                                </div>
+                                <div style={{ marginBottom: '15px' }}>
+                                    <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', color: '#333' }}>Notas (Opcional):</label>
+                                    <textarea
+                                        value={shiftNotes}
+                                        onChange={(e) => setShiftNotes(e.target.value)}
+                                        placeholder="Observaciones iniciales..."
+                                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc', minHeight: '80px' }}
+                                    />
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowShiftModal(false)}
+                                        style={{ padding: '10px 15px', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', background: 'white' }}
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={processingShift}
+                                        style={{ padding: '10px 20px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: '#059669', color: 'white', fontWeight: 'bold' }}
+                                    >
+                                        {processingShift ? 'Abriendo...' : 'Abrir Turno'}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 </div>

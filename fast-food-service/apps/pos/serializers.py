@@ -70,31 +70,72 @@ class ShiftSerializer(serializers.ModelSerializer):
 
 class ShiftCreateSerializer(serializers.ModelSerializer):
     """Serializer para crear turno (abrir turno)"""
-    
+    manager_name = serializers.CharField(required=False, write_only=True)
+    cash_register = serializers.PrimaryKeyRelatedField(
+        queryset=Shift.cash_register.field.related_model.objects.all(),
+        required=False
+    )
+    opening_cash = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, default=0)
+
     class Meta:
         model = Shift
         fields = [
             'cash_register',
             'opening_cash',
             'opening_notes',
+            'manager_name',
         ]
     
-    def validate_cash_register(self, value):
-        """Validar que la caja esté disponible"""
-        # Verificar si hay un turno abierto en esta caja
-        if Shift.objects.filter(cash_register=value, status='open').exists():
-            raise serializers.ValidationError(
-                'Ya existe un turno abierto en esta caja registradora'
-            )
-        return value
-    
+    def validate(self, data):
+        # Si no se envía caja, intentaremos asignar una por defecto en create()
+        # Si se envía, validamos que no tenga turno abierto
+        if 'cash_register' in data and data['cash_register']:
+            if Shift.objects.filter(cash_register=data['cash_register'], status='open').exists():
+                raise serializers.ValidationError(
+                    'Ya existe un turno abierto en esta caja registradora'
+                )
+        return data
+
     def create(self, validated_data):
-        """Crear turno con info del usuario del JWT"""
+        """Crear turno con info del usuario del JWT y lógica de caja por defecto"""
         request = self.context.get('request')
         
-        # Extraer info del usuario del JWT
+        # 1. Manejo de Cash Register Automático
+        cash_register = validated_data.get('cash_register')
+        if not cash_register:
+            from apps.payments.models import CashRegister, Currency
+            # Buscar cualquier caja existente
+            cash_register = CashRegister.objects.first()
+            
+            if not cash_register:
+                # Crear caja por defecto si no existe ninguna
+                try:
+                    default_currency = Currency.objects.get(code='USD')
+                except Currency.DoesNotExist:
+                    # Fallback extremo si no hay monedas
+                    default_currency = Currency.objects.create(code='USD', name='Dólar Americano', symbol='$')
+
+                cash_register = CashRegister.objects.create(
+                    register_number='CAJA-01',
+                    cashier_name='Sistema',
+                    currency=default_currency,
+                    status='open'
+                )
+            
+            validated_data['cash_register'] = cash_register
+
+        # Validar nuevamente que la caja asignada no tenga turno abierto (por si se auto-asignó)
+        if Shift.objects.filter(cash_register=validated_data['cash_register'], status='open').exists():
+             raise serializers.ValidationError(
+                {'cash_register': 'La caja automática asignada ya tiene un turno abierto.'}
+            )
+
+        # 2. Asignar datos de usuario
+        # Si viene manager_name, usamos ese. Si no, el del token.
+        manager_name = validated_data.pop('manager_name', None)
+        
         validated_data['user_id'] = str(request.user.id)
-        validated_data['user_name'] = request.user.get_full_name()
+        validated_data['user_name'] = manager_name if manager_name else request.user.get_full_name()
         validated_data['user_role'] = getattr(request.user, 'role', {}).get('name', '') if hasattr(request.user, 'role') else ''
         
         return super().create(validated_data)

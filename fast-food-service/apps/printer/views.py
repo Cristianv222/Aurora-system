@@ -727,53 +727,105 @@ class PrintReceiptView(APIView):
         """Genera el contenido formateado para el ticket"""
         settings = PrinterSettings.get_settings()
         chars_per_line = printer.characters_per_line or 42
-        
+    
         lines = []
-        
+    
+    # Encabezado de la empresa
         lines.append(settings.get_company_name().center(chars_per_line))
         lines.append(settings.get_company_address().center(chars_per_line))
         lines.append(f"RUC: {settings.get_tax_id()}".center(chars_per_line))
         lines.append("=" * chars_per_line)
-        
+    
+    # Información del ticket
         lines.append("TICKET DE VENTA".center(chars_per_line))
-        lines.append(f"Fecha: {timezone.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Usar la hora local del servidor
+        current_time = timezone.now()
+    
+        lines.append(f"Fecha: {current_time.strftime('%d/%m/%Y')}")
+        lines.append(f"Hora: {current_time.strftime('%I:%M:%S %p')}")
         lines.append(f"Ticket #: {order_data.get('order_number', 'N/A')}")
-        lines.append(f"Cliente: {order_data.get('customer_name', 'CONTADO')}")
+        lines.append(f"Cliente: {order_data.get('customer_name', 'CONSUMIDOR FINAL')}")
+        lines.append(f"Mesa: {order_data.get('table_number', 'N/A')}")
         lines.append("-" * chars_per_line)
-        
-        lines.append("PRODUCTO       CANT  PRECIO  TOTAL")
+
+    # Encabezado de productos
+        lines.append(f"{'PRODUCTO':<20}{'CANT':>4}{'PRECIO':>8}{'TOTAL':>10}")
         lines.append("-" * chars_per_line)
-        
+    
         items = order_data.get('items', [])
         for item in items:
-            name = str(item.get('name', 'Sin nombre'))[:14]
-            qty = str(item.get('quantity', 0))
-            price = float(item.get('price', 0))
-            total = float(item.get('total', 0))
+            name = str(item.get('name', 'Sin nombre')).strip()
+            note = item.get('note', '').strip()
+            qty = item.get('quantity', 0)
+            price = item.get('price', 0)
+            total = item.get('total', 0)
+        
+            # Crear el texto completo con nota entre paréntesis
+            if note:
+                full_text = f"{name} ({note})"
+            else:
+                full_text = name
+        
+            # Primera línea: intentar mostrar todo en 20 caracteres
+            if len(full_text) <= 20:
+                # Si cabe todo, mostrarlo normal
+                lines.append(f"{full_text:<20}{qty:>4}{price:>8.2f}{total:>10.2f}")
+            else:
+             # Si no cabe, dividirlo inteligentemente
+                # Primero mostrar lo que cabe en la primera línea (20 caracteres)
+                first_line = full_text[:20]
             
-            lines.append(f"{name:14} {qty:>4} {price:>7.2f} {total:>8.2f}")
-        
-        lines.append("-" * chars_per_line)
-        
-        subtotal = float(order_data.get('subtotal', 0))
-        tax = float(order_data.get('tax', 0))
-        total = float(order_data.get('total', 0))
-        
-        lines.append(f"{'Subtotal:':30} ${subtotal:>10.2f}")
-        lines.append(f"{'IVA (12%):':30} ${tax:>10.2f}")
-        lines.append("=" * chars_per_line)
-        lines.append(f"{'TOTAL:':30} ${total:>10.2f}")
-        lines.append("=" * chars_per_line)
-        
-        footer = settings.get_receipt_footer()
-        if footer:
-            lines.append("")
-            lines.append(footer.center(chars_per_line))
-        
-        lines.append("\n" * 3)
-        
-        return "\n".join(lines)
+            #        Buscar el último espacio en la primera línea para no cortar palabras
+                last_space = first_line.rfind(' ')
+                if last_space > 15:  # Si hay un espacio en una posición razonable
+                    first_line = full_text[:last_space]
+                    remaining_text = full_text[last_space+1:].strip()
+                else:
+                    # Si no hay espacio, cortar en 20 caracteres
+                    remaining_text = full_text[20:].strip()
 
+                # Imprimir primera línea con cantidades
+                lines.append(f"{first_line:<20}{qty:>4}{price:>8.2f}{total:>10.2f}")
+            
+            # Imprimir el resto del texto en líneas adicionales
+                while remaining_text:
+                    if len(remaining_text) <= 20:
+                        lines.append(f"{remaining_text:<20}")
+                        break
+                    else:
+                        # Buscar espacio para no cortar palabras
+                        space_pos = remaining_text[:20].rfind(' ')
+                        if space_pos > 10:  # Si hay un espacio razonable
+                            next_line = remaining_text[:space_pos]
+                            remaining_text = remaining_text[space_pos+1:].strip()
+                        else:
+                        # Cortar en 20 caracteres si no hay espacio
+                            next_line = remaining_text[:20]
+                            remaining_text = remaining_text[20:].strip()
+                    
+                        lines.append(f"{next_line:<20}")
+    
+        lines.append("-" * chars_per_line)
+    
+        # Totales
+        subtotal = order_data.get('subtotal', 0)
+        discount = order_data.get('discount', 0)
+        total = order_data.get('total', 0)
+    
+        lines.append(f"{'Subtotal:':<30} ${subtotal:>10.2f}")
+        if discount > 0:
+            lines.append(f"{'Descuento:':<30} -${discount:>10.2f}")
+        lines.append("=" * chars_per_line)
+        lines.append(f"{'TOTAL:':<30} ${total:>10.2f}")
+        lines.append("=" * chars_per_line)
+    
+        lines.append("¡GRACIAS POR SU COMPRA!".center(chars_per_line))
+        lines.append("*** VUELVA PRONTO ***".center(chars_per_line))
+    
+        lines.append("\n" * 3)
+    
+        return "\n".join(lines)
 
 @api_view(['GET'])
 @permission_classes([AllowAny])

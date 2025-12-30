@@ -188,9 +188,11 @@ class Shift(models.Model):
     
     @staticmethod
     def generate_shift_number():
-        """Genera un número de turno único"""
+        """Genera un número de turno único (Max 20 chars)"""
         from datetime import datetime
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        # Usamos %y (2 digitos año) y quitamos segundos para ahorrar espacio
+        # Formato: SHF-YYMMDDHHMM-XXX (Total 18 chars)
+        timestamp = datetime.now().strftime('%y%m%d%H%M') 
         random_suffix = str(uuid.uuid4().hex[:3]).upper()
         return f'SHF-{timestamp}-{random_suffix}'
     

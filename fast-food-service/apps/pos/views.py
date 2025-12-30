@@ -156,6 +156,77 @@ class ShiftViewSet(viewsets.ModelViewSet):
             'shifts': serializer.data
         })
 
+    @action(detail=True, methods=['get'])
+    def report(self, request, pk=None):
+        """
+        Genera un reporte detallado para un turno específico.
+        """
+        shift = self.get_object()
+        
+        # Determinar rango de tiempo
+        start_time = shift.opened_at
+        end_time = shift.closed_at or timezone.now()
+        
+        # 1. Obtener Órdenes en el rango
+        orders = Order.objects.filter(
+            created_at__gte=start_time,
+            created_at__lte=end_time,
+            status__in=['delivered', 'completed']
+        ).select_related('customer').order_by('created_at')
+        
+        # 2. Calcular Totales de Ventas (desde Órdenes para items, desde Pagos para dinero)
+        total_orders = orders.count()
+        total_sales = orders.aggregate(total=Sum('total'))['total'] or 0
+        
+        # 3. Desglose por Método de Pago (Consultando Pagos)
+        from apps.payments.models import Payment
+        payments = Payment.objects.filter(
+            created_at__gte=start_time,
+            created_at__lte=end_time,
+            status='completed'
+        )
+        
+        payment_methods = payments.values(
+            'payment_method__name'
+        ).annotate(
+            total=Sum('amount'),
+            count=Count('id')
+        )
+        
+        # 4. Detalle de Órdenes usando el Serializer existente
+        orders_data = OrderReportDetailSerializer(orders, many=True).data
+        
+        # 5. Productos más vendidos en este turno
+        top_products = OrderItem.objects.filter(
+            order__in=orders
+        ).values(
+            'product__name'
+        ).annotate(
+            quantity=Sum('quantity'),
+            total_amount=Sum('line_total')
+        ).order_by('-quantity')[:10]
+        
+        report_data = {
+            'shift_info': {
+                'number': shift.shift_number,
+                'user': shift.user_name,
+                'opened_at': shift.opened_at,
+                'closed_at': shift.closed_at,
+                'status': shift.status,
+                'cash_register': shift.cash_register.name if shift.cash_register else 'N/A'
+            },
+            'summary': {
+                'total_sales': total_sales,
+                'total_orders': total_orders,
+                'average_ticket': total_sales / total_orders if total_orders > 0 else 0,
+            },
+            'payment_methods': list(payment_methods),
+            'top_products': list(top_products),
+            'orders_detail': orders_data
+        }
+        
+        return Response(report_data)
+
 
 class DiscountViewSet(viewsets.ModelViewSet):
     """

@@ -34,6 +34,9 @@ const formatDate = (dateString) => {
     }
 };
 
+// Constantes para áreas táctiles (mínimo 44x44px)
+const TOUCH_MIN_SIZE = '44px';
+
 const PuntosVenta = () => {
     // =====================================
     // 1. ESTADO DE DATOS Y CARGA
@@ -44,6 +47,8 @@ const PuntosVenta = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [processingOrder, setProcessingOrder] = useState(false);
+    const [isMobileView, setIsMobileView] = useState(false);
+    const [screenWidth, setScreenWidth] = useState(window.innerWidth);
 
     // 2. ESTADO DEL PUNTO DE VENTA
     const [cart, setCart] = useState([]);
@@ -54,7 +59,9 @@ const PuntosVenta = () => {
     const [appliedDiscount, setAppliedDiscount] = useState(null);
     
     const [showReviewModal, setShowReviewModal] = useState(false); 
-    const [showInvoiceModal, setShowInvoiceModal] = useState(false); 
+    const [showOrderDetails, setShowOrderDetails] = useState(false);
+    const [editingNoteForItem, setEditingNoteForItem] = useState(null);
+    const [noteText, setNoteText] = useState('');
 
     // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
@@ -74,66 +81,83 @@ const PuntosVenta = () => {
     });
 
     // =====================================
-    // 4. EFECTOS - CARGA INICIAL DE DATOS
+    // 4. EFECTOS - CARGA INICIAL DE DATOS Y RESPONSIVIDAD
     // =====================================
     useEffect(() => {
-    let isMounted = true;
-    
-    const fetchData = async () => {
-        try {
-            const productsRes = await api.get('/api/menu/products/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
-            });
-            
-            if (!isMounted) return;
-            
-            const loadedProducts = productsRes.data.results || productsRes.data || [];
-            setProducts(loadedProducts);
-            
-        } catch (err) {
-            console.error('Error cargando productos:', err);
-        }
+        let isMounted = true;
         
-        try {
-            const categoriesRes = await api.get('/api/menu/categories/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
-            });
-            
-            if (!isMounted) return;
-            
-            const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
-            setCategories(loadedCategories);
-            
-        } catch (err) {
-            console.error('Error cargando categorías:', err);
-        }
-        
-        try {
-            const tablesRes = await api.get('/api/pos/tables/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
-            });
-            
-            if (!isMounted) return;
-            setTables(tablesRes.data.results || tablesRes.data || []);
-            
-        } catch (err) {
-            console.warn('Mesas no disponibles');
-            if (isMounted) {
-                setTables([]);
+        const fetchData = async () => {
+            try {
+                const productsRes = await api.get('/api/menu/products/', {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                
+                if (!isMounted) return;
+                
+                const loadedProducts = productsRes.data.results || productsRes.data || [];
+                setProducts(loadedProducts);
+                
+            } catch (err) {
+                console.error('Error cargando productos:', err);
             }
-        }
+            
+            try {
+                const categoriesRes = await api.get('/api/menu/categories/', {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                
+                if (!isMounted) return;
+                
+                const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
+                setCategories(loadedCategories);
+                
+            } catch (err) {
+                console.error('Error cargando categorías:', err);
+            }
+            
+            try {
+                const tablesRes = await api.get('/api/pos/tables/', {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+                
+                if (!isMounted) return;
+                setTables(tablesRes.data.results || tablesRes.data || []);
+                
+            } catch (err) {
+                console.warn('Mesas no disponibles');
+                if (isMounted) {
+                    setTables([]);
+                }
+            }
+            
+            if (isMounted) {
+                setLoading(false);
+            }
+        };
         
-        if (isMounted) {
-            setLoading(false);
-        }
-    };
-    
-    fetchData();
-    
-    return () => {
-        isMounted = false;
-    };
-}, []);
+        fetchData();
+        
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    // Detectar tamaño de pantalla
+    useEffect(() => {
+        const handleResize = () => {
+            const width = window.innerWidth;
+            setScreenWidth(width);
+            setIsMobileView(width <= 768); // 768px es el breakpoint para POS móvil
+        };
+
+        handleResize(); // Ejecutar al inicio
+        window.addEventListener('resize', handleResize);
+        
+        return () => {
+            window.removeEventListener('resize', handleResize);
+        };
+    }, []);
+
     // =====================================
     // 5. LÓGICA DEL CARRITO
     // =====================================
@@ -153,7 +177,8 @@ const PuntosVenta = () => {
                     name: product.name,
                     price: parseFloat(product.price),
                     quantity: 1,
-                    image: product.image
+                    image: product.image,
+                    note: '' // Nueva propiedad para notas
                 }];
             }
         });
@@ -174,6 +199,34 @@ const PuntosVenta = () => {
             });
         });
     }, []);
+
+    // Función para agregar/editar nota
+    const handleAddNote = (productId) => {
+        const item = cart.find(item => item.product_id === productId);
+        setEditingNoteForItem(productId);
+        setNoteText(item?.note || '');
+    };
+
+    const saveNote = () => {
+        if (!editingNoteForItem) return;
+        
+        setCart(prevCart => {
+            return prevCart.map(item => {
+                if (item.product_id === editingNoteForItem) {
+                    return { ...item, note: noteText.trim() };
+                }
+                return item;
+            });
+        });
+        
+        setEditingNoteForItem(null);
+        setNoteText('');
+    };
+
+    const cancelNote = () => {
+        setEditingNoteForItem(null);
+        setNoteText('');
+    };
 
     // =====================================
     // 6. CÁLCULOS DE PRECIOS
@@ -329,12 +382,14 @@ const PuntosVenta = () => {
             tableNumber = selectedTable;
         }
 
+        // Modificado para incluir notas en los items
         const orderPayload = {
             order_type: orderType,
             table_number: tableNumber,
             items: cart.map(item => ({
                 product_id: item.product_id,
-                quantity: item.quantity
+                quantity: item.quantity,
+                note: item.note || '' // Incluir nota en el payload
             })),
             discount_code: appliedDiscount ? appliedDiscount.code : null,
             customer_id: selectedCustomer ? selectedCustomer.id : null
@@ -348,18 +403,19 @@ const PuntosVenta = () => {
 
             const createdOrder = orderResponse.data;
             
-            // 2. PREPARAR DATOS PARA EL TICKET
+            // 2. PREPARAR DATOS PARA EL TICKET (incluyendo notas)
             const receiptData = {
                 order_number: createdOrder.order_number || createdOrder.id,
                 customer_name: selectedCustomer 
                     ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` 
-                    : 'CONTADO',
+                    : 'CONSUMIDOR FINAL',
                 table_number: selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA'),
                 items: cart.map(item => ({
                     name: item.name,
                     quantity: item.quantity,
                     price: parseFloat(item.price),
-                    total: parseFloat(item.price * item.quantity)
+                    total: parseFloat(item.price * item.quantity),
+                    note: item.note || '' // Incluir nota en los datos del ticket
                 })),
                 subtotal: parseFloat(calculateSubtotal),
                 discount: parseFloat(calculateDiscountAmount),
@@ -427,285 +483,465 @@ const PuntosVenta = () => {
         setShowReviewModal(true);
     };
 
-    const handleInvoiceClick = () => {
-        setShowReviewModal(false);
-        setShowInvoiceModal(true);
-    };
-
     // =====================================
     // 10. COMPONENTES DE RENDERIZADO
     // =====================================
 
     const renderReviewDetails = () => (
-        <div style={{ padding: '0 1rem' }}>
+        <div style={{ padding: isMobileView ? '0.5rem' : '0 1rem' }}>
+            {/* Sección de configuración de orden */}
+            <div style={{ 
+                backgroundColor: '#f3f4f6', 
+                borderRadius: '8px', 
+                padding: isMobileView ? '0.75rem' : '1rem',
+                marginBottom: '1rem'
+            }}>
+                {/* Cliente */}
+                <div style={{ marginBottom: '1rem' }}>
+                    <label style={{
+                        display: 'block',
+                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                        fontWeight: '600',
+                        color: '#374151',
+                        marginBottom: '0.5rem'
+                    }}>
+                        Cliente
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                            <input
+                                type="text"
+                                placeholder="Buscar por nombre, cédula o teléfono..." 
+                                style={{
+                                    width: '100%',
+                                    padding: isMobileView ? '0.5rem' : '0.75rem',
+                                    border: '2px solid #d1d5db',
+                                    borderRadius: '8px',
+                                    fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                    transition: 'all 0.2s',
+                                    minHeight: TOUCH_MIN_SIZE
+                                }}
+                                value={customerSearch}
+                                onChange={(e) => searchCustomers(e.target.value)}
+                            />
+                            {customers.length > 0 && (
+                                <div style={{
+                                    position: 'absolute',
+                                    zIndex: 10,
+                                    width: '100%',
+                                    backgroundColor: '#ffffff',
+                                    border: '2px solid #d1d5db',
+                                    borderRadius: '8px',
+                                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+                                    marginTop: '0.25rem',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto'
+                                }}>
+                                    {customers.map(c => (
+                                        <div
+                                            key={c.id}
+                                            style={{
+                                                padding: '0.75rem',
+                                                cursor: 'pointer',
+                                                borderBottom: '1px solid #f3f4f6',
+                                                transition: 'background-color 0.15s',
+                                                minHeight: TOUCH_MIN_SIZE,
+                                                display: 'flex',
+                                                alignItems: 'center'
+                                            }}
+                                            onClick={() => {
+                                                setSelectedCustomer(c);
+                                                setCustomerSearch(`${c.first_name} ${c.last_name}`);
+                                                setCustomers([]);
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                                        >
+                                            <div>
+                                                <p style={{
+                                                    fontWeight: '600',
+                                                    color: '#1f2937',
+                                                    marginBottom: '0.25rem',
+                                                    fontSize: isMobileView ? '0.875rem' : '0.9375rem'
+                                                }}>
+                                                    {c.first_name} {c.last_name}
+                                                </p>
+                                                <p style={{
+                                                    fontSize: isMobileView ? '0.75rem' : '0.8125rem',
+                                                    color: '#6b7280',
+                                                    margin: 0
+                                                }}>
+                                                    {c.email} {c.cedula && `(${c.cedula})`} 
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            style={{
+                                width: TOUCH_MIN_SIZE,
+                                height: TOUCH_MIN_SIZE,
+                                backgroundColor: '#8b5cf6',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '1.5rem',
+                                fontWeight: '300',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0
+                            }}
+                            onClick={() => setShowCustomerModal(true)}
+                            title="Agregar nuevo cliente"
+                        >
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                {/* Mesa/Tipo de Orden */}
+                <div style={{ marginBottom: '1rem' }}>
+                    <label style={{
+                        display: 'block',
+                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                        fontWeight: '600',
+                        color: '#374151',
+                        marginBottom: '0.5rem'
+                    }}>
+                        Mesa / Tipo de Orden
+                    </label>
+                    <select
+                        style={{
+                            width: '100%',
+                            padding: isMobileView ? '0.5rem' : '0.75rem',
+                            border: '2px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                            color: '#1f2937',
+                            backgroundColor: '#ffffff',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            minHeight: TOUCH_MIN_SIZE
+                        }}
+                        value={selectedTable}
+                        onChange={(e) => setSelectedTable(e.target.value)}
+                    >
+                        <option value="">Seleccionar mesa...</option>
+                        <option value="takeout">Para Llevar (Takeout)</option>
+                        {tables.map(table => (
+                            <option
+                                key={table.id}
+                                value={table.number}
+                                disabled={table.status !== 'available'}
+                            >
+                                Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Código de Descuento */}
+                <div>
+                    <label style={{
+                        display: 'block',
+                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
+                        fontWeight: '600',
+                        color: '#374151',
+                        marginBottom: '0.5rem'
+                    }}>
+                        Código de Descuento
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                            type="text"
+                            placeholder="Ingresa el código"
+                            style={{
+                                flex: 1,
+                                padding: isMobileView ? '0.5rem' : '0.75rem',
+                                border: '2px solid #d1d5db',
+                                borderRadius: '8px',
+                                fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                transition: 'all 0.2s',
+                                minHeight: TOUCH_MIN_SIZE
+                            }}
+                            value={discountCode}
+                            onChange={(e) => setDiscountCode(e.target.value)}
+                        />
+                        <button
+                            style={{
+                                padding: isMobileView ? '0 0.75rem' : '0 1.5rem',
+                                backgroundColor: '#fbbf24',
+                                border: 'none',
+                                borderRadius: '8px',
+                                color: '#78350f',
+                                fontWeight: '600',
+                                fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                whiteSpace: 'nowrap',
+                                minHeight: TOUCH_MIN_SIZE,
+                                minWidth: TOUCH_MIN_SIZE
+                            }}
+                            onClick={handleApplyDiscount}
+                        >
+                            {isMobileView ? 'Aplicar' : 'Aplicar'}
+                        </button>
+                    </div>
+                    {appliedDiscount && (
+                        <div style={{
+                            marginTop: '0.75rem',
+                            padding: '0.75rem',
+                            backgroundColor: '#d1fae5',
+                            border: '2px solid #86efac',
+                            borderRadius: '8px',
+                            fontSize: isMobileView ? '0.75rem' : '0.875rem',
+                            fontWeight: '600',
+                            color: '#065f46'
+                        }}>
+                            Descuento aplicado: {appliedDiscount.name}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Resumen de productos */}
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
-                <p style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1f2937' }}>
-                    Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'Casual'}
+                <p style={{ fontSize: isMobileView ? '0.875rem' : '1rem', fontWeight: 'bold', color: '#1f2937' }}>
+                    Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'CONSUMIDOR FINAL'}
                 </p>
-                <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+                <p style={{ fontSize: isMobileView ? '0.75rem' : '0.9rem', color: '#4b5563' }}>
                     Mesa/Tipo: {selectedTable === 'takeout' ? 'Para Llevar' : selectedTable || 'Mesa Genérica (DINE-IN)'}
                 </p>
             </div>
 
-            <div style={{ maxHeight: '30vh', overflowY: 'auto', marginBottom: '1.5rem' }}>
+            <div style={{ 
+                maxHeight: isMobileView ? '40vh' : '30vh', 
+                overflowY: 'auto', 
+                marginBottom: '1rem',
+                fontSize: isMobileView ? '0.875rem' : '0.9rem'
+            }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead style={{ backgroundColor: '#f3f4f6' }}>
                         <tr>
-                            <th style={{ textAlign: 'left', padding: '0.5rem', fontSize: '0.8rem', color: '#4b5563' }}>PRODUCTO</th>
-                            <th style={{ width: '15%', textAlign: 'right', padding: '0.5rem', fontSize: '0.8rem', color: '#4b5563' }}>CANT.</th>
-                            <th style={{ width: '25%', textAlign: 'right', padding: '0.5rem', fontSize: '0.8rem', color: '#4b5563' }}>TOTAL</th>
+                            <th style={{ 
+                                textAlign: 'left', 
+                                padding: isMobileView ? '0.25rem' : '0.5rem', 
+                                fontSize: isMobileView ? '0.75rem' : '0.8rem', 
+                                color: '#4b5563' 
+                            }}>PRODUCTO</th>
+                            <th style={{ 
+                                width: '15%', 
+                                textAlign: 'right', 
+                                padding: isMobileView ? '0.25rem' : '0.5rem', 
+                                fontSize: isMobileView ? '0.75rem' : '0.8rem', 
+                                color: '#4b5563' 
+                            }}>CANT.</th>
+                            <th style={{ 
+                                width: '25%', 
+                                textAlign: 'right', 
+                                padding: isMobileView ? '0.25rem' : '0.5rem', 
+                                fontSize: isMobileView ? '0.75rem' : '0.8rem', 
+                                color: '#4b5563' 
+                            }}>TOTAL</th>
                         </tr>
                     </thead>
                     <tbody>
                         {cart.map((item, index) => (
-                            <tr key={index}>
-                                <td style={{ padding: '0.5rem 0', fontSize: '0.9rem' }}>{item.name}</td>
-                                <td style={{ textAlign: 'right', fontSize: '0.9rem' }}>{item.quantity}</td>
-                                <td style={{ textAlign: 'right', fontSize: '0.9rem', fontWeight: '600' }}>
-                                    {formatCurrency(item.price * item.quantity)}
-                                </td>
-                            </tr>
+                            <React.Fragment key={index}>
+                                <tr>
+                                    <td style={{ 
+                                        padding: isMobileView ? '0.25rem 0' : '0.5rem 0', 
+                                        fontSize: isMobileView ? '0.875rem' : '0.9rem' 
+                                    }}>
+                                        <div>
+                                            {item.name}
+                                            {item.note && (
+                                                <div style={{
+                                                    fontSize: isMobileView ? '0.75rem' : '0.8rem',
+                                                    color: '#6b7280',
+                                                    fontStyle: 'italic',
+                                                    marginTop: '2px'
+                                                }}>
+                                                    ({item.note})
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td style={{ 
+                                        textAlign: 'right', 
+                                        fontSize: isMobileView ? '0.875rem' : '0.9rem' 
+                                    }}>{item.quantity}</td>
+                                    <td style={{ 
+                                        textAlign: 'right', 
+                                        fontSize: isMobileView ? '0.875rem' : '0.9rem', 
+                                        fontWeight: '600' 
+                                    }}>
+                                        {formatCurrency(item.price * item.quantity)}
+                                    </td>
+                                </tr>
+                            </React.Fragment>
                         ))}
                     </tbody>
                 </table>
             </div>
 
             <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '1rem', color: '#6b7280' }}>
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    marginBottom: '0.5rem', 
+                    fontSize: isMobileView ? '0.875rem' : '1rem', 
+                    color: '#6b7280' 
+                }}>
                     <span>Subtotal</span>
                     <span>{formatCurrency(calculateSubtotal)}</span>
                 </div>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: '#dc2626' }}>
-                    <span>Descuento</span>
-                    <span>- {formatCurrency(calculateDiscountAmount)}</span>
-                </div>
+                {appliedDiscount && (
+                    <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        marginBottom: '0.5rem', 
+                        color: '#dc2626',
+                        fontSize: isMobileView ? '0.875rem' : '1rem'
+                    }}>
+                        <span>Descuento</span>
+                        <span>- {formatCurrency(calculateDiscountAmount)}</span>
+                    </div>
+                )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', borderTop: '1px solid #ccc', paddingTop: '0.75rem' }}>
+                <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    fontSize: isMobileView ? '1.25rem' : '1.5rem', 
+                    fontWeight: 'bold', 
+                    borderTop: '1px solid #ccc', 
+                    paddingTop: '0.75rem' 
+                }}>
                     <span>Total Final</span>
                     <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
                 </div>
             </div>
         </div>
     );
-    
-    const renderCartItems = () => (
-        <div style={{ 
-            flex: 1, 
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: '#ffffff',
-            borderBottom: '2px solid #e5e7eb',
-            borderRight: '2px solid #e5e7eb'
-        }}>
-             <div style={{
-                padding: '1rem 1.5rem 0.5rem 1.5rem',
-                backgroundColor: '#f3f4f6',
-                flexShrink: 0,
-                borderBottom: '1px solid #e5e7eb'
-            }}>
-                <h3 style={{
-                    fontSize: '1.125rem',
-                    fontWeight: '700',
-                    color: '#111827',
-                    margin: 0
-                }}>
-                    Orden Actual
-                </h3>
-            </div>
-            
-            <div style={{
-                flex: 1, 
-                overflowY: 'auto',
-                padding: '1.5rem', 
-            }}>
-                {cart.length === 0 ? (
-                    <div style={{
-                        textAlign: 'center',
-                        padding: '3rem 1rem',
-                        color: '#9ca3af',
-                        fontSize: '0.9375rem'
-                    }}>
-                        <p style={{ margin: 0 }}>No hay productos en el carrito</p>
-                        <p style={{
-                            margin: '0.5rem 0 0 0',
-                            fontSize: '0.8125rem'
-                        }}>
-                            Selecciona productos para comenzar
-                        </p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {cart.map((item, index) => (
-                            <div
-                                key={index}
-                                style={{
-                                    backgroundColor: '#ffffff',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: '10px',
-                                    padding: '1rem',
-                                    display: 'flex',
-                                    gap: '1rem',
-                                    alignItems: 'center'
-                                }}
-                            >
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <h4 style={{
-                                        fontSize: '0.9375rem',
-                                        fontWeight: '600',
-                                        color: '#1f2937',
-                                        marginBottom: '0.25rem',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis',
-                                        whiteSpace: 'nowrap'
-                                    }}>
-                                        {item.name}
-                                    </h4>
-                                    <p style={{
-                                        fontSize: '0.8125rem',
-                                        color: '#6b7280',
-                                        margin: 0
-                                    }}>
-                                        {formatCurrency(item.price)} c/u
-                                    </p>
-                                </div>
 
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
-                                }}>
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        border: '2px solid #e5e7eb',
-                                        borderRadius: '8px',
-                                        overflow: 'hidden',
-                                        backgroundColor: '#ffffff'
-                                    }}>
-                                        <button
-                                            style={{
-                                                width: '32px',
-                                                height: '32px',
-                                                border: 'none',
-                                                backgroundColor: 'transparent',
-                                                color: '#6b7280',
-                                                fontSize: '1.25rem',
-                                                fontWeight: '600',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transition: 'all 0.15s'
-                                            }}
-                                            onClick={() => updateQuantity(item.product_id, -1)}
-                                            onMouseEnter={(e) => {
-                                                e.target.style.backgroundColor = '#f3f4f6';
-                                                e.target.style.color = '#111827';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.target.style.backgroundColor = 'transparent';
-                                                e.target.style.color = '#6b7280';
-                                            }}
-                                        >
-                                            −
-                                        </button>
-                                        <span style={{
-                                            width: '36px',
-                                            textAlign: 'center',
-                                            fontSize: '0.9375rem',
-                                            fontWeight: '600',
-                                            color: '#1f2937'
-                                        }}>
-                                            {item.quantity}
-                                        </span>
-                                        <button
-                                            style={{
-                                                width: '32px',
-                                                height: '32px',
-                                                border: 'none',
-                                                backgroundColor: 'transparent',
-                                                color: '#6b7280',
-                                                fontSize: '1.25rem',
-                                                fontWeight: '600',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                transition: 'all 0.15s'
-                                            }}
-                                            onClick={() => updateQuantity(item.product_id, 1)}
-                                            onMouseEnter={(e) => {
-                                                e.target.style.backgroundColor = '#f3f4f6';
-                                                e.target.style.color = '#111827';
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.target.style.backgroundColor = 'transparent';
-                                                e.target.style.color = '#6b7280';
-                                            }}
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-
-                                    <button
-                                        style={{
-                                            width: '32px',
-                                            height: '32px',
-                                            backgroundColor: '#fee2e2',
-                                            border: '2px solid #fecaca',
-                                            borderRadius: '8px',
-                                            color: '#dc2626',
-                                            fontSize: '1.125rem',
-                                            fontWeight: '600',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            transition: 'all 0.15s'
-                                        }}
-                                        onClick={() => removeFromCart(item.product_id)}
-                                        onMouseEnter={(e) => {
-                                            e.target.style.backgroundColor = '#dc2626';
-                                            e.target.style.borderColor = '#dc2626';
-                                            e.target.style.color = '#ffffff';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.target.style.backgroundColor = '#fee2e2';
-                                            e.target.style.borderColor = '#fecaca';
-                                            e.target.style.color = '#dc2626';
-                                        }}
-                                        title="Eliminar producto"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-    
-    if (loading) return (
+    // Modal para agregar nota
+    const renderNoteModal = () => (
         <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
             display: 'flex',
-            justifyContent: 'center',
             alignItems: 'center',
-            height: '100vh',
-            fontSize: '1.125rem',
-            color: '#6b7280'
+            justifyContent: 'center',
+            zIndex: 1001,
+            padding: isMobileView ? '0.5rem' : '1rem'
         }}>
-            Cargando sistema de punto de venta...
+            <div style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '12px',
+                width: '100%',
+                maxWidth: isMobileView ? '95%' : '500px',
+                maxHeight: '80vh',
+                overflowY: 'auto',
+                boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                padding: isMobileView ? '1rem' : '1.5rem'
+            }}>
+                <div style={{
+                    marginBottom: '1rem',
+                    borderBottom: '2px solid #e5e7eb',
+                    paddingBottom: '0.75rem'
+                }}>
+                    <h3 style={{
+                        fontSize: isMobileView ? '1.125rem' : '1.25rem',
+                        fontWeight: '700',
+                        color: '#111827',
+                        margin: 0
+                    }}>
+                        Agregar Nota Especial
+                    </h3>
+                    <p style={{
+                        fontSize: isMobileView ? '0.75rem' : '0.875rem',
+                        color: '#6b7280',
+                        marginTop: '0.25rem'
+                    }}>
+                        Escribe las especificaciones del producto (aparecerá entre paréntesis en el ticket)
+                    </p>
+                </div>
+
+                <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="Ej: Sin cebolla, extra queso, bien cocido, etc."
+                    style={{
+                        width: '100%',
+                        height: '120px',
+                        padding: '0.75rem',
+                        border: '2px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: isMobileView ? '0.875rem' : '1rem',
+                        fontFamily: 'inherit',
+                        resize: 'none',
+                        boxSizing: 'border-box',
+                        marginBottom: '1.5rem'
+                    }}
+                    maxLength={100}
+                />
+
+                <div style={{
+                    display: 'flex',
+                    gap: '0.75rem',
+                    justifyContent: 'flex-end'
+                }}>
+                    <button
+                        style={{
+                            padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
+                            backgroundColor: '#ffffff',
+                            border: '2px solid #d1d5db',
+                            borderRadius: '8px',
+                            color: '#374151',
+                            fontWeight: '600',
+                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            minHeight: TOUCH_MIN_SIZE
+                        }}
+                        onClick={cancelNote}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        style={{
+                            padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
+                            backgroundColor: '#3b82f6',
+                            border: 'none',
+                            borderRadius: '8px',
+                            color: '#ffffff',
+                            fontWeight: '600',
+                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            minHeight: TOUCH_MIN_SIZE
+                        }}
+                        onClick={saveNote}
+                    >
+                        Guardar Nota
+                    </button>
+                </div>
+            </div>
         </div>
     );
 
-    // =====================================
-    // 11. ESTRUCTURA PRINCIPAL DEL POS
-    // =====================================
-
-    return (
+    // Renderizar vista móvil
+    const renderMobileView = () => (
         <div style={{
             height: '100vh',
             display: 'flex',
@@ -713,85 +949,79 @@ const PuntosVenta = () => {
             backgroundColor: '#f9fafb',
             overflow: 'hidden'
         }}>
-
+            {/* Header */}
             <div style={{
                 backgroundColor: '#ffffff',
                 borderBottom: '2px solid #e5e7eb',
-                padding: '1.25rem 1.5rem',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                padding: '0.75rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                flexShrink: 0
             }}>
                 <h1 style={{
-                    fontSize: '1.75rem',
+                    fontSize: '1.25rem',
                     fontWeight: '700',
                     color: '#111827',
                     margin: 0,
-                    letterSpacing: '-0.025em'
+                    textAlign: 'center'
                 }}>
                     Punto de Venta
                 </h1>
             </div>
 
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-
-                {/* Panel Izquierdo: Catálogo */}
-                <div style={{
-                    flex: '1 1 50%',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    backgroundColor: '#ffffff',
-                    borderRight: '2px solid #e5e7eb'
-                }}>
-
+            {/* Contenido principal - Alterna entre productos y orden */}
+            {!showOrderDetails ? (
+                // Vista de productos
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* Filtros */}
                     <div style={{
-                        padding: '1.25rem',
+                        padding: '0.75rem',
                         borderBottom: '1px solid #e5e7eb',
                         backgroundColor: '#fafafa',
                         flexShrink: 0
                     }}>
                         <div style={{
                             display: 'flex',
-                            gap: '0.75rem',
                             overflowX: 'auto',
-                            paddingBottom: '0.5rem'
+                            gap: '0.5rem',
+                            paddingBottom: '0.25rem'
                         }}>
                             <button
                                 style={{
-                                    padding: '0.625rem 1.25rem',
+                                    padding: '0.5rem 1rem',
                                     borderRadius: '6px',
                                     border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
                                     backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
                                     color: selectedCategory === 'all' ? '#ffffff' : '#374151',
                                     fontWeight: '600',
-                                    fontSize: '0.9375rem',
+                                    fontSize: '0.875rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     whiteSpace: 'nowrap',
-                                    boxShadow: selectedCategory === 'all' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
+                                    minHeight: TOUCH_MIN_SIZE
                                 }}
                                 onClick={() => setSelectedCategory('all')}
                             >
-                                Todos los productos
+                                Todos
                             </button>
                             {categories.map(cat => (
                                 <button
                                     key={cat.id}
                                     style={{
-                                        padding: '0.625rem 1.25rem',
+                                        padding: '0.5rem 1rem',
                                         borderRadius: '6px',
                                         border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
                                         backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
                                         color: selectedCategory === cat.id ? '#ffffff' : '#374151',
                                         fontWeight: '600',
-                                        fontSize: '0.9375rem',
+                                        fontSize: '0.875rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
-                                        boxShadow: selectedCategory === cat.id ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none'
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={() => setSelectedCategory(cat.id)}
                                 >
-                                    {cat.name}
+                                    {cat.name.length > 12 ? cat.name.substring(0, 10) + '...' : cat.name}
                                 </button>
                             ))}
                         </div>
@@ -801,13 +1031,591 @@ const PuntosVenta = () => {
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
-                        padding: '1.5rem',
+                        padding: '0.75rem',
                         backgroundColor: '#f9fafb'
                     }}>
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-                            gap: '1rem'
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
+                            gap: '0.75rem'
+                        }}>
+                            {filteredProducts.map(product => (
+                                <div
+                                    key={product.id}
+                                    style={{
+                                        backgroundColor: '#ffffff',
+                                        borderRadius: '8px',
+                                        overflow: 'hidden',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        border: '1px solid #e5e7eb',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                                    }}
+                                    onClick={() => addToCart(product)}
+                                >
+                                    <div style={{
+                                        height: '80px',
+                                        backgroundColor: '#f8fafc',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        padding: '0.5rem'
+                                    }}>
+                                        {product.image ? (
+                                            <img
+                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
+                                                alt={product.name}
+                                                style={{
+                                                    maxWidth: '100%',
+                                                    maxHeight: '100%',
+                                                    objectFit: 'contain'
+                                                }}
+                                            />
+                                        ) : (
+                                            <span style={{
+                                                color: '#94a3b8',
+                                                fontSize: '0.75rem',
+                                                textAlign: 'center'
+                                            }}>
+                                                Sin imagen
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div style={{ padding: '0.5rem' }}>
+                                        <h3 style={{
+                                            fontSize: '0.875rem',
+                                            fontWeight: '600',
+                                            color: '#1f2937',
+                                            marginBottom: '0.25rem',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
+                                        }}>
+                                            {product.name}
+                                        </h3>
+                                        <p style={{
+                                            fontSize: '1rem',
+                                            fontWeight: '700',
+                                            color: '#059669',
+                                            margin: 0
+                                        }}>
+                                            ${product.price}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                // Vista de orden
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                    {/* Header de orden */}
+                    <div style={{ 
+                        padding: '0.75rem',
+                        backgroundColor: '#f3f4f6',
+                        flexShrink: 0,
+                        borderBottom: '1px solid #e5e7eb',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <h3 style={{
+                            fontSize: '1rem',
+                            fontWeight: '700',
+                            color: '#111827',
+                            margin: 0
+                        }}>
+                            Orden Actual ({cart.length})
+                        </h3>
+                        <button
+                            style={{
+                                padding: '0.5rem 1rem',
+                                backgroundColor: '#3b82f6',
+                                border: 'none',
+                                borderRadius: '6px',
+                                color: '#ffffff',
+                                fontSize: '0.875rem',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                minHeight: TOUCH_MIN_SIZE
+                            }}
+                            onClick={() => setShowOrderDetails(false)}
+                        >
+                            ← Productos
+                        </button>
+                    </div>
+                    
+                    {/* Contenido del carrito */}
+                    <div style={{
+                        flex: 1, 
+                        overflowY: 'auto',
+                        padding: '0.75rem', 
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        {cart.length === 0 ? (
+                            <div style={{
+                                textAlign: 'center',
+                                padding: '3rem 1rem',
+                                color: '#9ca3af',
+                                fontSize: '0.875rem'
+                            }}>
+                                <p style={{ margin: 0 }}>No hay productos en el carrito</p>
+                            </div>
+                        ) : (
+                            <div style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: '0.5rem',
+                                flex: 1
+                            }}>
+                                {cart.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        style={{
+                                            backgroundColor: '#ffffff',
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: '8px',
+                                            padding: '0.75rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: '0.5rem'
+                                        }}
+                                    >
+                                        {/* Información del producto */}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <h4 style={{
+                                                    fontSize: '0.875rem',
+                                                    fontWeight: '600',
+                                                    color: '#1f2937',
+                                                    marginBottom: '0.25rem',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }}>
+                                                    {item.name}
+                                                </h4>
+                                                <p style={{
+                                                    fontSize: '0.75rem',
+                                                    color: '#6b7280',
+                                                    margin: 0
+                                                }}>
+                                                    {formatCurrency(item.price)} c/u
+                                                </p>
+                                            </div>
+
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem'
+                                            }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    border: '2px solid #e5e7eb',
+                                                    borderRadius: '6px',
+                                                    overflow: 'hidden',
+                                                    backgroundColor: '#ffffff'
+                                                }}>
+                                                    <button
+                                                        style={{
+                                                            width: '36px',
+                                                            height: '36px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: '1rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onClick={() => updateQuantity(item.product_id, -1)}
+                                                    >
+                                                        −
+                                                    </button>
+                                                    <span style={{
+                                                        width: '30px',
+                                                        textAlign: 'center',
+                                                        fontSize: '0.875rem',
+                                                        fontWeight: '600',
+                                                        color: '#1f2937'
+                                                    }}>
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button
+                                                        style={{
+                                                            width: '36px',
+                                                            height: '36px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: '1rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onClick={() => updateQuantity(item.product_id, 1)}
+                                                    >
+                                                        +
+                                                    </button>
+                                                </div>
+
+                                                <button
+                                                    style={{
+                                                        width: '36px',
+                                                        height: '36px',
+                                                        backgroundColor: '#fee2e2',
+                                                        border: '2px solid #fecaca',
+                                                        borderRadius: '6px',
+                                                        color: '#dc2626',
+                                                        fontSize: '1rem',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                    onClick={() => removeFromCart(item.product_id)}
+                                                    title="Eliminar producto"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Nota del producto */}
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            paddingTop: '0.5rem',
+                                            borderTop: '1px dashed #e5e7eb'
+                                        }}>
+                                            <div style={{ flex: 1 }}>
+                                                {item.note ? (
+                                                    <div style={{
+                                                        fontSize: '0.75rem',
+                                                        color: '#6b7280',
+                                                        fontStyle: 'italic',
+                                                        backgroundColor: '#f3f4f6',
+                                                        padding: '0.25rem 0.5rem',
+                                                        borderRadius: '4px'
+                                                    }}>
+                                                        <strong>Nota:</strong> {item.note}
+                                                    </div>
+                                                ) : (
+                                                    <span style={{
+                                                        fontSize: '0.75rem',
+                                                        color: '#9ca3af',
+                                                        fontStyle: 'italic'
+                                                    }}>
+                                                        Sin notas especiales
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <button
+                                                style={{
+                                                    padding: '0.25rem 0.5rem',
+                                                    backgroundColor: item.note ? '#fef3c7' : '#f3f4f6',
+                                                    border: `1px solid ${item.note ? '#fbbf24' : '#d1d5db'}`,
+                                                    borderRadius: '4px',
+                                                    color: item.note ? '#92400e' : '#374151',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: '500',
+                                                    cursor: 'pointer',
+                                                    marginLeft: '0.5rem',
+                                                    whiteSpace: 'nowrap'
+                                                }}
+                                                onClick={() => handleAddNote(item.product_id)}
+                                            >
+                                                {item.note ? '📝 Editar' : '✏️ Nota'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        
+                        {/* Totales y Botones */}
+                        {cart.length > 0 && (
+                            <div style={{
+                                marginTop: 'auto',
+                                paddingTop: '1rem',
+                                borderTop: '2px solid #e5e7eb'
+                            }}>
+                                {/* Totales */}
+                                <div style={{
+                                    paddingBottom: '1rem',
+                                    marginBottom: '0.75rem'
+                                }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        marginBottom: '0.5rem',
+                                        fontSize: '0.875rem',
+                                        color: '#6b7280'
+                                    }}>
+                                        <span>Subtotal</span>
+                                        <span style={{ fontWeight: '600' }}>{formatCurrency(calculateSubtotal)}</span>
+                                    </div>
+
+                                    {appliedDiscount && (
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '0.875rem',
+                                            color: '#dc2626',
+                                            fontWeight: '600'
+                                        }}>
+                                            <span>Descuento</span>
+                                            <span>- {formatCurrency(calculateDiscountAmount)}</span>
+                                        </div>
+                                    )}
+
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        paddingTop: '0.75rem',
+                                        borderTop: '2px solid #e5e7eb',
+                                        fontSize: '1.25rem',
+                                        fontWeight: '700',
+                                        color: '#111827'
+                                    }}>
+                                        <span>Total</span>
+                                        <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Botones principales */}
+                                <button
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6', 
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#ffffff',
+                                        fontSize: '1rem',
+                                        fontWeight: '700',
+                                        cursor: processingOrder ? 'not-allowed' : 'pointer',
+                                        marginBottom: '0.5rem',
+                                        minHeight: TOUCH_MIN_SIZE
+                                    }}
+                                    onClick={openOrderConfirmationModal}
+                                    disabled={processingOrder}
+                                >
+                                    {processingOrder ? 'Procesando...' : 'Revisar y Pagar'}
+                                </button>
+
+                                <button
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        backgroundColor: '#f59e0b',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#ffffff',
+                                        fontSize: '0.875rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        minHeight: TOUCH_MIN_SIZE
+                                    }}
+                                    onClick={handleOpenCashDrawer}
+                                >
+                                    🔓 Abrir Caja
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Barra inferior móvil */}
+            <div style={{
+                backgroundColor: '#ffffff',
+                borderTop: '2px solid #e5e7eb',
+                padding: '0.5rem',
+                display: 'flex',
+                gap: '0.5rem'
+            }}>
+                <button
+                    style={{
+                        flex: 1,
+                        padding: '0.75rem',
+                        backgroundColor: showOrderDetails ? '#e5e7eb' : '#3b82f6',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: showOrderDetails ? '#374151' : '#ffffff',
+                        fontSize: '0.875rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        minHeight: TOUCH_MIN_SIZE
+                    }}
+                    onClick={() => setShowOrderDetails(false)}
+                >
+                    Productos
+                </button>
+                <button
+                    style={{
+                        flex: 1,
+                        padding: '0.75rem',
+                        backgroundColor: !showOrderDetails ? '#e5e7eb' : '#3b82f6',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: !showOrderDetails ? '#374151' : '#ffffff',
+                        fontSize: '0.875pend',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        minHeight: TOUCH_MIN_SIZE,
+                        position: 'relative'
+                    }}
+                    onClick={() => setShowOrderDetails(true)}
+                >
+                    Orden {cart.length > 0 && (
+                        <span style={{
+                            position: 'absolute',
+                            top: '-5px',
+                            right: '-5px',
+                            backgroundColor: '#ef4444',
+                            color: '#ffffff',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}>
+                            {cart.length}
+                        </span>
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+
+    // Renderizar vista de escritorio
+    const renderDesktopView = () => (
+        <div style={{
+            height: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#f9fafb',
+            overflow: 'hidden'
+        }}>
+            {/* Header */}
+            <div style={{
+                backgroundColor: '#ffffff',
+                borderBottom: '2px solid #e5e7eb',
+                padding: '1rem 1.5rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+            }}>
+                <h1 style={{
+                    fontSize: screenWidth <= 1024 ? '1.5rem' : '1.75rem',
+                    fontWeight: '700',
+                    color: '#111827',
+                    margin: 0,
+                    letterSpacing: '-0.025em'
+                }}>
+                    Punto de Venta
+                </h1>
+            </div>
+
+            <div style={{ 
+                display: 'flex', 
+                flex: 1, 
+                overflow: 'hidden',
+                flexDirection: screenWidth <= 1024 ? 'column' : 'row'
+            }}>
+                {/* Panel Izquierdo: Catálogo */}
+                <div style={{
+                    flex: screenWidth <= 1024 ? '0 0 60%' : '1 1 60%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    backgroundColor: '#ffffff',
+                    borderRight: screenWidth <= 1024 ? 'none' : '2px solid #e5e7eb',
+                    borderBottom: screenWidth <= 1024 ? '2px solid #e5e7eb' : 'none',
+                    minHeight: screenWidth <= 1024 ? '50vh' : 'auto'
+                }}>
+                    {/* Filtros */}
+                    <div style={{
+                        padding: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                        borderBottom: '1px solid #e5e7eb',
+                        backgroundColor: '#fafafa',
+                        flexShrink: 0
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                            overflowX: 'auto',
+                            paddingBottom: '0.25rem'
+                        }}>
+                            <button
+                                style={{
+                                    padding: screenWidth <= 1024 ? '0.5rem 1rem' : '0.625rem 1.25rem',
+                                    borderRadius: '6px',
+                                    border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
+                                    backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
+                                    color: selectedCategory === 'all' ? '#ffffff' : '#374151',
+                                    fontWeight: '600',
+                                    fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    whiteSpace: 'nowrap',
+                                    boxShadow: selectedCategory === 'all' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
+                                    minHeight: TOUCH_MIN_SIZE
+                                }}
+                                onClick={() => setSelectedCategory('all')}
+                            >
+                                {screenWidth <= 1024 ? 'Todos' : 'Todos los productos'}
+                            </button>
+                            {categories.map(cat => (
+                                <button
+                                    key={cat.id}
+                                    style={{
+                                        padding: screenWidth <= 1024 ? '0.5rem 1rem' : '0.625rem 1.25rem',
+                                        borderRadius: '6px',
+                                        border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
+                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
+                                        color: selectedCategory === cat.id ? '#ffffff' : '#374151',
+                                        fontWeight: '600',
+                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        whiteSpace: 'nowrap',
+                                        boxShadow: selectedCategory === cat.id ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
+                                        minHeight: TOUCH_MIN_SIZE
+                                    }}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                >
+                                    {screenWidth <= 1024 && cat.name.length > 12 ? cat.name.substring(0, 10) + '...' : cat.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Grid Productos */}
+                    <div style={{
+                        flex: 1,
+                        overflowY: 'auto',
+                        padding: screenWidth <= 1024 ? '0.75rem' : '1.5rem',
+                        backgroundColor: '#f9fafb'
+                    }}>
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: screenWidth <= 1024 ? 
+                                'repeat(auto-fill, minmax(140px, 1fr))' : 
+                                screenWidth <= 1366 ?
+                                'repeat(auto-fill, minmax(160px, 1fr))' :
+                                'repeat(auto-fill, minmax(180px, 1fr))',
+                            gap: screenWidth <= 1024 ? '0.75rem' : '1rem'
                         }}>
                             {filteredProducts.map(product => (
                                 <div
@@ -834,7 +1642,7 @@ const PuntosVenta = () => {
                                     }}
                                 >
                                     <div style={{
-                                        height: '120px',
+                                        height: screenWidth <= 1024 ? '100px' : screenWidth <= 1366 ? '120px' : '140px',
                                         backgroundColor: '#f8fafc',
                                         display: 'flex',
                                         alignItems: 'center',
@@ -861,9 +1669,9 @@ const PuntosVenta = () => {
                                             </span>
                                         )}
                                     </div>
-                                    <div style={{ padding: '0.875rem' }}>
+                                    <div style={{ padding: screenWidth <= 1024 ? '0.5rem' : '0.875rem' }}>
                                         <h3 style={{
-                                            fontSize: '0.9375rem',
+                                            fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
                                             fontWeight: '600',
                                             color: '#1f2937',
                                             marginBottom: '0.375rem',
@@ -874,7 +1682,7 @@ const PuntosVenta = () => {
                                             {product.name}
                                         </h3>
                                         <p style={{
-                                            fontSize: '1.125rem',
+                                            fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
                                             fontWeight: '700',
                                             color: '#059669',
                                             margin: 0
@@ -888,367 +1696,370 @@ const PuntosVenta = () => {
                     </div>
                 </div>
 
-                {/* Panel Central: Carrito */}
-                <div style={{ flex: '0 0 320px', display: 'flex', flexDirection: 'column', backgroundColor: '#ffffff', borderRight: '2px solid #e5e7eb' }}>
-                    {renderCartItems()}
-                </div>
-
-                {/* Panel Derecho: Checkout */}
+                {/* Panel Derecho: Orden Actual */}
                 <div style={{
-                    flex: '0 0 420px',
+                    flex: screenWidth <= 1024 ? '0 0 40%' : '0 0 400px',
                     backgroundColor: '#ffffff',
                     display: 'flex',
                     flexDirection: 'column',
-                    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
-                    flexShrink: 0 
+                    boxShadow: screenWidth <= 1024 ? 'none' : '-2px 0 8px rgba(0, 0, 0, 0.05)',
+                    flexShrink: 0
                 }}>
-
-                    {/* Información Orden */}
-                    <div style={{
-                        padding: '1.5rem',
-                        borderBottom: '2px solid #e5e7eb',
-                        backgroundColor: '#fafafa',
-                        flexShrink: 0
+                    {/* Header de Orden Actual */}
+                    <div style={{ 
+                        padding: screenWidth <= 1024 ? '0.75rem' : '1rem 1.5rem',
+                        backgroundColor: '#f3f4f6',
+                        flexShrink: 0,
+                        borderBottom: '1px solid #e5e7eb'
                     }}>
-                        {/* Mesa */}
-                        <div style={{ marginBottom: '1.25rem' }}>
-                            <label style={{
-                                display: 'block',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                color: '#374151',
-                                marginBottom: '0.5rem'
+                        <h3 style={{
+                            fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                            fontWeight: '700',
+                            color: '#111827',
+                            margin: 0
+                        }}>
+                            Orden Actual
+                        </h3>
+                    </div>
+                    
+                    {/* Contenido del Carrito */}
+                    <div style={{
+                        flex: 1, 
+                        overflowY: 'auto',
+                        padding: screenWidth <= 1024 ? '0.75rem' : '1.5rem', 
+                        display: 'flex',
+                        flexDirection: 'column'
+                    }}>
+                        {cart.length === 0 ? (
+                            <div style={{
+                                textAlign: 'center',
+                                padding: '3rem 1rem',
+                                color: '#9ca3af',
+                                fontSize: '0.875rem'
                             }}>
-                                Mesa / Tipo de Orden
-                            </label>
-                            <select
-                                style={{
-                                    width: '100%',
-                                    padding: '0.75rem',
-                                    border: '2px solid #d1d5db',
-                                    borderRadius: '8px',
-                                    fontSize: '0.9375rem',
-                                    color: '#1f2937',
-                                    backgroundColor: '#ffffff',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
-                                value={selectedTable}
-                                onChange={(e) => setSelectedTable(e.target.value)}
-                            >
-                                <option value="">Seleccionar mesa...</option>
-                                <option value="takeout">Para Llevar (Takeout)</option>
-                                {tables.map(table => (
-                                    <option
-                                        key={table.id}
-                                        value={table.number}
-                                        disabled={table.status !== 'available'}
-                                    >
-                                        Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        {/* Cliente */}
-                        <div>
-                            <label style={{
-                                display: 'block',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                color: '#374151',
-                                marginBottom: '0.5rem'
+                                <p style={{ margin: 0 }}>No hay productos en el carrito</p>
+                                <p style={{
+                                    margin: '0.5rem 0 0 0',
+                                    fontSize: '0.8125rem'
+                                }}>
+                                    Selecciona productos para comenzar
+                                </p>
+                            </div>
+                        ) : (
+                            <div style={{ 
+                                display: 'flex', 
+                                flexDirection: 'column', 
+                                gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                                flex: 1
                             }}>
-                                Cliente
-                            </label>
-
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                <div style={{ position: 'relative', flex: 1 }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Buscar por nombre, cédula o teléfono..." 
+                                {cart.map((item, index) => (
+                                    <div
+                                        key={index}
                                         style={{
-                                            width: '100%',
-                                            padding: '0.75rem',
-                                            border: '2px solid #d1d5db',
-                                            borderRadius: '8px',
-                                            fontSize: '0.9375rem',
-                                            transition: 'all 0.2s'
-                                        }}
-                                        value={customerSearch}
-                                        onChange={(e) => searchCustomers(e.target.value)}
-                                    />
-                                    {customers.length > 0 && (
-                                        <div style={{
-                                            position: 'absolute',
-                                            zIndex: 10,
-                                            width: '100%',
                                             backgroundColor: '#ffffff',
-                                            border: '2px solid #d1d5db',
-                                            borderRadius: '8px',
-                                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                                            marginTop: '0.25rem',
-                                            maxHeight: '200px',
-                                            overflowY: 'auto'
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: screenWidth <= 1024 ? '8px' : '10px',
+                                            padding: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem'
+                                        }}
+                                    >
+                                        {/* Información del producto */}
+                                        <div style={{ 
+                                            display: 'flex', 
+                                            justifyContent: 'space-between', 
+                                            alignItems: 'center',
+                                            gap: screenWidth <= 1024 ? '0.5rem' : '0.75rem'
                                         }}>
-                                            {customers.map(c => (
-                                                <div
-                                                    key={c.id}
-                                                    style={{
-                                                        padding: '0.75rem',
-                                                        cursor: 'pointer',
-                                                        borderBottom: '1px solid #f3f4f6',
-                                                        transition: 'background-color 0.15s'
-                                                    }}
-                                                    onClick={() => {
-                                                        setSelectedCustomer(c);
-                                                        setCustomerSearch(`${c.first_name} ${c.last_name}`);
-                                                        setCustomers([]);
-                                                    }}
-                                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-                                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
-                                                >
-                                                    <p style={{
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <h4 style={{
+                                                    fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                                    fontWeight: '600',
+                                                    color: '#1f2937',
+                                                    marginBottom: screenWidth <= 1024 ? '0.25rem' : '0.375rem',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }}>
+                                                    {item.name}
+                                                </h4>
+                                                <p style={{
+                                                    fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                    color: '#6b7280',
+                                                    margin: 0
+                                                }}>
+                                                    {formatCurrency(item.price)} c/u
+                                                </p>
+                                            </div>
+
+                                            <div style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.5rem'
+                                            }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    border: '2px solid #e5e7eb',
+                                                    borderRadius: screenWidth <= 1024 ? '6px' : '8px',
+                                                    overflow: 'hidden',
+                                                    backgroundColor: '#ffffff'
+                                                }}>
+                                                    <button
+                                                        style={{
+                                                            width: screenWidth <= 1024 ? '32px' : '36px',
+                                                            height: screenWidth <= 1024 ? '32px' : '36px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: screenWidth <= 1024 ? '1rem' : '1.25rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onClick={() => updateQuantity(item.product_id, -1)}
+                                                    >
+                                                        −
+                                                    </button>
+                                                    <span style={{
+                                                        width: screenWidth <= 1024 ? '30px' : '36px',
+                                                        textAlign: 'center',
+                                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
                                                         fontWeight: '600',
-                                                        color: '#1f2937',
-                                                        marginBottom: '0.25rem',
-                                                        fontSize: '0.9375rem'
+                                                        color: '#1f2937'
                                                     }}>
-                                                        {c.first_name} {c.last_name}
-                                                    </p>
-                                                    <p style={{
-                                                        fontSize: '0.8125rem',
-                                                        color: '#6b7280',
-                                                        margin: 0
-                                                    }}>
-                                                        {c.email} {c.cedula && `(${c.cedula})`} 
-                                                    </p>
+                                                        {item.quantity}
+                                                    </span>
+                                                    <button
+                                                        style={{
+                                                            width: screenWidth <= 1024 ? '32px' : '36px',
+                                                            height: screenWidth <= 1024 ? '32px' : '36px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: screenWidth <= 1024 ? '1rem' : '1.25rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                        onClick={() => updateQuantity(item.product_id, 1)}
+                                                    >
+                                                        +
+                                                    </button>
                                                 </div>
-                                            ))}
+
+                                                <button
+                                                    style={{
+                                                        width: screenWidth <= 1024 ? '32px' : '36px',
+                                                        height: screenWidth <= 1024 ? '32px' : '36px',
+                                                        backgroundColor: '#fee2e2',
+                                                        border: '2px solid #fecaca',
+                                                        borderRadius: screenWidth <= 1024 ? '6px' : '8px',
+                                                        color: '#dc2626',
+                                                        fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                    onClick={() => removeFromCart(item.product_id)}
+                                                    title="Eliminar producto"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Nota del producto */}
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            paddingTop: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                                            borderTop: '1px dashed #e5e7eb'
+                                        }}>
+                                            <div style={{ flex: 1 }}>
+                                                {item.note ? (
+                                                    <div style={{
+                                                        fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                        color: '#6b7280',
+                                                        fontStyle: 'italic',
+                                                        backgroundColor: '#f3f4f6',
+                                                        padding: screenWidth <= 1024 ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                                                        borderRadius: '4px',
+                                                        wordBreak: 'break-word'
+                                                    }}>
+                                                        <strong>Nota:</strong> {item.note}
+                                                    </div>
+                                                ) : (
+                                                    <span style={{
+                                                        fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                        color: '#9ca3af',
+                                                        fontStyle: 'italic'
+                                                    }}>
+                                                        Sin notas especiales
+                                                    </span>
+                                                )}
+                                            </div>
+                                            
+                                            <button
+                                                style={{
+                                                    padding: screenWidth <= 1024 ? '0.25rem 0.5rem' : '0.375rem 0.75rem',
+                                                    backgroundColor: item.note ? '#fef3c7' : '#f3f4f6',
+                                                    border: `1px solid ${item.note ? '#fbbf24' : '#d1d5db'}`,
+                                                    borderRadius: '4px',
+                                                    color: item.note ? '#92400e' : '#374151',
+                                                    fontSize: screenWidth <= 1024 ? '0.75rem' : '0.8125rem',
+                                                    fontWeight: '500',
+                                                    cursor: 'pointer',
+                                                    marginLeft: '0.5rem',
+                                                    whiteSpace: 'nowrap',
+                                                    minHeight: TOUCH_MIN_SIZE,
+                                                    minWidth: '60px'
+                                                }}
+                                                onClick={() => handleAddNote(item.product_id)}
+                                                title={item.note ? "Editar nota" : "Agregar nota"}
+                                            >
+                                                {item.note ? '📝 Editar' : '✏️ Nota'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        
+                        {/* Totales y Botones - SOLO se muestra cuando hay productos */}
+                        {cart.length > 0 && (
+                            <div style={{
+                                marginTop: 'auto',
+                                paddingTop: screenWidth <= 1024 ? '1rem' : '1.5rem',
+                                borderTop: '2px solid #e5e7eb'
+                            }}>
+                                {/* Totales */}
+                                <div style={{
+                                    paddingBottom: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                    marginBottom: screenWidth <= 1024 ? '0.75rem' : '1rem'
+                                }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        marginBottom: '0.5rem',
+                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                        color: '#6b7280'
+                                    }}>
+                                        <span>Subtotal</span>
+                                        <span style={{ fontWeight: '600' }}>{formatCurrency(calculateSubtotal)}</span>
+                                    </div>
+
+                                    {appliedDiscount && (
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            marginBottom: '0.5rem',
+                                            fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
+                                            color: '#dc2626',
+                                            fontWeight: '600'
+                                        }}>
+                                            <span>Descuento</span>
+                                            <span>- {formatCurrency(calculateDiscountAmount)}</span>
                                         </div>
                                     )}
-                                </div>
 
-                                <button
-                                    style={{
-                                        width: '44px',
-                                        height: '44px',
-                                        backgroundColor: '#8b5cf6',
-                                        color: '#ffffff',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        fontSize: '1.5rem',
-                                        fontWeight: '300',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
+                                    <div style={{
                                         display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center'
-                                    }}
-                                    onClick={() => setShowCustomerModal(true)}
-                                    title="Agregar nuevo cliente"
-                                >
-                                    +
-                                </button>
-                            </div>
-
-                            {selectedCustomer && (
-                                <div style={{
-                                    backgroundColor: '#f3e8ff',
-                                    border: '2px solid #c084fc',
-                                    borderRadius: '8px',
-                                    padding: '0.75rem',
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center'
-                                }}>
-                                    <span style={{
-                                        fontSize: '0.875rem',
-                                        fontWeight: '600',
-                                        color: '#6b21a8'
+                                        justifyContent: 'space-between',
+                                        paddingTop: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                        borderTop: '2px solid #e5e7eb',
+                                        fontSize: screenWidth <= 1024 ? '1.25rem' : '1.5rem',
+                                        fontWeight: '700',
+                                        color: '#111827'
                                     }}>
-                                        {selectedCustomer.first_name} {selectedCustomer.last_name}
-                                    </span>
-                                    <button
-                                        style={{
-                                            backgroundColor: 'transparent',
-                                            border: 'none',
-                                            color: '#dc2626',
-                                            fontSize: '1.125rem',
-                                            cursor: 'pointer',
-                                            padding: '0.25rem',
-                                            lineHeight: 1
-                                        }}
-                                        onClick={() => {
-                                            setSelectedCustomer(null);
-                                            setCustomerSearch('');
-                                        }}
-                                        title="Quitar cliente"
-                                    >
-                                        ×
-                                    </button>
+                                        <span>Total</span>
+                                        <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
-                    </div>
 
-                    {/* Descuentos y Totales */}
-                    <div style={{
-                        borderTop: '2px solid #e5e7eb',
-                        padding: '1.5rem',
-                        backgroundColor: '#ffffff',
-                        flexShrink: 0
-                    }}>
-                        {/* Descuento */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={{
-                                display: 'block',
-                                fontSize: '0.875rem',
-                                fontWeight: '600',
-                                color: '#374151',
-                                marginBottom: '0.5rem'
-                            }}>
-                                Código de Descuento
-                            </label>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input
-                                    type="text"
-                                    placeholder="Ingresa el código"
-                                    style={{
-                                        flex: 1,
-                                        padding: '0.6rem', 
-                                        border: '2px solid #d1d5db',
-                                        borderRadius: '8px',
-                                        fontSize: '0.9375rem',
-                                        transition: 'all 0.2s'
-                                    }}
-                                    value={discountCode}
-                                    onChange={(e) => setDiscountCode(e.target.value)}
-                                />
+                                {/* Botón Principal */}
                                 <button
                                     style={{
-                                        padding: '0.6rem 1rem', 
-                                        backgroundColor: '#fbbf24',
+                                        width: '100%',
+                                        padding: screenWidth <= 1024 ? '0.75rem' : '1rem',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6', 
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        color: '#ffffff',
+                                        fontSize: screenWidth <= 1024 ? '1rem' : '1.125rem',
+                                        fontWeight: '700',
+                                        cursor: processingOrder ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
+                                        marginBottom: screenWidth <= 1024 ? '0.5rem' : '0.75rem',
+                                        minHeight: TOUCH_MIN_SIZE
+                                    }}
+                                    onClick={openOrderConfirmationModal}
+                                    disabled={processingOrder}
+                                >
+                                    {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
+                                </button>
+
+                                {/* 🔓 Botón Abrir Caja */}
+                                <button
+                                    style={{
+                                        width: '100%',
+                                        padding: screenWidth <= 1024 ? '0.75rem' : '0.75rem',
+                                        backgroundColor: '#f59e0b',
                                         border: 'none',
                                         borderRadius: '8px',
-                                        color: '#78350f',
+                                        color: '#ffffff',
+                                        fontSize: screenWidth <= 1024 ? '0.875rem' : '0.9375rem',
                                         fontWeight: '600',
-                                        fontSize: '0.9375rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
-                                        whiteSpace: 'nowrap'
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
-                                    onClick={handleApplyDiscount}
+                                    onClick={handleOpenCashDrawer}
                                 >
-                                    Aplicar
+                                    🔓 Abrir Caja Registradora
                                 </button>
                             </div>
-                            {appliedDiscount && (
-                                <div style={{
-                                    marginTop: '0.75rem',
-                                    padding: '0.75rem',
-                                    backgroundColor: '#d1fae5',
-                                    border: '2px solid #86efac',
-                                    borderRadius: '8px',
-                                    fontSize: '0.875rem',
-                                    fontWeight: '600',
-                                    color: '#065f46'
-                                }}>
-                                    Descuento aplicado: {appliedDiscount.name}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Totales */}
-                        <div style={{
-                            borderTop: '2px solid #e5e7eb',
-                            paddingTop: '1rem'
-                        }}>
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                marginBottom: '0.75rem',
-                                fontSize: '0.9375rem',
-                                color: '#6b7280'
-                            }}>
-                                <span>Subtotal</span>
-                                <span style={{ fontWeight: '600' }}>{formatCurrency(calculateSubtotal)}</span>
-                            </div>
-
-                            {appliedDiscount && (
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    marginBottom: '0.75rem',
-                                    fontSize: '0.9375rem',
-                                    color: '#dc2626',
-                                    fontWeight: '600'
-                                }}>
-                                    <span>Descuento</span>
-                                    <span>- {formatCurrency(calculateDiscountAmount)}</span>
-                                </div>
-                            )}
-
-                            <div style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                paddingTop: '1rem',
-                                borderTop: '2px solid #e5e7eb',
-                                fontSize: '1.5rem',
-                                fontWeight: '700',
-                                color: '#111827'
-                            }}>
-                                <span>Total</span>
-                                <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
-                            </div>
-                        </div>
-
-                        {/* Botón Principal */}
-                        <button
-                            style={{
-                                width: '100%',
-                                marginTop: '1.5rem',
-                                padding: '1rem',
-                                backgroundColor: cart.length === 0 || processingOrder ? '#d1d5db' : '#3b82f6', 
-                                border: 'none',
-                                borderRadius: '10px',
-                                color: '#ffffff',
-                                fontSize: '1.125rem',
-                                fontWeight: '700',
-                                cursor: cart.length === 0 || processingOrder ? 'not-allowed' : 'pointer',
-                                transition: 'all 0.2s',
-                                boxShadow: cart.length === 0 || processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)'
-                            }}
-                            onClick={openOrderConfirmationModal} 
-                            disabled={cart.length === 0 || processingOrder}
-                        >
-                            {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
-                        </button>
-
-                        {/* 🔓 Botón Abrir Caja */}
-                        <button
-                            style={{
-                                width: '100%',
-                                marginTop: '0.75rem',
-                                padding: '0.75rem',
-                                backgroundColor: '#f59e0b',
-                                border: 'none',
-                                borderRadius: '8px',
-                                color: '#ffffff',
-                                fontSize: '0.9375rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                            onClick={handleOpenCashDrawer}
-                        >
-                            🔓 Abrir Caja Registradora
-                        </button>
+                        )}
                     </div>
                 </div>
             </div>
+        </div>
+    );
 
-            {/* Modal Confirmación */}
+    if (loading) return (
+        <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            height: '100vh',
+            fontSize: '1.125rem',
+            color: '#6b7280'
+        }}>
+            Cargando sistema de punto de venta...
+        </div>
+    );
+
+    // =====================================
+    // 11. ESTRUCTURA PRINCIPAL CON RESPONSIVIDAD
+    // =====================================
+
+    return (
+        <>
+            {/* Vista responsiva basada en el tamaño de pantalla */}
+            {isMobileView ? renderMobileView() : renderDesktopView()}
+
+            {/* Modal para agregar nota */}
+            {editingNoteForItem && renderNoteModal()}
+
+            {/* Modal Confirmación (Compartido) */}
             {showReviewModal && (
                 <div style={{
                     position: 'fixed',
@@ -1261,19 +2072,19 @@ const PuntosVenta = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
-                    padding: '1rem'
+                    padding: isMobileView ? '0.5rem' : '1rem'
                 }}>
                     <div style={{
                         backgroundColor: '#ffffff',
                         borderRadius: '12px',
                         width: '100%',
-                        maxWidth: '550px',
+                        maxWidth: isMobileView ? '95%' : '550px',
                         maxHeight: '90vh',
                         overflowY: 'auto',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                     }}>
                         <div style={{
-                            padding: '1.5rem',
+                            padding: isMobileView ? '1rem' : '1.5rem',
                             borderBottom: '2px solid #e5e7eb',
                             backgroundColor: '#1f2937',
                             display: 'flex',
@@ -1282,40 +2093,27 @@ const PuntosVenta = () => {
                         }}>
                             <div>
                                 <h3 style={{
-                                    fontSize: '1.5rem',
+                                    fontSize: isMobileView ? '1.25rem' : '1.5rem',
                                     fontWeight: '700',
                                     color: '#ffffff',
                                     margin: 0
                                 }}>
                                     Confirmación de Orden
                                 </h3>
-                                <p style={{ color: '#d1d5db', fontSize: '0.9rem', margin: '0.25rem 0 0 0' }}>
+                                <p style={{ 
+                                    color: '#d1d5db', 
+                                    fontSize: isMobileView ? '0.75rem' : '0.9rem', 
+                                    margin: '0.25rem 0 0 0' 
+                                }}>
                                     Confirma la orden antes de procesar el pago.
                                 </p>
                             </div>
-                            
-                            <button
-                                style={{
-                                    padding: '0.5rem 1rem',
-                                    backgroundColor: 'transparent',
-                                    border: '1px solid #9ca3af',
-                                    borderRadius: '6px',
-                                    color: '#ffffff',
-                                    fontWeight: '500',
-                                    fontSize: '0.8rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s'
-                                }}
-                                onClick={handleInvoiceClick}
-                            >
-                                FACTURAR
-                            </button>
                         </div>
 
                         {renderReviewDetails()}
 
                         <div style={{
-                            padding: '1.5rem',
+                            padding: isMobileView ? '1rem' : '1.5rem',
                             borderTop: '2px solid #e5e7eb',
                             display: 'flex',
                             gap: '0.75rem',
@@ -1323,16 +2121,17 @@ const PuntosVenta = () => {
                         }}>
                             <button
                                 style={{
-                                    padding: '0.75rem 1.5rem',
+                                    padding: isMobileView ? '0.75rem' : '0.75rem 1.5rem',
                                     backgroundColor: '#9ca3af',
                                     border: 'none',
                                     borderRadius: '8px',
                                     color: '#ffffff',
                                     fontWeight: '600',
-                                    fontSize: '1rem',
+                                    fontSize: isMobileView ? '0.875rem' : '1rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
-                                    flex: 1
+                                    flex: 1,
+                                    minHeight: TOUCH_MIN_SIZE
                                 }}
                                 onClick={() => setShowReviewModal(false)}
                             >
@@ -1341,16 +2140,17 @@ const PuntosVenta = () => {
                             
                             <button
                                 style={{
-                                    padding: '0.75rem 1.5rem',
+                                    padding: isMobileView ? '0.75rem' : '0.75rem 1.5rem',
                                     backgroundColor: '#059669',
                                     border: 'none',
                                     borderRadius: '8px',
                                     color: '#ffffff',
                                     fontWeight: '700',
-                                    fontSize: '1rem',
+                                    fontSize: isMobileView ? '0.875rem' : '1rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
-                                    flex: 1
+                                    flex: 1,
+                                    minHeight: TOUCH_MIN_SIZE
                                 }}
                                 onClick={finalPlaceOrder}
                                 disabled={processingOrder}
@@ -1361,53 +2161,8 @@ const PuntosVenta = () => {
                     </div>
                 </div>
             )}
-            
-            {/* Modal Facturación */}
-            {showInvoiceModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1100,
-                    padding: '1rem'
-                }}>
-                    <div style={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '12px',
-                        padding: '2rem',
-                        textAlign: 'center',
-                        maxWidth: '400px',
-                        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)'
-                    }}>
-                        <h3 style={{ color: '#f59e0b', margin: '0 0 1rem 0' }}>⚠️ FUNCIONALIDAD EN DESARROLLO</h3>
-                        <p style={{ fontSize: '1rem', color: '#1f2937', marginBottom: '1.5rem' }}>
-                            La ventana de facturación se implementará en una fase posterior.
-                        </p>
-                        <button
-                            style={{
-                                padding: '0.75rem 2rem',
-                                backgroundColor: '#3b82f6',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontWeight: '600'
-                            }}
-                            onClick={() => setShowInvoiceModal(false)}
-                        >
-                            Aceptar
-                        </button>
-                    </div>
-                </div>
-            )}
 
-            {/* Modal Crear Cliente */}
+            {/* Modal Crear Cliente (Compartido) */}
             {showCustomerModal && (
                 <div style={{
                     position: 'fixed',
@@ -1420,24 +2175,24 @@ const PuntosVenta = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
-                    padding: '1rem'
+                    padding: isMobileView ? '0.5rem' : '1rem'
                 }}>
                     <div style={{
                         backgroundColor: '#ffffff',
                         borderRadius: '12px',
                         width: '100%',
-                        maxWidth: '500px',
+                        maxWidth: isMobileView ? '95%' : '500px',
                         maxHeight: '90vh',
                         overflowY: 'auto',
                         boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
                     }}>
                         <div style={{
-                            padding: '1.5rem',
+                            padding: isMobileView ? '1rem' : '1.5rem',
                             borderBottom: '2px solid #e5e7eb',
                             backgroundColor: '#fafafa'
                         }}>
                             <h3 style={{
-                                fontSize: '1.5rem',
+                                fontSize: isMobileView ? '1.25rem' : '1.5rem',
                                 fontWeight: '700',
                                 color: '#111827',
                                 margin: 0
@@ -1446,12 +2201,12 @@ const PuntosVenta = () => {
                             </h3>
                         </div>
 
-                        <form onSubmit={handleCreateCustomer} style={{ padding: '1.5rem' }}>
+                        <form onSubmit={handleCreateCustomer} style={{ padding: isMobileView ? '1rem' : '1.5rem' }}>
                             
-                            <div style={{ marginBottom: '1.25rem' }}>
+                            <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: '0.875rem',
+                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -1465,20 +2220,21 @@ const PuntosVenta = () => {
                                     onChange={handleInputChange}
                                     style={{
                                         width: '100%',
-                                        padding: '0.75rem',
+                                        padding: isMobileView ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: '0.9375rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                 />
                             </div>
                             
-                            <div style={{ marginBottom: '1.25rem' }}>
+                            <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: '0.875rem',
+                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -1493,12 +2249,13 @@ const PuntosVenta = () => {
                                     required
                                     style={{
                                         width: '100%',
-                                        padding: '0.75rem',
+                                        padding: isMobileView ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: '0.9375rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                 />
                             </div>
@@ -1506,13 +2263,13 @@ const PuntosVenta = () => {
                             <div style={{
                                 display: 'grid',
                                 gridTemplateColumns: '1fr 1fr',
-                                gap: '1rem',
-                                marginBottom: '1.25rem'
+                                gap: '0.75rem',
+                                marginBottom: '1rem'
                             }}>
                                 <div>
                                     <label style={{
                                         display: 'block',
-                                        fontSize: '0.875rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
                                         fontWeight: '600',
                                         color: '#374151',
                                         marginBottom: '0.5rem'
@@ -1527,19 +2284,20 @@ const PuntosVenta = () => {
                                         required
                                         style={{
                                             width: '100%',
-                                            padding: '0.75rem',
+                                            padding: isMobileView ? '0.5rem' : '0.75rem',
                                             border: '2px solid #d1d5db',
                                             borderRadius: '8px',
-                                            fontSize: '0.9375rem',
+                                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                             transition: 'all 0.2s',
-                                            boxSizing: 'border-box'
+                                            boxSizing: 'border-box',
+                                            minHeight: TOUCH_MIN_SIZE
                                         }}
                                     />
                                 </div>
                                 <div>
                                     <label style={{
                                         display: 'block',
-                                        fontSize: '0.875rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.875rem',
                                         fontWeight: '600',
                                         color: '#374151',
                                         marginBottom: '0.5rem'
@@ -1554,21 +2312,22 @@ const PuntosVenta = () => {
                                         required
                                         style={{
                                             width: '100%',
-                                            padding: '0.75rem',
+                                            padding: isMobileView ? '0.5rem' : '0.75rem',
                                             border: '2px solid #d1d5db',
                                             borderRadius: '8px',
-                                            fontSize: '0.9375rem',
+                                            fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                             transition: 'all 0.2s',
-                                            boxSizing: 'border-box'
+                                            boxSizing: 'border-box',
+                                            minHeight: TOUCH_MIN_SIZE
                                         }}
                                     />
                                 </div>
                             </div>
 
-                            <div style={{ marginBottom: '1.25rem' }}>
+                            <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: '0.875rem',
+                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -1582,20 +2341,21 @@ const PuntosVenta = () => {
                                     onChange={handleInputChange}
                                     style={{
                                         width: '100%',
-                                        padding: '0.75rem',
+                                        padding: isMobileView ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: '0.9375rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                 />
                             </div>
 
-                            <div style={{ marginBottom: '1.5rem' }}>
+                            <div style={{ marginBottom: '1rem' }}>
                                 <label style={{
                                     display: 'block',
-                                    fontSize: '0.875rem',
+                                    fontSize: isMobileView ? '0.875rem' : '0.875rem',
                                     fontWeight: '600',
                                     color: '#374151',
                                     marginBottom: '0.5rem'
@@ -1609,12 +2369,13 @@ const PuntosVenta = () => {
                                     onChange={handleInputChange}
                                     style={{
                                         width: '100%',
-                                        padding: '0.75rem',
+                                        padding: isMobileView ? '0.5rem' : '0.75rem',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
-                                        fontSize: '0.9375rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                         transition: 'all 0.2s',
-                                        boxSizing: 'border-box'
+                                        boxSizing: 'border-box',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                 />
                             </div>
@@ -1624,20 +2385,21 @@ const PuntosVenta = () => {
                                 gap: '0.75rem',
                                 justifyContent: 'flex-end',
                                 borderTop: '2px solid #e5e7eb',
-                                paddingTop: '1.5rem'
+                                paddingTop: '1rem'
                             }}>
                                 <button
                                     type="button"
                                     style={{
-                                        padding: '0.75rem 1.5rem',
+                                        padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
                                         backgroundColor: '#ffffff',
                                         border: '2px solid #d1d5db',
                                         borderRadius: '8px',
                                         color: '#374151',
                                         fontWeight: '600',
-                                        fontSize: '0.9375rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s'
+                                        transition: 'all 0.2s',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={() => setShowCustomerModal(false)}
                                 >
@@ -1646,15 +2408,16 @@ const PuntosVenta = () => {
                                 <button
                                     type="submit"
                                     style={{
-                                        padding: '0.75rem 1.5rem',
+                                        padding: isMobileView ? '0.5rem 1rem' : '0.75rem 1.5rem',
                                         backgroundColor: '#8b5cf6',
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
                                         fontWeight: '600',
-                                        fontSize: '0.9375rem',
+                                        fontSize: isMobileView ? '0.875rem' : '0.9375rem',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s'
+                                        transition: 'all 0.2s',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
                                 >
                                     Guardar Cliente
@@ -1664,7 +2427,7 @@ const PuntosVenta = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 };
 
