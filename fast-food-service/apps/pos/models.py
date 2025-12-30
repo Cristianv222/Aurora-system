@@ -982,7 +982,7 @@ class DailySummary(models.Model):
             quantity=Sum('quantity'),
             total_amount=Sum('line_total'),
             avg_price=Avg('unit_price'), 
-        ).order_by('-quantity')
+        ).order_by('product__name')
 
         # Aplicamos el límite si se proporciona (en este caso, queremos que no haya límite)
         if limit:

@@ -204,7 +204,7 @@ class ShiftViewSet(viewsets.ModelViewSet):
         ).annotate(
             quantity=Sum('quantity'),
             total_amount=Sum('line_total')
-        ).order_by('-quantity')[:10]
+        ).order_by('product__name')
         
         report_data = {
             'shift_info': {

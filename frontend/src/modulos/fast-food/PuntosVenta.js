@@ -844,19 +844,62 @@ const PuntosVenta = () => {
                     🧮 Calculadora de Vuelto
                 </h4>
 
+                <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#374151' }}>
+                        Ingreso Manual:
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                            type="number"
+                            value={inputCash}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setInputCash(val);
+                                setCashGiven(val ? parseFloat(val) : null);
+                            }}
+                            placeholder="0.00"
+                            style={{
+                                flex: 1,
+                                padding: '0.5rem',
+                                borderRadius: '6px',
+                                border: '1px solid #d1d5db',
+                                fontSize: '1rem'
+                            }}
+                        />
+                        <button
+                            onClick={() => {
+                                setCashGiven(null);
+                                setInputCash('');
+                            }}
+                            style={{
+                                padding: '0.5rem 1rem',
+                                backgroundColor: '#fee2e2',
+                                color: '#b91c1c',
+                                border: '1px solid #ef4444',
+                                borderRadius: '6px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Borrar
+                        </button>
+                    </div>
+                </div>
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
                     {[1, 2, 5, 10, 20, 50, 100].map(bill => (
                         <button
                             key={bill}
                             onClick={() => {
-                                setCashGiven(bill);
-                                setInputCash(bill.toString());
+                                const newVal = (cashGiven || 0) + bill;
+                                setCashGiven(newVal);
+                                setInputCash(newVal.toString());
                             }}
                             style={{
                                 padding: '0.5rem',
-                                backgroundColor: cashGiven === bill ? '#4f46e5' : '#ffffff',
-                                color: cashGiven === bill ? '#ffffff' : '#3730a3',
-                                border: '1px solid #4f46e5',
+                                backgroundColor: '#ffffff',
+                                color: '#3730a3',
+                                border: '1px solid #c7d2fe',
                                 borderRadius: '6px',
                                 fontWeight: 'bold',
                                 cursor: 'pointer',
@@ -864,25 +907,9 @@ const PuntosVenta = () => {
                                 minHeight: TOUCH_MIN_SIZE
                             }}
                         >
-                            ${bill}
+                            + ${bill}
                         </button>
                     ))}
-                    <button
-                        onClick={() => {
-                            setCashGiven(null);
-                            setInputCash('');
-                        }}
-                        style={{
-                            backgroundColor: '#fee2e2',
-                            color: '#b91c1c',
-                            border: '1px solid #ef4444',
-                            borderRadius: '6px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Borrar
-                    </button>
                 </div>
 
                 {cashGiven !== null && (
