@@ -1,8 +1,10 @@
 Django==5.0.1
 djangorestframework==3.14.0
+django-filter==24.2
 psycopg2-binary==2.9.9
 python-dotenv==1.0.0
 django-cors-headers==4.3.1
+whitenoise>=6.6.0
 gunicorn==21.2.0
 celery==5.3.4
 redis==5.0.1
@@ -10,5 +12,15 @@ Pillow==10.2.0
 PyJWT==2.8.0
 requests==2.31.0
 dj-database-url==2.1.0
+python-decouple>=3.8
 djangorestframework-simplejwt==5.3.1
-django-filter==23.5
+drf-yasg==1.21.11
+python-escpos==3.1
+pyusb==1.3.1
+pyserial==3.5
+qrcode==8.2
+# Solo reportlab para PDF básico (no necesita Cairo)
+reportlab==4.0.4
+# Para Excel
+openpyxl==3.1.5
+django-import-export==4.3.14

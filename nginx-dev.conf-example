@@ -3,8 +3,27 @@ events {
 }
 
 http {
+    # MIME types
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
+
+    # Confiar en Cloudflare IPs
+    set_real_ip_from 173.245.48.0/20;
+    set_real_ip_from 103.21.244.0/22;
+    set_real_ip_from 103.22.200.0/22;
+    set_real_ip_from 103.31.4.0/22;
+    set_real_ip_from 141.101.64.0/18;
+    set_real_ip_from 108.162.192.0/18;
+    set_real_ip_from 190.93.240.0/20;
+    set_real_ip_from 188.114.96.0/20;
+    set_real_ip_from 197.234.240.0/22;
+    set_real_ip_from 198.41.128.0/17;
+    set_real_ip_from 162.158.0.0/15;
+    set_real_ip_from 104.16.0.0/13;
+    set_real_ip_from 104.24.0.0/14;
+    set_real_ip_from 172.64.0.0/13;
+    set_real_ip_from 131.0.72.0/22;
+    real_ip_header CF-Connecting-IP;
 
     upstream auth_backend {
         server auth-service:8000;
@@ -18,17 +37,32 @@ http {
         server frontend:3000;
     }
 
+    upstream restaurant_backend {
+        server restaurant-service:8000;
+    }
+
     server {
         listen 80;
-        server_name localhost;
+        server_name aurora.fronteratech.ec 146.190.217.68;
         client_max_body_size 100M;
 
+        # Django Admin para Fast-Food
         location /fast-food/admin {
             proxy_pass http://fastfood_backend;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
+        }
+
+        # Static files para fast-food (admin)
+        location /fast-food/static/ {
+            alias /usr/share/nginx/html/static/fastfood/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
         }
 
         # MEDIA FILES - Imágenes de productos
@@ -39,6 +73,7 @@ http {
             add_header Access-Control-Allow-Origin *;
         }
 
+        # Auth Authentication API
         location /api/authentication/ {
             rewrite ^/api/authentication/(.*) /auth/api/authentication/$1 break;
             proxy_pass http://auth_backend;
@@ -46,8 +81,12 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
         }
 
+        # Auth Users API
         location /api/users/ {
             rewrite ^/api/users/(.*) /auth/api/users/$1 break;
             proxy_pass http://auth_backend;
@@ -55,8 +94,12 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
         }
 
+        # Auth Roles API
         location /api/roles/ {
             rewrite ^/api/roles/(.*) /auth/api/roles/$1 break;
             proxy_pass http://auth_backend;
@@ -64,8 +107,12 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
         }
 
+        # Fast Food Service API
         location /api/fast-food/ {
             rewrite ^/api/fast-food/(.*) /fast-food/$1 break;
             proxy_pass http://fastfood_backend;
@@ -73,20 +120,60 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
         }
 
+        # Static files para auth
         location /static/auth/ {
             alias /usr/share/nginx/html/static/auth/;
         }
 
+        # Static files para fast-food (legacy)
         location /static/fastfood/ {
             alias /usr/share/nginx/html/static/fastfood/;
         }
 
-        location /fast-food/static/ {
-            alias /usr/share/nginx/html/static/fastfood/;
+        # Restaurant Service API
+        location /api/restaurant/ {
+            rewrite ^/api/restaurant/(.*) /restaurant/api/$1 break;
+            proxy_pass http://restaurant_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
         }
 
+        # Django Admin para Restaurant
+        location /restaurant/admin {
+            proxy_pass http://restaurant_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_read_timeout 120s;
+            proxy_connect_timeout 120s;
+        }
+
+        # Static files para restaurant
+        location /static/restaurant/ {
+            alias /usr/share/nginx/html/static/restaurant/;
+        }
+
+        # Media files para restaurant
+        location /restaurant/media/ {
+            alias /usr/share/nginx/html/restaurant/media/;
+            expires 30d;
+            add_header Cache-Control "public, immutable";
+            add_header Access-Control-Allow-Origin *;
+        }
+
+        # Frontend (AL FINAL)
         location / {
             proxy_pass http://frontend_app;
             proxy_http_version 1.1;
@@ -97,6 +184,7 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
         }
     }
 }

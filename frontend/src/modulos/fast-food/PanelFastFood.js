@@ -27,13 +27,6 @@ const PanelFastFood = () => {
             color: '#198754'
         },
         {
-            title: 'Caja',
-            description: 'Gestión de turnos y efectivo',
-            path: '/fast-food/shift',
-            icon: 'bi-cash-coin',
-            color: '#fd7e14'
-        },
-        {
             title: 'Reportes',
             description: 'Análisis y estadísticas de ventas',
             path: '/fast-food/reports',

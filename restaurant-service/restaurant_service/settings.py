@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import dj_database_url
 
 load_dotenv()
 
@@ -20,28 +21,28 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
+    # Apps del servicio
+    'apps.menu',
+    'apps.tables',
+    'apps.reservations',
+    'apps.pos',
+    'apps.orders',
+    'apps.payments',
+    'apps.kitchen',
+    'apps.printer',
+    'apps.customers',
+    'apps.reports',
 ]
-
-# Apps del servicio
-INSTALLED_APPS.append('apps.menu')
-INSTALLED_APPS.append('apps.tables')
-INSTALLED_APPS.append('apps.reservations')
-INSTALLED_APPS.append('apps.pos')
-INSTALLED_APPS.append('apps.orders')
-INSTALLED_APPS.append('apps.payments')
-INSTALLED_APPS.append('apps.kitchen')
-INSTALLED_APPS.append('apps.printer')
-INSTALLED_APPS.append('apps.customers')
-INSTALLED_APPS.append('apps.reports')
-
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # ← DESACTIVADO PARA DESARROLLO
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -68,7 +69,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'restaurant_service.wsgi.application'
 
 # Database
-import dj_database_url
 DATABASES = {
     'default': dj_database_url.config(
         default=os.getenv('DATABASE_URL'),
@@ -88,54 +88,200 @@ TIME_ZONE = 'America/Guayaquil'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+# ============================================
+# STATIC FILES
+# ============================================
+STATIC_URL = '/restaurant/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATICFILES_DIRS = []
 
-MEDIA_URL = 'media/'
+# Media files
+MEDIA_URL = '/restaurant/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# ============================================
 # REST Framework
+# ============================================
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'core.authentication.JWTAuthentication',  # ← Tu autenticación personalizada
-        'rest_framework.authentication.SessionAuthentication',  # Fallback para admin
+        # 'rest_framework.authentication.SessionAuthentication',  # ← DESACTIVADO - Requiere CSRF
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+        'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20
+    'PAGE_SIZE': 1000,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ] if not DEBUG else [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
 }
 
-# CORS
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', 'http://localhost:3000').split(',')
+# ============================================
+# CORS - CONFIGURACIÓN ACTUALIZADA
+# ============================================
+cors_origins = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if cors_origins:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_origins.split(',')]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "https://aurora.fronteratech.ec",
+        "http://146.190.217.68",
+        "http://localhost:3000",
+    ]
 
-# Celery (si aplica)
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# CSRF trusted origins (aunque CSRF está desactivado)
+csrf_origins = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if csrf_origins:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_origins.split(',')]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "https://aurora.fronteratech.ec",
+        "http://146.190.217.68",
+        "http://localhost:3000",
+    ]
+
+# ============================================
+# CELERY
+# ============================================
 CELERY_BROKER_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 CELERY_RESULT_BACKEND = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
 
-# Servicios
+# ============================================
+# SERVICIOS
+# ============================================
 AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', 'http://auth-service:8000')
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8005')
+HARDWARE_SERVICE_TOKEN = os.getenv('HARDWARE_SERVICE_TOKEN', '4ab1eb1da612019e57b1803e83185649564f12ae')
 
-# Middleware de autenticación JWT
-MIDDLEWARE.insert(
-    MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1,
-    'core.middleware.JWTAuthenticationMiddleware'
-)
+# ============================================
+# CACHE
+# ============================================
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+        'LOCATION': os.getenv('REDIS_URL', 'redis://redis:6379/1'),
+    } if not DEBUG else {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
 
-# Logging
+# ============================================
+# CONFIGURACIÓN DE EMPRESA E IMPRESIÓN
+# ============================================
+COMPANY_CONFIG = {
+    'name': os.getenv('COMPANY_NAME', 'Restaurante Fortaleza'),
+    'address': os.getenv('COMPANY_ADDRESS', 'Dirección no configurada'),
+    'phone': os.getenv('COMPANY_PHONE', '000-0000'),
+    'email': os.getenv('COMPANY_EMAIL', ''),
+    'website': os.getenv('COMPANY_WEBSITE', ''),
+    'tax_id': os.getenv('COMPANY_TAX_ID', ''),
+    'logo': os.getenv('COMPANY_LOGO', ''),
+}
+
+PRINTING_CONFIG = {
+    'receipt_header': os.getenv('RECEIPT_HEADER', ''),
+    'receipt_footer': os.getenv('RECEIPT_FOOTER', '¡Gracias por su visita!'),
+    'auto_print_receipt': os.getenv('AUTO_PRINT_RECEIPT', 'True') == 'True',
+    'auto_print_kitchen': os.getenv('AUTO_PRINT_KITCHEN', 'True') == 'True',
+    'auto_open_drawer_on_payment': os.getenv('AUTO_OPEN_DRAWER_ON_PAYMENT', 'True') == 'True',
+    'require_confirmation_to_open_drawer': os.getenv('REQUIRE_CONFIRMATION_TO_OPEN_DRAWER', 'False') == 'True',
+}
+
+# ============================================
+# LOGGING
+# ============================================
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
         },
     },
     'root': {
         'handlers': ['console'],
         'level': 'INFO',
     },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'apps.printer': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
 }
+
+# ============================================
+# SEGURIDAD PARA PRODUCCIÓN
+# ============================================
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
+from datetime import timedelta
+
+# ============================================
+# SIMPLE JWT - Configuración compartida con auth-service
+# ============================================
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=8),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+}
+
+# ============================================
+# MIDDLEWARE JWT (mantener el existente)
+# ============================================
+# Middleware de autenticación JWT
+MIDDLEWARE.insert(
+    MIDDLEWARE.index('django.contrib.auth.middleware.AuthenticationMiddleware') + 1,
+    'core.middleware.JWTAuthenticationMiddleware'
+)

@@ -5,6 +5,8 @@ import Login from './modulos/login/Login';
 import Diseno from './comun/Diseno';
 import ListaUsuarios from './modulos/usuarios/ListaUsuarios';
 import ServicePlaceholder from './components/ServicePlaceholder';
+
+// Fast Food imports
 import PanelFastFood from './modulos/fast-food/PanelFastFood';
 import Inventario from './modulos/fast-food/Inventario';
 import Ordenes from './modulos/fast-food/Ordenes';
@@ -14,6 +16,18 @@ import PuntosVenta from './modulos/fast-food/PuntosVenta';
 import ShiftManager from './modulos/fast-food/ShiftManager';
 import Impresoras from './modulos/fast-food/Impresoras';
 import DisenoFastFood from './modulos/fast-food/DisenoFastFood';
+
+// Restaurant imports
+import PanelRestaurant from './modulos/restaurant/PanelRestaurant';
+import InventarioRestaurant from './modulos/restaurant/Inventario';
+import OrdenesRestaurant from './modulos/restaurant/Ordenes';
+import ClientesRestaurant from './modulos/restaurant/Clientes';
+import ReportesRestaurant from './modulos/restaurant/Reportes';
+import PuntosVentaRestaurant from './modulos/restaurant/PuntosVenta';
+import ShiftManagerRestaurant from './modulos/restaurant/ShiftManager';
+import ImpresorasRestaurant from './modulos/restaurant/Impresoras';
+import DisenoRestaurant from './modulos/restaurant/DisenoRestaurant';
+
 import './App.css';
 
 // Componente para proteger rutas
@@ -45,6 +59,22 @@ const FastFoodRoute = ({ children }) => {
 
   // Si es otro rol (ej. Admin Fast Food), usar el diseño específico
   return <DisenoFastFood>{children}</DisenoFastFood>;
+};
+
+// Componente para proteger rutas de Restaurante con su propio diseño
+const RestaurantRoute = ({ children }) => {
+  const { user, loading } = useContext(AuthContext);
+
+  if (loading) return <div>Cargando...</div>;
+  if (!user) return <Navigate to="/login" />;
+
+  // Si es Super Admin (por rol o por flag de superusuario), mantener el diseño general
+  if (user.role_details?.name === 'SUPER_ADMIN' || user.is_superuser) {
+    return <Diseno>{children}</Diseno>;
+  }
+
+  // Si es otro rol (ej. Admin Restaurant), usar el diseño específico
+  return <DisenoRestaurant>{children}</DisenoRestaurant>;
 };
 
 // Dashboard simple
@@ -129,10 +159,46 @@ function App() {
             </PrivateRoute>
           } />
 
+          {/* Rutas de Restaurante */}
           <Route path="/restaurant" element={
-            <PrivateRoute>
-              <ServicePlaceholder title="Restaurante" />
-            </PrivateRoute>
+            <RestaurantRoute>
+              <PanelRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/inventory" element={
+            <RestaurantRoute>
+              <InventarioRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/orders" element={
+            <RestaurantRoute>
+              <OrdenesRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/customers" element={
+            <RestaurantRoute>
+              <ClientesRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/reports" element={
+            <RestaurantRoute>
+              <ReportesRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/pos" element={
+            <RestaurantRoute>
+              <PuntosVentaRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/shift" element={
+            <RestaurantRoute>
+              <ShiftManagerRestaurant onShiftActive={() => { }} />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/printers" element={
+            <RestaurantRoute>
+              <ImpresorasRestaurant />
+            </RestaurantRoute>
           } />
 
           {/* Redirigir cualquier otra ruta al inicio */}
