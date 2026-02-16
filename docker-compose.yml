@@ -15,6 +15,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
 
   redis:
     image: redis:7-alpine
@@ -25,6 +30,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
 
   auth-service:
     build: ./auth-service
@@ -58,6 +68,11 @@ services:
     networks:
       - aurora-network
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   fast-food-service:
     build: ./fast-food-service
@@ -92,6 +107,11 @@ services:
     networks:
       - aurora-network
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
 
   nginx:
     image: nginx:alpine
@@ -109,6 +129,11 @@ services:
     networks:
       - aurora-network
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
 
   frontend:
     build: ./frontend
@@ -123,6 +148,11 @@ services:
     networks:
       - aurora-network
     restart: on-failure
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1G
 
 networks:
   aurora-network:

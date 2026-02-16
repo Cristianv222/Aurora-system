@@ -568,6 +568,7 @@ const Reportes = () => {
             try {
                 console.log('Inicializando reportes - Fecha local:', new Date().toLocaleString('es-EC', { timeZone: 'America/Guayaquil' }));
 
+                await checkCurrentShift();
                 await fetchDashboardStats();
                 const fetchedReports = await fetchReports();
                 setConnectionError(false);
@@ -809,10 +810,8 @@ const Reportes = () => {
 
     // POLLING: Actualización en tiempo real (cada 5s)
     useEffect(() => {
-        // Carga inicial inmediata
-        checkCurrentShift();
-        fetchReports();
-        fetchDashboardStats();
+        // La carga inicial ya se maneja en el useEffect de montaje (línea ~565)
+        // Aquí solo configuramos el intervalo para actualizaciones periódicas
 
         const interval = setInterval(() => {
             console.log('🔄 Actualizando datos en tiempo real...');
