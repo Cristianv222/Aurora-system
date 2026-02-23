@@ -29,6 +29,9 @@ const BarraLateralRestaurant = () => {
                 <li className={isActive('/restaurant/customers')}>
                     <Link to="/restaurant/customers">Clientes</Link>
                 </li>
+                <li className={isActive('/restaurant/reservations')}>
+                    <Link to="/restaurant/reservations">Reservaciones</Link>
+                </li>
                 <li className={isActive('/restaurant/shift')}>
                     <Link to="/restaurant/shift">Caja (Turnos)</Link>
                 </li>

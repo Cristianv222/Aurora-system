@@ -774,7 +774,7 @@ class Table(models.Model):
         Returns:
             tuple: (bool, str) - (éxito, mensaje)
         """
-        if self.status != 'available':
+        if self.status not in ('available', 'reserved'):
             return False, f'La mesa está {self.get_status_display()}'
         
         self.status = 'occupied'

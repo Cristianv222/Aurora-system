@@ -183,6 +183,12 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
                     tableBorder: '#2563eb',
                     tableText: '#1e3a8a'
                 };
+            case 'upcoming':
+                return {
+                    table: 'rgba(255, 251, 235, 0.65)',
+                    tableBorder: '#f59e0b',
+                    tableText: '#78350f'
+                };
             default:
                 return {
                     table: 'rgba(229, 231, 235, 0.85)',
@@ -193,8 +199,8 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
     };
 
     const handleTableClick = (table, e) => {
-        e.stopPropagation(); // Evitar que el click se propague al contenedor
-        if (table.status === 'available' || table.status === 'reserved') {
+        e.stopPropagation();
+        if (table.status === 'available' || table.status === 'reserved' || table.status === 'upcoming') {
             onSelectTable(table);
         }
     };
@@ -344,15 +350,32 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
                                             width: '100%',
                                             height: '100%',
                                             backgroundColor: colors.table,
-                                            border: `${2 * scaleFactor}px solid ${colors.tableBorder}`, // Borde también escala
+                                            border: `${2 * scaleFactor}px solid ${colors.tableBorder}`,
                                             borderRadius: config.type === 'bar' ? `${8 * scaleFactor}px` : `${6 * scaleFactor}px`,
-                                            boxShadow: `0 ${2 * scaleFactor}px ${4 * scaleFactor}px rgba(0,0,0,0.2)`,
+                                            boxShadow: table.status === 'upcoming'
+                                                ? `0 0 ${6 * scaleFactor}px ${2 * scaleFactor}px rgba(245,158,11,0.25)`
+                                                : `0 ${2 * scaleFactor}px ${4 * scaleFactor}px rgba(0,0,0,0.2)`,
                                             display: 'flex',
                                             flexDirection: 'column',
                                             alignItems: 'center',
                                             justifyContent: 'center',
-                                            padding: `${2 * scaleFactor}px`
+                                            padding: `${2 * scaleFactor}px`,
+                                            position: 'relative',
+                                            overflow: 'hidden'
                                         }}>
+                                            {/* Barra superior de alerta para 'upcoming' */}
+                                            {table.status === 'upcoming' && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: 0,
+                                                    left: 0,
+                                                    right: 0,
+                                                    height: `${Math.max(2, 3 * scaleFactor)}px`,
+                                                    backgroundColor: '#f59e0b',
+                                                    borderRadius: `${4 * scaleFactor}px ${4 * scaleFactor}px 0 0`
+                                                }} />
+                                            )}
+
                                             {/* Nombre de la mesa */}
                                             <div style={{
                                                 fontSize: `${fontSizeName}px`,
@@ -365,7 +388,7 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
                                                 {table.number}
                                             </div>
 
-                                            {/* Capacidad (oculta si es muy pequeña) */}
+                                            {/* Capacidad */}
                                             {config.type !== 'special' && dynamicHeight > 30 && (
                                                 <div style={{
                                                     fontSize: `${fontSizeCap}px`,
@@ -375,6 +398,27 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
                                                     lineHeight: '1'
                                                 }}>
                                                     Cap: {table.capacity}
+                                                </div>
+                                            )}
+
+                                            {/* Minutos restantes para reserva próxima */}
+                                            {table.status === 'upcoming' && table.reservation?.minutes_until != null && dynamicHeight > 50 && (
+                                                <div style={{
+                                                    fontSize: `${Math.max(8, 10 * scaleFactor)}px`,
+                                                    fontWeight: '700',
+                                                    color: '#92400e',
+                                                    backgroundColor: 'rgba(254,243,199,0.9)',
+                                                    borderRadius: `${3 * scaleFactor}px`,
+                                                    padding: `${1 * scaleFactor}px ${3 * scaleFactor}px`,
+                                                    marginTop: `${2 * scaleFactor}px`,
+                                                    textAlign: 'center',
+                                                    lineHeight: '1.2',
+                                                    border: '1px solid #d97706'
+                                                }}>
+                                                    {table.reservation.minutes_until < 60
+                                                        ? `${table.reservation.minutes_until} min`
+                                                        : `${Math.floor(table.reservation.minutes_until / 60)}h ${table.reservation.minutes_until % 60}m`
+                                                    }
                                                 </div>
                                             )}
                                         </div>

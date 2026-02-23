@@ -27,6 +27,7 @@ import PuntosVentaRestaurant from './modulos/restaurant/PuntosVenta';
 import ShiftManagerRestaurant from './modulos/restaurant/ShiftManager';
 import ImpresorasRestaurant from './modulos/restaurant/Impresoras';
 import DisenoRestaurant from './modulos/restaurant/DisenoRestaurant';
+import ReservacionesRestaurant from './modulos/restaurant/Reservaciones';
 
 import './App.css';
 
@@ -198,6 +199,11 @@ function App() {
           <Route path="/restaurant/printers" element={
             <RestaurantRoute>
               <ImpresorasRestaurant />
+            </RestaurantRoute>
+          } />
+          <Route path="/restaurant/reservations" element={
+            <RestaurantRoute>
+              <ReservacionesRestaurant />
             </RestaurantRoute>
           } />
 

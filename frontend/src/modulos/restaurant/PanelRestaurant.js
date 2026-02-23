@@ -27,6 +27,13 @@ const PanelRestaurant = () => {
             color: '#198754'
         },
         {
+            title: 'Reservaciones',
+            description: 'Gestionar reservas y asignación de mesas',
+            path: '/restaurant/reservations',
+            icon: 'bi-calendar-check-fill',
+            color: '#0891b2'
+        },
+        {
             title: 'Reportes',
             description: 'Análisis y estadísticas de ventas',
             path: '/restaurant/reports',
