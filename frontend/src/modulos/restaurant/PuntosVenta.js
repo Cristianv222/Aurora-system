@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
-import printerService from '../../services/printerService';
+import printerServiceRestaurant from '../../services/printerServiceRestaurant';
 import TableCroquis from './TableCroquis';
 
 // ====================================================================
@@ -530,7 +530,7 @@ const PuntosVenta = () => {
 
             // 3. ENVIAR A IMPRIMIR (esto abre la caja automáticamente)
             try {
-                const printResult = await printerService.printReceipt(receiptData);
+                const printResult = await printerServiceRestaurant.printReceipt(receiptData);
                 console.log('✅ Ticket enviado a impresión:', printResult);
 
                 alert(
@@ -577,7 +577,7 @@ const PuntosVenta = () => {
     // 🔓 FUNCIÓN PARA ABRIR CAJA MANUALMENTE
     const handleOpenCashDrawer = async () => {
         try {
-            await printerService.openCashDrawer();
+            await printerServiceRestaurant.openCashDrawer();
             alert('✅ Caja abierta');
         } catch (error) {
             alert('❌ Error al abrir caja. Verifica que el agente esté ejecutándose.');
