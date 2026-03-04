@@ -54,7 +54,7 @@ const Categorias = () => {
     const handleDeleteCategory = async (id) => {
         if (window.confirm('¿Estás seguro de eliminar esta categoría?')) {
             try {
-                await api.delete(`/api/menu/categories/${id}/`);
+                await api.delete(`/api/restaurant/menu/categories/${id}/`);
                 fetchCategories();
             } catch (err) {
                 console.error('Error deleting category:', err);
@@ -81,13 +81,11 @@ const Categorias = () => {
 
         try {
             if (editingCategory) {
-                await api.patch(`/api/menu/categories/${editingCategory.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                await api.patch(`/api/restaurant/menu/categories/${editingCategory.id}/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/restaurant/menu/categories/', formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }

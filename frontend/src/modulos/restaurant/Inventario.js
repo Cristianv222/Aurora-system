@@ -90,8 +90,7 @@ const Inventario = () => {
                 formData.append('is_available', 'false');
 
                 // Backend usa lookup_field = 'pk' (UUID), así que usamos el ID.
-                await api.patch(`/api/menu/products/${id}/`, formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                await api.patch(`/api/restaurant/menu/products/${id}/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
                 fetchProducts();
@@ -128,13 +127,11 @@ const Inventario = () => {
         try {
             if (editingProduct) {
                 // Usar ID para el PATCH ya que el backend espera PK
-                await api.patch(`/api/menu/products/${editingProduct.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                await api.patch(`/api/restaurant/menu/products/${editingProduct.id}/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/restaurant/menu/products/', formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }
