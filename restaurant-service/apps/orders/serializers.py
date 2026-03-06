@@ -331,7 +331,8 @@ class OrderCreateSerializer(serializers.Serializer):
         # ========================================
         # ENVIAR A IMPRESIÓN AUTOMÁTICAMENTE
         # ========================================
-        self._send_to_printer(order)
+        # Deshabilitado: el frontend maneja la impresión con datos completos
+        # self._send_to_printer(order)
         
         return order
     
@@ -344,7 +345,7 @@ class OrderCreateSerializer(serializers.Serializer):
         
         try:
             # URL del endpoint de impresión
-            printer_url = 'http://127.0.0.1:8000/api/hardware/print/receipt/'
+            printer_url = 'http://localhost:8000/restaurant/api/hardware/print/receipt/'
             
             # Preparar items en el formato esperado por el printer
             items = []
@@ -353,13 +354,15 @@ class OrderCreateSerializer(serializers.Serializer):
                     'name': item.product.name,
                     'quantity': item.quantity,
                     'price': float(item.unit_price),
-                    'total': float(item.line_total)
+                    'total': float(item.line_total),
+                    'note': item.notes or ''
                 })
             
             # Preparar datos de la orden en el formato esperado
             order_data = {
                 'order_number': order.order_number,
                 'customer_name': order.customer.get_full_name() if order.customer else 'CONTADO',
+                'table_number': order.table_number or 'MESA GENÉRICA',
                 'items': items,
                 'subtotal': float(order.subtotal),
                 'tax': float(order.tax_amount),

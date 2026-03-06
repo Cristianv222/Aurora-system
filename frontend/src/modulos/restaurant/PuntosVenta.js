@@ -1566,7 +1566,7 @@ const PuntosVenta = () => {
                 </div>
             ) : (
                 // Vista de orden
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
                     {/* Header de orden */}
                     <div style={{
                         padding: '0.75rem',
@@ -1609,7 +1609,8 @@ const PuntosVenta = () => {
                         overflowY: 'auto',
                         padding: '0.75rem',
                         display: 'flex',
-                        flexDirection: 'column'
+                        flexDirection: 'column',
+                        minHeight: 0
                     }}>
                         {cart.length === 0 ? (
                             <div style={{
@@ -1624,8 +1625,7 @@ const PuntosVenta = () => {
                             <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.5rem',
-                                flex: 1
+                                gap: '0.5rem'
                             }}>
                                 {cart.map((item, index) => (
                                     <div
@@ -1801,13 +1801,15 @@ const PuntosVenta = () => {
                             </div>
                         )}
 
-                        {/* Totales y Botones */}
-                        {cart.length > 0 && (
-                            <div style={{
-                                marginTop: 'auto',
-                                paddingTop: '1rem',
-                                borderTop: '2px solid #e5e7eb'
-                            }}>
+                    </div>
+                    {/* Totales y Botones - FIJO inferior */}
+                    {cart.length > 0 && (
+                        <div style={{
+                            flexShrink: 0,
+                            padding: '0.75rem',
+                            borderTop: '2px solid #e5e7eb',
+                            backgroundColor: '#ffffff'
+                        }}>
                                 {/* Totales */}
                                 <div style={{
                                     paddingBottom: '1rem',
@@ -1890,9 +1892,8 @@ const PuntosVenta = () => {
                                 >
                                     🔓 Abrir Caja
                                 </button>
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -2158,7 +2159,9 @@ const PuntosVenta = () => {
                     display: 'flex',
                     flexDirection: 'column',
                     boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    height: '100%'
                 }}>
                     {/* Header de Orden Actual */}
                     <div style={{
@@ -2183,7 +2186,8 @@ const PuntosVenta = () => {
                         overflowY: 'auto',
                         padding: '1.5rem',
                         display: 'flex',
-                        flexDirection: 'column'
+                        flexDirection: 'column',
+                        minHeight: 0
                     }}>
                         {cart.length === 0 ? (
                             <div style={{
@@ -2204,8 +2208,7 @@ const PuntosVenta = () => {
                             <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.75rem',
-                                flex: 1
+                                gap: '0.75rem'
                             }}>
                                 {cart.map((item, index) => (
                                     <div
@@ -2388,13 +2391,16 @@ const PuntosVenta = () => {
                             </div>
                         )}
 
-                        {/* Totales y Botones - SOLO se muestra cuando hay productos */}
-                        {cart.length > 0 && (
-                            <div style={{
-                                marginTop: 'auto',
-                                paddingTop: '1.5rem',
-                                borderTop: '2px solid #e5e7eb'
-                            }}>
+                    </div>
+
+                    {/* Totales y Botones - FIJO en la parte inferior */}
+                    {cart.length > 0 && (
+                        <div style={{
+                            flexShrink: 0,
+                            padding: '1rem 1.5rem',
+                            borderTop: '2px solid #e5e7eb',
+                            backgroundColor: '#ffffff'
+                        }}>
                                 {/* Totales */}
                                 <div style={{
                                     paddingBottom: '1rem',
@@ -2481,9 +2487,8 @@ const PuntosVenta = () => {
                                 >
                                     🔓 Abrir Caja Registradora
                                 </button>
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

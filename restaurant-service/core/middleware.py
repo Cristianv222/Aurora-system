@@ -15,6 +15,7 @@ class JWTAuthenticationMiddleware(MiddlewareMixin):
     
     # Rutas que no requieren autenticación
     EXEMPT_PATHS = [
+        '/api/hardware/',
         '/admin/login/',
         '/admin/logout/',
         '/health/',

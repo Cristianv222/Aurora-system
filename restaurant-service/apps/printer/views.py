@@ -680,40 +680,39 @@ class PrintReceiptView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         printer_id = request.data.get('printer_id')
-        
         if not printer_id:
-            printer = Printer.get_default()
-            if not printer:
+            printers = list(Printer.objects.filter(is_active=True))
+            if not printers:
                 return Response({
-                    'error': 'No hay impresora configurada por defecto'
+                    'error': 'No hay impresoras activas configuradas'
                 }, status=status.HTTP_400_BAD_REQUEST)
         else:
             try:
-                printer = Printer.objects.get(pk=printer_id, is_active=True)
+                printers = [Printer.objects.get(pk=printer_id, is_active=True)]
             except Printer.DoesNotExist:
                 return Response({
                     'error': 'Impresora no encontrada o inactiva'
                 }, status=status.HTTP_400_BAD_REQUEST)
-        
         try:
-            content = self.generate_receipt_content(printer, order_data)
-            
             username = request.user.username if request.user.is_authenticated else 'system'
-            print_job = PrintJob.objects.create(
-                printer=printer,
-                document_type='receipt',
-                content=content,
-                data=order_data,
-                open_cash_drawer=True,
-                created_by=username,
-                status='pending'
-            )
-            
+            jobs = []
+            for printer in printers:
+                content = self.generate_receipt_content(printer, order_data)
+                print_job = PrintJob.objects.create(
+                    printer=printer,
+                    document_type='receipt',
+                    content=content,
+                    data=order_data,
+                    open_cash_drawer=True,
+                    created_by=username,
+                    status='pending'
+                )
+                jobs.append(str(print_job.id))
             return Response({
                 'status': 'success',
-                'message': 'Ticket creado, el agente lo imprimirá',
-                'job_id': str(print_job.id),
-                'job_number': print_job.job_number
+                'message': f'Ticket creado para {len(jobs)} impresora(s)',
+                'job_ids': jobs,
+                'job_id': jobs[0] if jobs else None
             })
                 
         except Exception as e:

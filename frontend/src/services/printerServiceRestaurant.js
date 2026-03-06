@@ -1,7 +1,7 @@
 // src/services/printerServiceRestaurant.js
 import api from './api';
 
-const PRINTER_API_URL = `${process.env.REACT_APP_RESTAURANT_SERVICE || '/api/restaurant'}/printer`;
+const PRINTER_API_URL = '/api/restaurant/api/hardware';
 
 class PrinterServiceRestaurant {
   async printReceipt(orderData, printerId = null) {
