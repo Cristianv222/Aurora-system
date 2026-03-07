@@ -18,6 +18,18 @@ class Printer(models.Model):
         ('bluetooth', 'Bluetooth'),
         ('serial', 'Serial/COM'),
     ]
+
+    # ── NUEVO ──────────────────────────────────────────────────────────
+    # Define el rol de la impresora en el sistema:
+    #   pos     → solo imprime tickets de venta (punto de caja)
+    #   kitchen → solo imprime órdenes de cocina
+    #   both    → puede imprimir ambos tipos
+    PRINTER_ROLES = [
+        ('pos', 'Punto de Venta (POS)'),
+        ('kitchen', 'Cocina'),
+        ('both', 'Ambas funciones'),
+    ]
+    # ──────────────────────────────────────────────────────────────────
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=100, unique=True, verbose_name='Nombre')
@@ -27,6 +39,20 @@ class Printer(models.Model):
         default='thermal',
         verbose_name='Tipo de Impresora'
     )
+
+    # ── NUEVO ──────────────────────────────────────────────────────────
+    role = models.CharField(
+        max_length=10,
+        choices=PRINTER_ROLES,
+        default='pos',
+        verbose_name='Rol de Impresora',
+        help_text=(
+            'pos = solo tickets de venta | '
+            'kitchen = solo órdenes de cocina | '
+            'both = ambas funciones'
+        )
+    )
+    # ──────────────────────────────────────────────────────────────────
     
     # Conexión
     connection_type = models.CharField(
@@ -114,10 +140,11 @@ class Printer(models.Model):
         ordering = ['name']
         indexes = [
             models.Index(fields=['is_active', 'is_default']),
+            models.Index(fields=['is_active', 'role']),  # ← NUEVO: búsquedas por rol
         ]
     
     def __str__(self):
-        return f'{self.name} ({self.get_printer_type_display()})'
+        return f'{self.name} ({self.get_printer_type_display()}) [{self.get_role_display()}]'
     
     def clean(self):
         """Validación a nivel de modelo"""
@@ -138,6 +165,32 @@ class Printer(models.Model):
     def get_default(cls):
         """Obtiene la impresora por defecto"""
         return cls.objects.filter(is_default=True, is_active=True).first()
+
+    # ── NUEVOS métodos de clase ────────────────────────────────────────
+
+    @classmethod
+    def get_pos_printer(cls):
+        """
+        Obtiene la impresora del punto de venta.
+        Busca impresoras con rol 'pos' o 'both', priorizando la marcada como default.
+        """
+        return cls.objects.filter(
+            is_active=True,
+            role__in=['pos', 'both']
+        ).order_by('-is_default', 'name').first()
+
+    @classmethod
+    def get_kitchen_printer(cls):
+        """
+        Obtiene la impresora de cocina.
+        Busca impresoras con rol 'kitchen' o 'both', priorizando la marcada como default.
+        """
+        return cls.objects.filter(
+            is_active=True,
+            role__in=['kitchen', 'both']
+        ).order_by('-is_default', 'name').first()
+
+    # ──────────────────────────────────────────────────────────────────
 
 
 class PrintTemplate(models.Model):

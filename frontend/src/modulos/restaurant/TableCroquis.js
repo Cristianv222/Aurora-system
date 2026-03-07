@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 
 // Configuración de mesas con dimensiones base para un ancho de referencia de 1600px
 const REFERENCE_WIDTH = 1600;

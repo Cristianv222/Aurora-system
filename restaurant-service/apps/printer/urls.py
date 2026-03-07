@@ -20,24 +20,29 @@ urlpatterns = [
     path('agente/resultado/', views.agente_reportar_resultado, name='agente-resultado'),
     path('agente/estado/', views.agente_estado, name='agente-estado'),
     path('agente/abrir-caja/', views.agente_abrir_caja, name='agente-abrir-caja'),
-    
+
     # ============================================================================
     # APIS DE IMPRESIÓN DIRECTA
     # ============================================================================
     path('print/', views.PrintAPIView.as_view(), name='print'),
     path('print/receipt/', views.PrintReceiptView.as_view(), name='print-receipt'),
-    
+
+    # Impresión manual desde el frontend  ← NUEVO
+    path('print/order/pos/',     views.PrintOrderPOSView.as_view(),     name='print-order-pos'),
+    path('print/order/kitchen/', views.PrintOrderKitchenView.as_view(), name='print-order-kitchen'),
+    path('print/order/both/',    views.PrintOrderBothView.as_view(),    name='print-order-both'),
+
     # ============================================================================
     # ENDPOINTS DE UTILIDAD
     # ============================================================================
     path('status/', views.print_status, name='print-status'),
     path('open-drawer/', views.open_cash_drawer, name='open-cash-drawer'),
-    
+
     # ============================================================================
     # CONFIGURACIÓN GLOBAL
     # ============================================================================
     path('settings/', views.PrinterSettingsView.as_view(), name='printer-settings'),
-    
+
     # ============================================================================
     # INCLUIR RUTAS DEL ROUTER (CRUD)
     # ============================================================================
