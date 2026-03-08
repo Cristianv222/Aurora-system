@@ -691,6 +691,7 @@ class PrintOrderPOSView(APIView):
     def post(self, request):
         serializer = PrintOrderSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.error(f"Error en validación de PrintOrderSerializer: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
@@ -750,12 +751,16 @@ class PrintOrderKitchenView(APIView):
         data = serializer.validated_data
         username = request.user.username if request.user.is_authenticated else 'system'
 
-        # Resolver impresora KITCHEN
-        printer = _resolve_printer(data.get('printer_id'), role='kitchen')
+        # Resolver impresora KITCHEN o FORTALEZA
+        target_role = data.get('destination', 'kitchen').lower()
+        if target_role not in ['kitchen', 'fortaleza']:
+            target_role = 'kitchen'
+
+        printer = _resolve_printer(data.get('printer_id'), role=target_role)
         if not printer:
             return Response(
-                {'error': 'No hay impresora de COCINA activa configurada. '
-                          'Verifique que exista una impresora con rol "kitchen" o "both".'},
+                {'error': f'No hay impresora de {target_role.upper()} activa configurada. '
+                          f'Verifique que exista una impresora con rol "{target_role}" o "both".'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -767,11 +772,11 @@ class PrintOrderKitchenView(APIView):
                 document_type='kitchen_order',
                 content=content,
                 data=dict(data),
-                open_cash_drawer=False,   # cocina NUNCA abre caja
+                open_cash_drawer=False,   # cocina/fortaleza NUNCA abre caja
                 created_by=username,
                 status='pending'
             )
-            logger.info(f"🍳 Kitchen manual job creado: {job.job_number} por {username}")
+            logger.info(f"🍳 {target_role.capitalize()} manual job creado: {job.job_number} por {username}")
             return Response({
                 'status': 'success',
                 'message': 'Orden enviada a cocina',
@@ -883,7 +888,9 @@ def _resolve_printer(printer_id, role='pos'):
         except Printer.DoesNotExist:
             logger.warning(f"printer_id {printer_id} no encontrado, fallback por rol '{role}'")
 
-    if role == 'kitchen':
+    if role == 'fortaleza':
+        return Printer.objects.filter(role__in=['fortaleza', 'both'], is_active=True).first()
+    elif role == 'kitchen':
         return Printer.get_kitchen_printer()
     return Printer.get_pos_printer()
 

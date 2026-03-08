@@ -155,10 +155,10 @@ class OrderListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'order_number', 'customer', 'customer_name',
             'order_type', 'order_type_display', 'status', 'status_display',
-            'payment_status', 'payment_status_display', 'total',
+            'payment_status', 'payment_status_display', 'total', 'amount_paid',
             'items_count', 'table_number', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'order_number', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'order_number', 'amount_paid', 'created_at', 'updated_at']
     
     def get_items_count(self, obj):
         return obj.items.count()
@@ -193,14 +193,14 @@ class OrderDetailSerializer(serializers.ModelSerializer):
             'id', 'order_number', 'customer', 'order_type', 'order_type_display',
             'status', 'status_display', 'payment_status', 'payment_status_display',
             'subtotal', 'tax_amount', 'discount_amount', 'delivery_fee',
-            'tip_amount', 'total', 'notes', 'special_instructions',
+            'tip_amount', 'total', 'amount_paid', 'notes', 'special_instructions',
             'table_number', 'estimated_prep_time', 'items', 'delivery_info',
             'status_history', 'can_be_cancelled', 'can_be_modified',
             'created_at', 'updated_at', 'confirmed_at', 'ready_at',
             'delivered_at', 'cancelled_at'
         ]
         read_only_fields = [
-            'id', 'order_number', 'subtotal', 'tax_amount', 'total',
+            'id', 'order_number', 'subtotal', 'tax_amount', 'total', 'amount_paid',
             'created_at', 'updated_at', 'confirmed_at', 'ready_at',
             'delivered_at', 'cancelled_at'
         ]
@@ -233,6 +233,8 @@ class OrderCreateSerializer(serializers.Serializer):
         default=0
     )
     delivery_info = DeliveryInfoSerializer(required=False, allow_null=True)
+    status = serializers.ChoiceField(choices=Order.ORDER_STATUS, required=False)
+    payment_status = serializers.ChoiceField(choices=Order.PAYMENT_STATUS, required=False)
     
     def validate_customer_id(self, value):
         """Valida que el cliente exista"""
@@ -274,10 +276,12 @@ class OrderCreateSerializer(serializers.Serializer):
         items_data = validated_data.pop('items')
         delivery_info_data = validated_data.pop('delivery_info', None)
         
-        # FORZAR ESTADO COMPLETADO PARA ORDENES DE POS
-        # El usuario requiere que nazcan 'completadas' y 'pagadas'
-        validated_data['status'] = 'completed'
-        validated_data['payment_status'] = 'paid'
+        # Por defecto, forzar estado completado para ordenes de POS rápido, a no ser que vengan específicados en el request
+        status_val = validated_data.pop('status', 'completed')
+        payment_status_val = validated_data.pop('payment_status', 'paid')
+        
+        validated_data['status'] = status_val
+        validated_data['payment_status'] = payment_status_val
         
         now = timezone.now()
         validated_data['confirmed_at'] = now

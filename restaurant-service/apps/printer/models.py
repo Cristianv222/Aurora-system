@@ -27,6 +27,7 @@ class Printer(models.Model):
     PRINTER_ROLES = [
         ('pos', 'Punto de Venta (POS)'),
         ('kitchen', 'Cocina'),
+        ('fortaleza', 'Fortaleza'),
         ('both', 'Ambas funciones'),
     ]
     # ──────────────────────────────────────────────────────────────────

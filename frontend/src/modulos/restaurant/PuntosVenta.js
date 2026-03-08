@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
 import printerServiceRestaurant from '../../services/printerServiceRestaurant';
+import { useLocation } from 'react-router-dom';
 import TableCroquis from './TableCroquis';
 
 // ====================================================================
@@ -62,6 +63,9 @@ const PuntosVenta = () => {
     const [showOrderDetails, setShowOrderDetails] = useState(false);
     const [editingNoteForItem, setEditingNoteForItem] = useState(null);
     const [noteText, setNoteText] = useState('');
+    
+    // Obtener parámetros de la URL
+    const location = useLocation();
 
     // 2. ESTADO DEL PUNTO DE VENTA
     const [cart, setCart] = useState([]);
@@ -80,6 +84,11 @@ const PuntosVenta = () => {
     const [selectedCurrency, setSelectedCurrency] = useState('USD');
     const [exchangeRate, setExchangeRate] = useState(null); // Tasa desde backend
     const [loadingRate, setLoadingRate] = useState(false);
+
+    // 3.6 ESTADO ORDEN PENDIENTE EN MESA
+    const [currentOrder, setCurrentOrder] = useState(null);
+    // Historial de items ya enviados a cocina/fortaleza en esta sesión
+    const [sentItems, setSentItems] = useState([]);
 
     // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
@@ -178,6 +187,57 @@ const PuntosVenta = () => {
             isMounted = false;
         };
     }, []);
+
+    // ── URL params ──────────────────────────────────────────────────────────────
+    // restaurantMode=1 → viene del croquis de mesas; ocultar botones de cocina/pago
+    const queryParams = new URLSearchParams(location.search);
+    const restaurantMode = queryParams.get('restaurantMode') === '1';
+
+    // Efecto para leer la mesa de la URL si existe y aplicarla automáticamente y buscar orden pendiente
+    useEffect(() => {
+        const queryParams = new URLSearchParams(location.search);
+        const urlTable = queryParams.get('table');
+        const newOrder = queryParams.get('newOrder') === '1';
+        
+        if (urlTable) {
+            setSelectedTable(urlTable);
+            setSentItems([]); // siempre limpiar historial al entrar
+
+            // Si es una NUEVA orden, no cargar la orden existente — empezar carrito limpio
+            if (newOrder) {
+                setCart([]);
+                setCurrentOrder(null);
+                return;
+            }
+            
+            // Si no es nueva orden, intentar cargar la existente
+            api.get('/api/restaurant/pos/tables/')
+                .then(res => {
+                    const allTables = res.data.results || res.data || [];
+                    const tInfo = allTables.find(t => t.number === urlTable);
+                    if (tInfo && tInfo.status === 'occupied' && tInfo.current_order_number) {
+                        return api.get(`/api/restaurant/orders/orders/${tInfo.current_order_number}/`);
+                    }
+                    return null;
+                })
+                .then(res => {
+                    if (res) {
+                        const order = res.data;
+                        setCurrentOrder(order);
+                        if (order.items) {
+                            setCart(order.items.map(item => ({
+                                product_id: item.product_details ? item.product_details.id : item.product,
+                                name: item.product_details ? item.product_details.name : 'Producto',
+                                price: parseFloat(item.unit_price),
+                                quantity: item.quantity,
+                                note: item.notes || ''
+                            })));
+                        }
+                    }
+                })
+                .catch(err => console.error("Error al cargar orden de la mesa", err));
+        }
+    }, [location.search]);
 
     // Detectar tamaño de pantalla
     useEffect(() => {
@@ -448,6 +508,111 @@ const PuntosVenta = () => {
     // 10. FUNCIÓN PRINCIPAL DE PROCESAMIENTO
     // =====================================
 
+    // 📋 FUNCIÓN PARA GUARDAR EN MESA (DRAFT)
+    const handleSaveToTable = async () => {
+        if (cart.length === 0) return;
+        if (!selectedTable || selectedTable === 'takeout' || selectedTable === 'Seleccionar mesa...') {
+            alert('Debe seleccionar una mesa válida para guardar la orden.');
+            return;
+        }
+
+        setProcessingOrder(true);
+        try {
+            // -- Siempre buscar si ya existe una orden activa en la mesa --
+            let activeOrderNumber = currentOrder?.order_number || null;
+
+            if (!activeOrderNumber) {
+                // Consultar el estado actual de la mesa en backend
+                const tablesRes = await api.get('/api/restaurant/pos/tables/');
+                const allTables = tablesRes.data.results || tablesRes.data || [];
+                const tInfo = allTables.find(t => t.number === selectedTable);
+                if (tInfo && tInfo.status === 'occupied' && tInfo.current_order_number) {
+                    activeOrderNumber = tInfo.current_order_number;
+                }
+            }
+
+            const newItems = cart.map(item => ({
+                product_id: item.product_id,
+                quantity: item.quantity,
+                notes: item.note || ''
+            }));
+
+            let orderObj;
+            let orderId;
+
+            if (activeOrderNumber) {
+                // ✅ Ya hay una orden 
+                let mergedItems = newItems;
+                let existingResData = null;
+
+                try {
+                    const existingRes = await api.get(`/api/restaurant/orders/orders/${activeOrderNumber}/`);
+                    existingResData = existingRes.data;
+                    
+                    // Solo anexamos al historial existente si abrimos el POS en modo "Nuevos Productos Limpios" 
+                    // (es decir, NO cargamos la orden al estado principal del POS).
+                    if (!currentOrder) {
+                        const existingItems = (existingRes.data.items || []).map(i => ({
+                            product_id: i.product_details ? i.product_details.id : i.product,
+                            size_id: i.size_details ? i.size_details.id : null,
+                            quantity: i.quantity,
+                            notes: i.notes || ''
+                        }));
+                        mergedItems = [...existingItems, ...newItems];
+                    }
+                } catch (e) {
+                    console.error("Error obteniendo orden existente, se pisará con los del carrito", e);
+                }
+
+                const res = await api.post(
+                    `/api/restaurant/orders/orders/${activeOrderNumber}/sync_draft/`,
+                    {
+                        order_type: 'dine_in',
+                        table_number: selectedTable,
+                        items: mergedItems,
+                        status: 'pending',
+                        payment_status: 'pending'
+                    }
+                );
+                orderObj = res.data;
+                orderId = orderObj.id || (existingResData ? existingResData.id : null);
+                console.log('✅ Items guardados en orden existente:', activeOrderNumber);
+            } else {
+                // 🆕 Mesa libre — crear orden nueva
+                const res = await api.post('/api/restaurant/orders/orders/', {
+                    order_type: 'dine_in',
+                    table_number: selectedTable,
+                    items: newItems,
+                    status: 'pending',
+                    payment_status: 'pending'
+                });
+                orderObj = res.data;
+                orderId = orderObj.id;
+                console.log('✅ Orden nueva creada:', orderId);
+            }
+
+            // Marcar la mesa como ocupada con esta orden
+            const tablesRes2 = await api.get('/api/restaurant/pos/tables/');
+            const allTables2 = tablesRes2.data.results || tablesRes2.data || [];
+            const tInfo2 = allTables2.find(t => t.number === selectedTable);
+            if (tInfo2) {
+                await api.post(`/api/restaurant/pos/tables/${tInfo2.id}/occupy/`, {
+                    order_id: orderId,
+                    waiter_name: 'Cajero POS'
+                });
+            }
+
+            alert('✅ Productos guardados en la mesa.');
+            window.location.href = '/restaurant/panel';
+        } catch (err) {
+            console.error('❌ Error al guardar en mesa:', err.response?.data || err.message || err);
+            alert('❌ Error al guardar en la mesa: ' + (err.response?.data ? JSON.stringify(err.response.data) : err.message));
+        } finally {
+            setProcessingOrder(false);
+        }
+    };
+
+
     // 🖨️ FUNCIÓN PRINCIPAL CON IMPRESIÓN
     const finalPlaceOrder = async () => {
         if (cart.length === 0) return;
@@ -502,10 +667,19 @@ const PuntosVenta = () => {
         };
 
         try {
-            // 1. CREAR LA ORDEN
-            const orderResponse = await api.post('/api/restaurant/orders/orders/', orderPayload);
-
-            const createdOrder = orderResponse.data;
+            let createdOrder;
+            if (currentOrder) {
+                // Sincronizar y luego cobrar orden existente
+                await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/sync_draft/`, orderPayload);
+                const orderResponse = await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/checkout/`);
+                createdOrder = orderResponse.data;
+            } else {
+                // 1. CREAR LA ORDEN DESDE CERO COMO COMPLETADA
+                orderPayload.status = 'completed';
+                orderPayload.payment_status = 'paid';
+                const orderResponse = await api.post('/api/restaurant/orders/orders/', orderPayload);
+                createdOrder = orderResponse.data;
+            }
 
             // 2. PREPARAR DATOS PARA EL TICKET (incluyendo notas)
             const receiptData = {
@@ -581,6 +755,50 @@ const PuntosVenta = () => {
             alert('✅ Caja abierta');
         } catch (error) {
             alert('❌ Error al abrir caja. Verifica que el agente esté ejecutándose.');
+        }
+    };
+    
+    // 🖨️ FUNCIÓN PARA IMPRIMIR COMANDAS (COCINA / FORTALEZA)
+    const handlePrintOrder = async (destination) => {
+        if (cart.length === 0) {
+            alert("No hay productos en la orden para imprimir.");
+            return;
+        }
+
+        try {
+            let tableNumber = selectedTable;
+            if (selectedTable === 'takeout') {
+                tableNumber = 'PARA LLEVAR';
+            } else if (!selectedTable || selectedTable === 'Seleccionar mesa...') {
+                tableNumber = 'MESA GENÉRICA';
+            }
+
+            const orderData = {
+                table_number: tableNumber,
+                customer_name: selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'Mesa General',
+                items: cart.map(item => ({
+                    name: item.name,
+                    quantity: item.quantity,
+                    note: item.note || ''
+                })),
+                destination: destination
+            };
+
+            await printerServiceRestaurant.printKitchenOrder(orderData, destination.toLowerCase());
+            alert(`✅ Comanda enviada a ${destination}`);
+
+            // ↓↓ Acumular en historial y limpiar carrito para la siguiente ronda
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            setSentItems(prev => [...prev, {
+                destination,
+                timestamp,
+                items: cart.map(i => ({ ...i }))
+            }]);
+            setCart([]);  // limpiar para la siguiente ronda
+
+        } catch (err) {
+            console.error(`Error imprimiendo comanda a ${destination}:`, err);
+            alert(`❌ Error al imprimir comanda en ${destination}. El servicio de hardware podría estar configurándose.`);
         }
     };
 
@@ -1612,6 +1830,7 @@ const PuntosVenta = () => {
                         flexDirection: 'column',
                         minHeight: 0
                     }}>
+
                         {cart.length === 0 ? (
                             <div style={{
                                 textAlign: 'center',
@@ -1854,44 +2073,82 @@ const PuntosVenta = () => {
                                     </div>
                                 </div>
 
-                                {/* Botones principales */}
+                                {/* Botones principal Cocina/Fortaleza - SIEMPRE visibles en restaurant mode */}
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                    <button
+                                        onClick={() => handlePrintOrder('Cocina')}
+                                        disabled={cart.length === 0}
+                                        style={{
+                                            flex: 1, padding: '0.75rem',
+                                            backgroundColor: cart.length === 0 ? '#f3f4f6' : '#f59e0b',
+                                            color: cart.length === 0 ? '#9ca3af' : '#ffffff',
+                                            border: 'none', borderRadius: '8px',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                            fontWeight: '600',
+                                            cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
+                                        }}
+                                    >
+                                        <i className="bi bi-fire"></i> Cocina
+                                    </button>
+                                    <button
+                                        onClick={() => handlePrintOrder('Fortaleza')}
+                                        disabled={cart.length === 0}
+                                        style={{
+                                            flex: 1, padding: '0.75rem',
+                                            backgroundColor: cart.length === 0 ? '#f3f4f6' : '#8b5cf6',
+                                            color: cart.length === 0 ? '#9ca3af' : '#ffffff',
+                                            border: 'none', borderRadius: '8px',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                            fontWeight: '600',
+                                            cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem'
+                                        }}
+                                    >
+                                        <i className="bi bi-cup-straw"></i> Fortaleza
+                                    </button>
+                                </div>
+
+                                {/* Guardar en Mesa - siempre visible */}
                                 <button
                                     style={{
                                         width: '100%',
                                         padding: '0.75rem',
-                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
+                                        marginBottom: '0.5rem',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#10b981',
                                         border: 'none',
                                         borderRadius: '8px',
                                         color: '#ffffff',
                                         fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                                         fontWeight: '700',
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
-                                        marginBottom: '0.5rem',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
-                                    onClick={openOrderConfirmationModal}
+                                    onClick={handleSaveToTable}
                                     disabled={processingOrder}
                                 >
-                                    {processingOrder ? 'Procesando...' : 'Revisar y Pagar'}
+                                    {processingOrder ? 'Guardando...' : '💾 Guardar en Mesa'}
                                 </button>
 
-                                <button
-                                    style={{
-                                        width: '100%',
-                                        padding: '0.75rem',
-                                        backgroundColor: '#f59e0b',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#ffffff',
-                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        minHeight: TOUCH_MIN_SIZE
-                                    }}
-                                    onClick={handleOpenCashDrawer}
-                                >
-                                    🔓 Abrir Caja
-                                </button>
+                                {!restaurantMode && (
+                                    <button
+                                        style={{
+                                            width: '100%',
+                                            padding: '0.75rem',
+                                            backgroundColor: '#f59e0b',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            color: '#ffffff',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            minHeight: TOUCH_MIN_SIZE
+                                        }}
+                                        onClick={handleOpenCashDrawer}
+                                    >
+                                        🔓 Abrir Caja
+                                    </button>
+                                )}
                         </div>
                     )}
                 </div>
@@ -2189,6 +2446,7 @@ const PuntosVenta = () => {
                         flexDirection: 'column',
                         minHeight: 0
                     }}>
+
                         {cart.length === 0 ? (
                             <div style={{
                                 textAlign: 'center',
@@ -2445,11 +2703,91 @@ const PuntosVenta = () => {
                                     </div>
                                 </div>
 
-                                {/* Botón Principal */}
+                                {/* Múltiples Botones de Imprimir y Acciones */}
+                                {/* Botones Cocina / Fortaleza - siempre visibles */}
+                                <div style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: '0.75rem',
+                                    marginBottom: '0.75rem'
+                                }}>
+                                    <button
+                                        onClick={() => handlePrintOrder('Cocina')}
+                                        disabled={cart.length === 0}
+                                        style={{
+                                            padding: '0.75rem',
+                                            backgroundColor: cart.length === 0 ? '#f3f4f6' : '#f59e0b',
+                                            color: cart.length === 0 ? '#9ca3af' : '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '0.9375rem',
+                                            fontWeight: '600',
+                                            cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                        onMouseEnter={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#d97706' }}
+                                        onMouseLeave={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#f59e0b' }}
+                                    >
+                                        <i className="bi bi-fire"></i> M. a Cocina
+                                    </button>
+                                    <button
+                                        onClick={() => handlePrintOrder('Fortaleza')}
+                                        disabled={cart.length === 0}
+                                        style={{
+                                            padding: '0.75rem',
+                                            backgroundColor: cart.length === 0 ? '#f3f4f6' : '#8b5cf6',
+                                            color: cart.length === 0 ? '#9ca3af' : '#ffffff',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            fontSize: '0.9375rem',
+                                            fontWeight: '600',
+                                            cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.5rem'
+                                        }}
+                                        onMouseEnter={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#7c3aed' }}
+                                        onMouseLeave={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#8b5cf6' }}
+                                    >
+                                        <i className="bi bi-cup-straw"></i> M. a Fortaleza
+                                    </button>
+                                </div>
+
+                                {/* Guardar en Mesa - siempre visible */}
                                 <button
                                     style={{
                                         width: '100%',
                                         padding: '1rem',
+                                        marginBottom: '0.75rem',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#10b981',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        color: '#ffffff',
+                                        fontSize: '1.125rem',
+                                        fontWeight: '700',
+                                        cursor: processingOrder ? 'not-allowed' : 'pointer',
+                                        transition: 'all 0.2s',
+                                        boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(16, 185, 129, 0.3)',
+                                        minHeight: TOUCH_MIN_SIZE
+                                    }}
+                                    onClick={handleSaveToTable}
+                                    disabled={processingOrder}
+                                >
+                                    {processingOrder ? 'Guardando...' : '💾 Guardar en Mesa'}
+                                </button>
+
+                                {!restaurantMode && (
+                                <button
+                                    style={{
+                                        width: '100%',
+                                        padding: '1rem',
+                                        marginBottom: '0.75rem',
                                         backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
                                         border: 'none',
                                         borderRadius: '10px',
@@ -2459,16 +2797,17 @@ const PuntosVenta = () => {
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
                                         boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
-                                        marginBottom: '0.75rem',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={openOrderConfirmationModal}
                                     disabled={processingOrder}
                                 >
-                                    {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
+                                    {processingOrder ? 'Procesando...' : 'Cobrar / Pagar'}
                                 </button>
+                                )}
 
                                 {/* 🔓 Botón Abrir Caja */}
+                                {!restaurantMode && (
                                 <button
                                     style={{
                                         width: '100%',
@@ -2487,6 +2826,7 @@ const PuntosVenta = () => {
                                 >
                                     🔓 Abrir Caja Registradora
                                 </button>
+                                )}
                         </div>
                     )}
                 </div>

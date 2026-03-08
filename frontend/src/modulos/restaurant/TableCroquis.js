@@ -122,7 +122,7 @@ const TABLE_CONFIGS = {
     }
 };
 
-const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
+const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose, isEmbedded = false }) => {
     const [scaleFactor, setScaleFactor] = useState(1);
     const containerRef = useRef(null);
 
@@ -200,67 +200,90 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
 
     const handleTableClick = (table, e) => {
         e.stopPropagation();
-        if (table.status === 'available' || table.status === 'reserved' || table.status === 'upcoming') {
+        if (['available', 'reserved', 'upcoming', 'occupied'].includes(table.status)) {
             onSelectTable(table);
         }
     };
 
+    // Si no está embebido, usa la capa negra translúcida. Si está embebido, usa espacio completo.
+    const wrapperStyle = isEmbedded ? {
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+    } : {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '10px'
+    };
+
+    const containerStyle = isEmbedded ? {
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        width: '100%',
+        maxWidth: '100%',
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+    } : {
+        backgroundColor: '#ffffff',
+        borderRadius: '8px',
+        width: '100%',
+        maxWidth: '1600px', // Limitar el ancho máximo para pantallas muy grandes
+        maxHeight: '98vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+    };
+
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '10px'
-        }}>
-            <div style={{
-                backgroundColor: '#ffffff',
-                borderRadius: '8px',
-                width: '100%',
-                maxWidth: '1600px', // Limitar el ancho máximo para pantallas muy grandes
-                maxHeight: '98vh',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-            }}>
-                {/* Header Compacto */}
-                <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '0.8rem 1rem',
-                    borderBottom: '1px solid #e5e7eb',
-                    backgroundColor: '#fff',
-                    zIndex: 20
-                }}>
-                    <div>
-                        <h2 style={{ margin: 0, color: '#1f2937', fontSize: '1.2rem', fontWeight: '700' }}>
-                            Restaurante
-                        </h2>
+        <div style={wrapperStyle}>
+            <div style={containerStyle}>
+                {/* Header Compacto - Solo lo mostramos si NO está embebido, ya que el panel principal tendrá su propio título */}
+                {!isEmbedded && (
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '0.8rem 1rem',
+                        borderBottom: '1px solid #e5e7eb',
+                        backgroundColor: '#fff',
+                        zIndex: 20
+                    }}>
+                        <div>
+                            <h2 style={{ margin: 0, color: '#1f2937', fontSize: '1.2rem', fontWeight: '700' }}>
+                                Selección de Mesa
+                            </h2>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            style={{
+                                backgroundColor: '#dc2626',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '4px',
+                                padding: '0.4rem 0.8rem',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Cerrar
+                        </button>
                     </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            backgroundColor: '#dc2626',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '0.4rem 0.8rem',
-                            fontSize: '0.9rem',
-                            fontWeight: '600',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Cerrar
-                    </button>
-                </div>
+                )}
 
                 {/* Contenedor del Mapa con Scroll si es necesario en pantallas muy bajitas */}
                 <div style={{
@@ -310,7 +333,7 @@ const TableCroquis = ({ tables, selectedTable, onSelectTable, onClose }) => {
                                 if (!config) return null;
 
                                 const colors = getColors(table);
-                                const isClickable = table.status === 'available' || table.status === 'reserved';
+                                const isClickable = ['available', 'reserved', 'upcoming', 'occupied'].includes(table.status);
 
                                 // Calcular dimensiones dinámicas
                                 const dynamicWidth = config.tableWidth * scaleFactor;

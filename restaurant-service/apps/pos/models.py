@@ -774,6 +774,13 @@ class Table(models.Model):
         Returns:
             tuple: (bool, str) - (éxito, mensaje)
         """
+        if self.status == 'occupied' and self.current_order_id == order.id:
+            # Ya está ocupada por la misma orden, solo actualizamos el mesero
+            self.waiter_id = waiter_id
+            self.waiter_name = waiter_name
+            self.save()
+            return True, 'Mesa actualizada exitosamente'
+
         if self.status not in ('available', 'reserved'):
             return False, f'La mesa está {self.get_status_display()}'
         

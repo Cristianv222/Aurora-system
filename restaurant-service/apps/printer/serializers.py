@@ -212,5 +212,8 @@ class PrintOrderSerializer(serializers.Serializer):
     notes = serializers.CharField(required=False, allow_blank=True, default='')
     printed_at = serializers.CharField(required=False, allow_blank=True, default='')
 
+    # Opcional: destino de impresión para separar Cocina vs Fortaleza
+    destination = serializers.CharField(required=False, allow_blank=True, default='kitchen')
+
     # Opcional: forzar una impresora específica por su UUID
     printer_id = serializers.UUIDField(required=False, allow_null=True, default=None)

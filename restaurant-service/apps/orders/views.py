@@ -124,6 +124,262 @@ class OrderViewSet(viewsets.ModelViewSet):
         )
     
     @action(detail=True, methods=['post'])
+    def sync_draft(self, request, order_number=None):
+        """
+        Sincroniza los items de una orden pendiente (Draft).
+        POST /api/orders/{order_number}/sync_draft/
+        Body: {"items": [...], "notes": "...", "discount_amount": 0}
+        """
+        from django.db import transaction
+        from apps.menu.models import Product, Size, Extra
+        order = self.get_object()
+        
+        if order.status != 'pending':
+            return Response(
+                {'error': 'Solo se pueden sincronizar órdenes en estado pendiente'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        with transaction.atomic():
+            # Actualizar notas y descuentos si vienen
+            if 'notes' in request.data:
+                order.notes = request.data.get('notes', '')
+            if 'discount_amount' in request.data:
+                order.discount_amount = request.data.get('discount_amount', 0)
+                
+            # Borrar items viejos
+            order.items.all().delete()
+            
+            # Crear los nuevos items
+            items_data = request.data.get('items', [])
+            for item_data in items_data:
+                product = Product.objects.get(id=item_data['product_id'])
+                size = None
+                if item_data.get('size_id'):
+                    size = Size.objects.get(id=item_data['size_id'])
+                
+                extra_ids = item_data.get('extra_ids', [])
+                
+                order_item = OrderItem.objects.create(
+                    order=order,
+                    product=product,
+                    size=size,
+                    quantity=item_data.get('quantity', 1),
+                    notes=item_data.get('notes', '')
+                )
+                
+                if extra_ids:
+                    extras = Extra.objects.filter(id__in=extra_ids)
+                    for extra in extras:
+                        OrderItemExtra.objects.create(
+                            order_item=order_item,
+                            extra=extra
+                        )
+            
+            order.calculate_totals()
+            order.save()
+            
+        detail_serializer = OrderDetailSerializer(order)
+        return Response(detail_serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def checkout(self, request, order_number=None):
+        """
+        Procesa el pago y cobra una orden pendiente, liberando la mesa.
+        POST /api/orders/{order_number}/checkout/
+        """
+        order = self.get_object()
+        
+        if order.status != 'pending':
+            return Response(
+                {'error': 'Solo se pueden cobrar órdenes en estado pendiente'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Pasar a completado y pagado
+        order.status = 'completed'
+        order.payment_status = 'paid'
+        order.confirmed_at = timezone.now()
+        order.ready_at = timezone.now()
+        order.delivered_at = timezone.now()
+        order.save()
+        
+        # Liberar la mesa si tenía alguna
+        from apps.pos.models import Table
+        # 1. Por relación inversa
+        if hasattr(order, 'table_assignment') and order.table_assignment.exists():
+            for table in order.table_assignment.all():
+                table.free()
+                
+        # 2. Por número de mesa (respaldo)
+        if order.table_number:
+            try:
+                table_by_num = Table.objects.get(number=order.table_number)
+                if table_by_num.status != 'available':
+                    table_by_num.free()
+            except Table.DoesNotExist:
+                pass
+                
+        detail_serializer = OrderDetailSerializer(order)
+        return Response(detail_serializer.data)
+        
+    @action(detail=True, methods=['post'])
+    def partial_checkout(self, request, order_number=None):
+        """
+        Registra un pago parcial a la orden.
+        POST /api/orders/{order_number}/partial_checkout/
+        Body: {"amount": 25.00}
+        """
+        from decimal import Decimal
+        order = self.get_object()
+        
+        if order.status != 'pending':
+            return Response(
+                {'error': 'Solo se pueden agregar pagos a órdenes pendientes'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        amount_to_pay = Decimal(str(request.data.get('amount', 0)))
+        if amount_to_pay <= 0:
+            return Response(
+                {'error': 'El monto a pagar debe ser mayor a 0'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        order.amount_paid += amount_to_pay
+        
+        # Verificar si ya se cubrió el total
+        pending_balance = order.total - order.amount_paid
+        if pending_balance <= 0:
+            # Se ha pagado por completo
+            order.status = 'completed'
+            order.payment_status = 'paid'
+            order.confirmed_at = timezone.now()
+            order.ready_at = timezone.now()
+            order.delivered_at = timezone.now()
+            order.save()
+            
+            # Liberar la mesa
+            from apps.pos.models import Table
+            if hasattr(order, 'table_assignment') and order.table_assignment.exists():
+                for table in order.table_assignment.all():
+                    table.free()
+            if order.table_number:
+                try:
+                    table_by_num = Table.objects.get(number=order.table_number)
+                    if table_by_num.status != 'available':
+                        table_by_num.free()
+                except Table.DoesNotExist:
+                    pass
+        else:
+            order.save()
+            
+        detail_serializer = OrderDetailSerializer(order)
+        return Response(detail_serializer.data)
+        
+    @action(detail=True, methods=['post'])
+    def split_checkout(self, request, order_number=None):
+        """
+        Separa items específicos para pagarlos en una orden nueva.
+        POST /api/orders/{order_number}/split_checkout/
+        Body: {
+            "items": [
+                {"product_id": "uuid...", "quantity": 1}, ...
+            ]
+        }
+        """
+        from django.db import transaction
+        
+        order = self.get_object()
+        if order.status != 'pending':
+            return Response({'error': 'Solo se pueden separar items de órdenes pendientes'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        split_items_data = request.data.get('items', [])
+        if not split_items_data:
+            return Response({'error': 'No se especificaron items para separar'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        with transaction.atomic():
+            # 1. Crear nueva orden derivada
+            new_order = Order.objects.create(
+                order_type=order.order_type,
+                table_number=order.table_number,
+                status='completed',  # Se asume pagada de inmediato
+                payment_status='paid',
+                notes=f"Separada de la orden #{order.order_number}"
+            )
+            
+            # Timestamp the completion
+            new_order.confirmed_at = timezone.now()
+            new_order.ready_at = timezone.now()
+            new_order.delivered_at = timezone.now()
+            
+            # 2. Iterar items a separar y deducirlos de la orden madre
+            for split_req in split_items_data:
+                prod_id = split_req.get('product_id')
+                qty_to_split = int(split_req.get('quantity', 0))
+                
+                if qty_to_split <= 0: continue
+                
+                # Buscar el item en madre
+                madre_items = order.items.filter(product_id=prod_id)
+                for m_item in madre_items:
+                    if qty_to_split <= 0: break
+                    
+                    extract_qty = min(m_item.quantity, qty_to_split)
+                    
+                    # Agregar a la nueva orden
+                    new_item = OrderItem.objects.create(
+                        order=new_order,
+                        product=m_item.product,
+                        size=m_item.size,
+                        quantity=extract_qty,
+                        notes=m_item.notes,
+                        unit_price=m_item.unit_price,
+                        line_total=m_item.unit_price * extract_qty
+                    )
+                    
+                    # Copiar extras si los tenía
+                    for extra_rel in m_item.extras.all():
+                        OrderItemExtra.objects.create(
+                            order_item=new_item,
+                            extra=extra_rel.extra,
+                            price=extra_rel.price
+                        )
+                        
+                    # Deducir cantidad de la orden madre
+                    m_item.quantity -= extract_qty
+                    qty_to_split -= extract_qty
+                    
+                    if m_item.quantity == 0:
+                        m_item.delete()
+                    else:
+                        m_item.save()
+                        
+            # 3. Recalcular totales de ambas
+            new_order.calculate_totals()
+            new_order.amount_paid = new_order.total
+            new_order.save()
+            
+            order.calculate_totals()
+            if order.items.count() == 0:
+                # Si sacaron todo, completamos la orden madre o la cancelamos
+                order.status = 'completed'
+                order.payment_status = 'paid'
+                # Liberar mesa si aplica
+                from apps.pos.models import Table
+                if hasattr(order, 'table_assignment') and order.table_assignment.exists():
+                    for t in order.table_assignment.all(): t.free()
+                if order.table_number:
+                    try:
+                        t = Table.objects.get(number=order.table_number)
+                        t.free()
+                    except Table.DoesNotExist:
+                        pass
+            order.save()
+
+        detail_serializer = OrderDetailSerializer(new_order)
+        return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
+    @action(detail=True, methods=['post'])
     def update_status(self, request, order_number=None):
         """
         Actualiza el estado de una orden

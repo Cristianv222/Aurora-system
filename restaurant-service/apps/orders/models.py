@@ -121,6 +121,15 @@ class Order(models.Model):
         verbose_name='Total'
     )
     
+    amount_paid = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        validators=[MinValueValidator(0)],
+        verbose_name='Monto Pagado',
+        help_text='Acumulado de pagos parciales'
+    )
+    
     # Información adicional
     notes = models.TextField(blank=True, verbose_name='Notas')
     special_instructions = models.TextField(
