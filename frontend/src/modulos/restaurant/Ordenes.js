@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import printerService from '../../services/printerServiceRestaurant';
+
+const ORDERS_PER_PAGE = 10;
+
 const Ordenes = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -9,8 +12,8 @@ const Ordenes = () => {
     const [updatingStatus, setUpdatingStatus] = useState({});
     const [selectedOrder, setSelectedOrder] = useState(null);
     const [showModal, setShowModal] = useState(false);
-
-
+    const [currentPage, setCurrentPage] = useState(1);
+    const [filterStatus, setFilterStatus] = useState('all');
 
     useEffect(() => {
         const fetchOrders = async () => {
@@ -24,27 +27,24 @@ const Ordenes = () => {
                 setLoading(false);
             }
         };
-
         fetchOrders();
     }, []);
 
     useEffect(() => {
         const handleEscape = (e) => {
-            if (e.key === 'Escape' && showModal) {
-                closeModal();
-            }
+            if (e.key === 'Escape' && showModal) closeModal();
         };
-
         if (showModal) {
             document.addEventListener('keydown', handleEscape);
             document.body.style.overflow = 'hidden';
         }
-
         return () => {
             document.removeEventListener('keydown', handleEscape);
             document.body.style.overflow = 'unset';
         };
     }, [showModal]);
+
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatus]);
 
     const handleStatusChange = async (orderNumber, newStatus, event) => {
         event.stopPropagation();
@@ -54,19 +54,12 @@ const Ordenes = () => {
                 `/api/restaurant/orders/orders/${orderNumber}/update_status/`,
                 { status: newStatus }
             );
-
-            console.log('Status update successful:', response.data);
-
             setOrders(prevOrders =>
                 prevOrders.map(order =>
-                    order.order_number === orderNumber
-                        ? { ...order, ...response.data }
-                        : order
+                    order.order_number === orderNumber ? { ...order, ...response.data } : order
                 )
             );
         } catch (err) {
-            console.error('Error updating status:', err);
-            console.error('Error details:', err.response?.data);
             alert(`Error al actualizar el estado: ${err.response?.data?.detail || err.message}`);
         } finally {
             setUpdatingStatus(prev => ({ ...prev, [orderNumber]: false }));
@@ -75,22 +68,15 @@ const Ordenes = () => {
 
     const handleRowClick = async (order) => {
         setShowModal(true);
-        // Usamos los datos que ya tenemos del listado
         setSelectedOrder({ ...order, loading: true });
-
         try {
-            const response = await api.get(
-                `/api/restaurant/orders/orders/${order.order_number}/`
-            );
-            // Preservamos el customer_name del listado por si la respuesta no lo incluye
-
+            const response = await api.get(`/api/restaurant/orders/orders/${order.order_number}/`);
             const orderData = response.data;
             setSelectedOrder({
                 ...orderData,
                 customer_name: orderData.customer_name || order.customer_name
             });
         } catch (err) {
-            console.error('Error fetching order details:', err);
             alert('Error al cargar los detalles de la orden');
             setShowModal(false);
             setSelectedOrder(null);
@@ -104,27 +90,19 @@ const Ordenes = () => {
 
     const handleDeleteOrder = async () => {
         if (!selectedOrder) return;
-
-        if (!window.confirm(`¿Estás seguro de que quieres eliminar la Orden ${selectedOrder.order_number}? Esta acción no se puede deshacer.`)) {
-            return;
-        }
-
+        if (!window.confirm(`¿Eliminar la Orden ${selectedOrder.order_number}? Esta acción no se puede deshacer.`)) return;
         try {
             await api.delete(`/api/restaurant/orders/orders/${selectedOrder.order_number}/`);
-
-            // Eliminar del estado local
             setOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
             alert('Orden eliminada exitosamente');
             closeModal();
         } catch (err) {
-            console.error('Error deleting order:', err);
             alert('Error al eliminar la orden');
         }
     };
 
     const handlePrintTicket = async () => {
         if (!selectedOrder) return;
-
         try {
             const receiptData = {
                 order_number: selectedOrder.order_number,
@@ -142,537 +120,558 @@ const Ordenes = () => {
                 tax: parseFloat(selectedOrder.tax_amount || 0),
                 total: parseFloat(selectedOrder.total)
             };
-
             await printerService.printReceipt(receiptData);
             alert('Ticket enviado a la impresora');
         } catch (error) {
-            console.error('Error printing ticket:', error);
             alert('Error al imprimir el ticket. Verifique la conexión con el agente de impresión.');
         }
     };
 
-
-
-
     const getStatusDisplay = (status) => {
-        const statusMap = {
-            'pending': 'Pendiente',
-            'completed': 'Completado'
-        };
+        const statusMap = { 'pending': 'Pendiente', 'completed': 'Completado' };
         return statusMap[status] || status;
     };
 
-    const getStatusColor = (status) => {
-        const statusColors = {
-            'completado': 'bg-green-100 text-green-700 border-green-200',
-            'completed': 'bg-green-100 text-green-700 border-green-200',
-            'pendiente': 'bg-yellow-100 text-yellow-700 border-yellow-200',
-            'pending': 'bg-yellow-100 text-yellow-700 border-yellow-200'
-        };
-        return statusColors[status.toLowerCase()] || 'bg-gray-100 text-gray-700 border-gray-200';
+    const getStatusKey = (statusDisplay) => {
+        const reverseMap = { 'Pendiente': 'pending', 'Completado': 'completed' };
+        return reverseMap[statusDisplay] || statusDisplay?.toLowerCase() || 'pending';
     };
 
-    const getStatusKey = (statusDisplay) => {
-        const reverseMap = {
-            'Pendiente': 'pending',
-            'Completado': 'completed'
-        };
-        return reverseMap[statusDisplay] || statusDisplay.toLowerCase();
-    };
+    const isOrderCompleted = (order) =>
+        ['completado', 'completed'].includes(order.status_display?.toLowerCase()) ||
+        ['completed'].includes(order.status?.toLowerCase());
 
     const sortedAndFilteredOrders = orders
-        .filter(order =>
-            order.order_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
-        )
+        .filter(order => {
+            const matchSearch =
+                order.order_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (order.customer_name && order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()));
+            const matchFilter =
+                filterStatus === 'all' ||
+                (filterStatus === 'pending' && !isOrderCompleted(order)) ||
+                (filterStatus === 'completed' && isOrderCompleted(order));
+            return matchSearch && matchFilter;
+        })
         .sort((a, b) => {
-            const aCompleted = ['completado', 'completed'].includes(a.status_display?.toLowerCase()) ||
-                ['completed'].includes(a.status?.toLowerCase());
-            const bCompleted = ['completado', 'completed'].includes(b.status_display?.toLowerCase()) ||
-                ['completed'].includes(b.status?.toLowerCase());
-
-            if (aCompleted !== bCompleted) {
-                return aCompleted ? 1 : -1;
-            }
-
-            if (!aCompleted) {
-                return new Date(a.created_at) - new Date(b.created_at);
-            } else {
-                return new Date(b.created_at) - new Date(a.created_at);
-            }
+            const aCompleted = isOrderCompleted(a);
+            const bCompleted = isOrderCompleted(b);
+            if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+            if (!aCompleted) return new Date(a.created_at) - new Date(b.created_at);
+            return new Date(b.created_at) - new Date(a.created_at);
         });
 
-    if (loading) {
-        return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-                <div style={{ textAlign: 'center' }}>
-                    <div style={{
-                        display: 'inline-block',
-                        width: '48px',
-                        height: '48px',
-                        border: '4px solid #e5e7eb',
-                        borderTopColor: '#2563eb',
-                        borderRadius: '50%',
-                        animation: 'spin 1s linear infinite'
-                    }}></div>
-                    <p style={{ marginTop: '16px', color: '#4b5563', fontWeight: '500' }}>Cargando órdenes...</p>
-                </div>
-            </div>
-        );
-    }
+    const totalPages = Math.ceil(sortedAndFilteredOrders.length / ORDERS_PER_PAGE);
+    const paginatedOrders = sortedAndFilteredOrders.slice(
+        (currentPage - 1) * ORDERS_PER_PAGE,
+        currentPage * ORDERS_PER_PAGE
+    );
 
-    if (error) {
-        return (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f9fafb' }}>
-                <div style={{ backgroundColor: '#fef2f2', borderLeft: '4px solid #ef4444', padding: '24px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', maxWidth: '448px' }}>
-                    <p style={{ color: '#991b1b', fontWeight: '500' }}>{error}</p>
-                </div>
+    const pendingCount = orders.filter(o => !isOrderCompleted(o)).length;
+    const completedCount = orders.filter(o => isOrderCompleted(o)).length;
+    const totalRevenue = orders
+        .filter(o => isOrderCompleted(o))
+        .reduce((sum, o) => sum + parseFloat(o.total || 0), 0);
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const delta = 2;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
+                pages.push(i);
+            } else if (pages[pages.length - 1] !== '...') {
+                pages.push('...');
+            }
+        }
+        return pages;
+    };
+
+    // ─── STYLES ──────────────────────────────────────────────────────────────
+    const S = {
+        page: {
+            minHeight: '100vh',
+            background: '#f0f4f9',
+            padding: '28px 24px',
+            fontFamily: "'Sora', sans-serif",
+        },
+        wrap: { maxWidth: '1280px', margin: '0 auto' },
+        header: { marginBottom: '28px' },
+        title: { fontSize: '26px', fontWeight: '700', color: '#1a2e4a', margin: '0 0 4px 0' },
+        subtitle: { color: '#6b87a8', fontSize: '14px', margin: 0 },
+
+        statsRow: { display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' },
+        statCard: (color) => ({
+            flex: '1 1 160px', background: '#fff',
+            border: `1px solid #dce8f5`, borderLeft: `4px solid ${color}`,
+            borderRadius: '10px', padding: '16px 20px',
+        }),
+        statLabel: { fontSize: '12px', color: '#6b87a8', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' },
+        statValue: (color) => ({ fontSize: '24px', fontWeight: '700', color, margin: 0 }),
+
+        toolbar: {
+            background: '#fff', border: '1px solid #dce8f5', borderRadius: '12px',
+            padding: '16px 20px', marginBottom: '20px',
+            display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap',
+        },
+        searchWrap: { flex: 1, minWidth: '200px', position: 'relative' },
+        searchIcon: {
+            position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+            color: '#6b87a8', fontSize: '16px', pointerEvents: 'none',
+        },
+        searchInput: {
+            width: '100%', padding: '9px 12px 9px 36px',
+            border: '1px solid #dce8f5', borderRadius: '8px',
+            outline: 'none', fontSize: '14px', color: '#1a2e4a',
+            background: '#f8fbff', boxSizing: 'border-box',
+        },
+        filterBtn: (active) => ({
+            padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '600',
+            border: active ? '1.5px solid #3a6ea8' : '1.5px solid #dce8f5',
+            background: active ? '#3a6ea8' : '#fff',
+            color: active ? '#fff' : '#6b87a8',
+            cursor: 'pointer', transition: 'all 0.15s',
+        }),
+
+        tableWrap: { background: '#fff', border: '1px solid #dce8f5', borderRadius: '12px', overflow: 'hidden' },
+        tableScroll: { overflowX: 'auto' },
+        table: { width: '100%', borderCollapse: 'collapse' },
+        thead: { background: '#f0f4f9', borderBottom: '1px solid #dce8f5' },
+        th: {
+            padding: '13px 20px', textAlign: 'left',
+            fontSize: '11px', fontWeight: '700', color: '#3a6ea8',
+            textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+        },
+        tr: (completed) => ({
+            borderBottom: '1px solid #f0f4f9',
+            opacity: completed ? 0.55 : 1,
+            cursor: 'pointer', transition: 'background 0.15s',
+        }),
+        td: { padding: '14px 20px', whiteSpace: 'nowrap' },
+        orderNum: { fontWeight: '700', color: '#2c4f7c', fontSize: '14px' },
+        customerName: { color: '#1a2e4a', fontSize: '14px' },
+        orderType: { color: '#6b87a8', fontSize: '13px' },
+        total: { fontWeight: '700', color: '#1a7a4a', fontSize: '14px' },
+        dateText: { color: '#6b87a8', fontSize: '13px' },
+        badgePending: {
+            display: 'inline-block', padding: '3px 10px', borderRadius: '20px',
+            fontSize: '12px', fontWeight: '600',
+            background: '#fff8e6', color: '#b45309', border: '1px solid #fde68a',
+        },
+        badgeCompleted: {
+            display: 'inline-block', padding: '3px 10px', borderRadius: '20px',
+            fontSize: '12px', fontWeight: '600',
+            background: '#e6f7ee', color: '#166534', border: '1px solid #bbf7d0',
+        },
+        statusSelect: (completed) => ({
+            padding: '5px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+            border: completed ? '1px solid #bbf7d0' : '1px solid #fde68a',
+            background: completed ? '#e6f7ee' : '#fff8e6',
+            color: completed ? '#166534' : '#b45309',
+            cursor: 'pointer', outline: 'none',
+        }),
+        emptyRow: { padding: '48px 24px', textAlign: 'center', color: '#6b87a8', fontSize: '15px' },
+
+        pagination: {
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '16px 20px', borderTop: '1px solid #f0f4f9', flexWrap: 'wrap', gap: '12px',
+        },
+        pageInfo: { fontSize: '13px', color: '#6b87a8' },
+        pageButtons: { display: 'flex', gap: '6px', alignItems: 'center' },
+        pageBtn: (active, disabled) => ({
+            minWidth: '36px', height: '36px', borderRadius: '8px',
+            border: active ? '1.5px solid #3a6ea8' : '1px solid #dce8f5',
+            background: active ? '#3a6ea8' : disabled ? '#f8fbff' : '#fff',
+            color: active ? '#fff' : disabled ? '#c5d5e8' : '#3a6ea8',
+            fontWeight: '600', fontSize: '13px',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }),
+
+        overlay: {
+            position: 'fixed', inset: 0, background: 'rgba(26,46,74,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: '20px',
+        },
+        modal: {
+            background: '#fff', borderRadius: '16px',
+            maxWidth: '600px', width: '100%', maxHeight: '90vh',
+            overflow: 'auto', boxShadow: '0 24px 48px rgba(26,46,74,0.18)',
+        },
+        modalHeader: { padding: '24px 24px 16px', borderBottom: '1px solid #f0f4f9' },
+        modalTitle: { fontSize: '22px', fontWeight: '700', color: '#1a2e4a', margin: '0 0 4px 0' },
+        modalDate: { color: '#6b87a8', fontSize: '13px', margin: 0 },
+        modalHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' },
+        closeBtn: {
+            background: '#f0f4f9', border: 'none', borderRadius: '8px',
+            width: '34px', height: '34px', fontSize: '20px', cursor: 'pointer',
+            color: '#6b87a8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        },
+        printBtn: {
+            background: '#1a7a4a', color: '#fff', border: 'none',
+            borderRadius: '8px', padding: '8px 16px', cursor: 'pointer',
+            fontSize: '13px', fontWeight: '600', marginLeft: '8px',
+        },
+        customerBox: {
+            background: '#f0f4f9', padding: '12px 16px', borderRadius: '10px',
+            border: '1px solid #dce8f5', display: 'flex', alignItems: 'center', gap: '12px',
+        },
+        customerAvatar: {
+            width: '40px', height: '40px', borderRadius: '50%',
+            background: '#2c4f7c', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: '700', fontSize: '16px', flexShrink: 0,
+        },
+        customerLabel: { fontSize: '11px', color: '#6b87a8', fontWeight: '600', textTransform: 'uppercase', margin: '0 0 2px 0' },
+        customerValue: { fontSize: '15px', fontWeight: '700', color: '#1a2e4a', margin: 0 },
+        modalBody: { padding: '24px' },
+        sectionTitle: { fontSize: '14px', fontWeight: '700', color: '#3a6ea8', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' },
+        infoBox: { background: '#f8fbff', padding: '14px 16px', borderRadius: '10px', border: '1px solid #dce8f5', marginBottom: '20px' },
+        infoRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '14px', color: '#1a2e4a' },
+        itemsBox: { border: '1px solid #dce8f5', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' },
+        itemRow: (last) => ({
+            padding: '12px 16px',
+            borderBottom: last ? 'none' : '1px solid #f0f4f9',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+        }),
+        itemName: { fontWeight: '600', color: '#1a2e4a', fontSize: '14px', margin: '0 0 2px 0' },
+        itemQty: { fontSize: '13px', color: '#6b87a8', margin: 0 },
+        itemNote: {
+            fontSize: '12px', color: '#b45309', fontStyle: 'italic',
+            background: '#fff8e6', padding: '2px 8px', borderRadius: '4px',
+            display: 'inline-block', marginTop: '4px',
+        },
+        itemTotal: { fontWeight: '700', color: '#1a7a4a', fontSize: '14px' },
+        summaryBox: { background: '#f8fbff', padding: '16px', borderRadius: '10px', border: '1px solid #dce8f5' },
+        summaryRow: { display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '14px', color: '#6b87a8' },
+        summaryTotal: {
+            borderTop: '1px solid #dce8f5', paddingTop: '10px', marginTop: '4px',
+            display: 'flex', justifyContent: 'space-between',
+        },
+        summaryTotalLabel: { fontSize: '16px', fontWeight: '700', color: '#1a2e4a' },
+        summaryTotalValue: { fontSize: '18px', fontWeight: '800', color: '#1a7a4a' },
+        modalFooter: {
+            padding: '16px 24px', borderTop: '1px solid #f0f4f9',
+            display: 'flex', gap: '10px', justifyContent: 'flex-end',
+        },
+        deleteBtn: {
+            padding: '9px 18px', background: '#fff0f0', color: '#b91c1c',
+            border: '1px solid #fca5a5', borderRadius: '8px',
+            fontWeight: '600', cursor: 'pointer', fontSize: '13px', marginRight: 'auto',
+        },
+        cancelBtn: {
+            padding: '9px 18px', background: '#f0f4f9', color: '#3a6ea8',
+            border: 'none', borderRadius: '8px',
+            fontWeight: '600', cursor: 'pointer', fontSize: '13px',
+        },
+    };
+
+    if (loading) return (
+        <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center' }}>
+                <div style={{
+                    width: '48px', height: '48px', borderRadius: '50%',
+                    border: '4px solid #dce8f5', borderTopColor: '#3a6ea8',
+                    animation: 'spin 0.8s linear infinite', margin: '0 auto',
+                }} />
+                <p style={{ marginTop: '16px', color: '#6b87a8', fontWeight: '600' }}>Cargando órdenes...</p>
             </div>
-        );
-    }
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+
+    if (error) return (
+        <div style={{ ...S.page, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ background: '#fff0f0', borderLeft: '4px solid #ef4444', padding: '24px', borderRadius: '10px', maxWidth: '400px' }}>
+                <p style={{ color: '#991b1b', fontWeight: '600', margin: 0 }}>{error}</p>
+            </div>
+        </div>
+    );
 
     return (
-        <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #f9fafb, #f3f4f6)', padding: '24px' }}>
-            <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
+        <div style={S.page}>
+            <div style={S.wrap}>
+
                 {/* Header */}
-                <div style={{ marginBottom: '32px' }}>
-                    <h1 style={{ fontSize: '30px', fontWeight: 'bold', color: '#1f2937', marginBottom: '8px' }}>Órdenes</h1>
-                    <p style={{ color: '#6b7280' }}>Gestiona y visualiza todas las órdenes del restaurante</p>
+                <div style={S.header}>
+                    <h1 style={S.title}>Órdenes · Restaurante</h1>
+                    <p style={S.subtitle}>Gestiona y visualiza todas las órdenes del restaurante</p>
                 </div>
 
-                {/* Search Bar */}
-                <div style={{ backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', padding: '16px', marginBottom: '24px' }}>
-                    <input
-                        type="text"
-                        placeholder="Buscar por número de orden o cliente..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '10px 16px',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '8px',
-                            outline: 'none',
-                            fontSize: '14px',
-                            transition: 'all 0.2s'
-                        }}
-                        onFocus={(e) => {
-                            e.target.style.borderColor = '#3b82f6';
-                            e.target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-                        }}
-                        onBlur={(e) => {
-                            e.target.style.borderColor = '#d1d5db';
-                            e.target.style.boxShadow = 'none';
-                        }}
-                    />
+                {/* Stats */}
+                <div style={S.statsRow}>
+                    <div style={S.statCard('#3a6ea8')}>
+                        <p style={S.statLabel}>Total Órdenes</p>
+                        <p style={S.statValue('#1a2e4a')}>{orders.length}</p>
+                    </div>
+                    <div style={S.statCard('#f59e0b')}>
+                        <p style={S.statLabel}>Pendientes</p>
+                        <p style={S.statValue('#b45309')}>{pendingCount}</p>
+                    </div>
+                    <div style={S.statCard('#10b981')}>
+                        <p style={S.statLabel}>Completadas</p>
+                        <p style={S.statValue('#166534')}>{completedCount}</p>
+                    </div>
+                    <div style={S.statCard('#2c4f7c')}>
+                        <p style={S.statLabel}>Ingresos</p>
+                        <p style={S.statValue('#1a2e4a')}>${totalRevenue.toFixed(2)}</p>
+                    </div>
                 </div>
 
-                {/* Orders Table */}
-                <div style={{ backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead style={{ background: 'linear-gradient(to right, #f9fafb, #f3f4f6)', borderBottom: '1px solid #e5e7eb' }}>
+                {/* Toolbar */}
+                <div style={S.toolbar}>
+                    <div style={S.searchWrap}>
+                        <i className="bi bi-search" style={S.searchIcon} />
+                        <input
+                            type="text"
+                            placeholder="Buscar por N° orden o cliente..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={S.searchInput}
+                            onFocus={(e) => e.target.style.borderColor = '#3a6ea8'}
+                            onBlur={(e) => e.target.style.borderColor = '#dce8f5'}
+                        />
+                    </div>
+                    <button style={S.filterBtn(filterStatus === 'all')} onClick={() => setFilterStatus('all')}>Todas</button>
+                    <button style={S.filterBtn(filterStatus === 'pending')} onClick={() => setFilterStatus('pending')}>Pendientes</button>
+                    <button style={S.filterBtn(filterStatus === 'completed')} onClick={() => setFilterStatus('completed')}>Completadas</button>
+                </div>
+
+                {/* Table */}
+                <div style={S.tableWrap}>
+                    <div style={S.tableScroll}>
+                        <table style={S.table}>
+                            <thead style={S.thead}>
                                 <tr>
-                                    <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        N° Orden
-                                    </th>
-                                    <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Cliente
-                                    </th>
-                                    <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Tipo
-                                    </th>
-                                    <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Total
-                                    </th>
-                                    <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Estado
-                                    </th>
-                                    <th style={{ padding: '16px 24px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                        Fecha
-                                    </th>
+                                    {['N° Orden', 'Cliente', 'Tipo', 'Total', 'Estado', 'Fecha'].map(h => (
+                                        <th key={h} style={S.th}>{h}</th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedAndFilteredOrders.length === 0 ? (
+                                {paginatedOrders.length === 0 ? (
                                     <tr>
-                                        <td colSpan="6" style={{ padding: '48px 24px', textAlign: 'center' }}>
-                                            <p style={{ color: '#6b7280', fontWeight: '500', fontSize: '16px' }}>
-                                                {searchTerm ? 'No se encontraron órdenes' : 'No hay órdenes registradas'}
-                                            </p>
+                                        <td colSpan="6" style={S.emptyRow}>
+                                            <i className="bi bi-inbox" style={{ fontSize: '28px', display: 'block', marginBottom: '8px', color: '#c5d5e8' }} />
+                                            {searchTerm ? 'No se encontraron órdenes' : 'No hay órdenes registradas'}
                                         </td>
                                     </tr>
-                                ) : (
-                                    sortedAndFilteredOrders.map(order => {
-                                        const isCompleted = ['completado', 'completed'].includes(order.status_display?.toLowerCase()) ||
-                                            ['completed'].includes(order.status?.toLowerCase());
-                                        return (
-                                            <tr
-                                                key={order.id}
-                                                onClick={() => handleRowClick(order)}
-                                                style={{
-                                                    borderBottom: '1px solid #e5e7eb',
-                                                    transition: 'background-color 0.2s',
-                                                    opacity: isCompleted ? 0.6 : 1,
-                                                    cursor: 'pointer'
-                                                }}
-                                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                            >
-                                                <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
-                                                    <span style={{ fontWeight: '600', color: '#2563eb' }}>
-                                                        {order.order_number}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
-                                                    <span style={{ color: '#374151' }}>
-                                                        {order.customer_name || 'Cliente Casual'}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
-                                                    <span style={{ color: '#4b5563' }}>
-                                                        {order.order_type_display}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
-                                                    <span style={{ fontWeight: '600', color: '#059669' }}>
-                                                        ${order.total}
-                                                    </span>
-                                                </td>
-                                                <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
-                                                    <select
-                                                        value={getStatusKey(order.status_display)}
-                                                        onChange={(e) => handleStatusChange(order.order_number, e.target.value, e)}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        disabled={updatingStatus[order.order_number]}
-                                                        className={getStatusColor(order.status_display)}
-                                                        style={{
-                                                            padding: '6px 12px',
-                                                            borderRadius: '9999px',
-                                                            fontSize: '12px',
-                                                            fontWeight: '500',
-                                                            border: '1px solid',
-                                                            cursor: updatingStatus[order.order_number] ? 'wait' : 'pointer',
-                                                            outline: 'none'
-                                                        }}
-                                                    >
-                                                        <option value="pending">Pendiente</option>
-                                                        <option value="completed">Completado</option>
-                                                    </select>
-                                                </td>
-                                                <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
-                                                    <span style={{ fontSize: '14px', color: '#4b5563' }}>
-                                                        {new Date(order.created_at).toLocaleString('es-ES', {
-                                                            day: '2-digit',
-                                                            month: '2-digit',
-                                                            year: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        })}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                ) : paginatedOrders.map(order => {
+                                    const completed = isOrderCompleted(order);
+                                    return (
+                                        <tr
+                                            key={order.id}
+                                            onClick={() => handleRowClick(order)}
+                                            style={S.tr(completed)}
+                                            onMouseEnter={(e) => e.currentTarget.style.background = '#f8fbff'}
+                                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            <td style={S.td}>
+                                                <span style={S.orderNum}>#{order.order_number}</span>
+                                            </td>
+                                            <td style={S.td}>
+                                                <span style={S.customerName}>{order.customer_name || 'Consumidor Final'}</span>
+                                            </td>
+                                            <td style={S.td}>
+                                                <span style={S.orderType}>{order.order_type_display}</span>
+                                            </td>
+                                            <td style={S.td}>
+                                                <span style={S.total}>${order.total}</span>
+                                            </td>
+                                            <td style={S.td} onClick={(e) => e.stopPropagation()}>
+                                                <select
+                                                    value={getStatusKey(order.status_display) || order.status}
+                                                    onChange={(e) => handleStatusChange(order.order_number, e.target.value, e)}
+                                                    disabled={updatingStatus[order.order_number]}
+                                                    style={S.statusSelect(completed)}
+                                                >
+                                                    <option value="pending">Pendiente</option>
+                                                    <option value="completed">Completado</option>
+                                                </select>
+                                            </td>
+                                            <td style={S.td}>
+                                                <span style={S.dateText}>
+                                                    {new Date(order.created_at).toLocaleString('es-ES', {
+                                                        day: '2-digit', month: '2-digit', year: 'numeric',
+                                                        hour: '2-digit', minute: '2-digit'
+                                                    })}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
-                </div>
 
-                {/* Footer Stats */}
-                {sortedAndFilteredOrders.length > 0 && (
-                    <div style={{ marginTop: '24px', backgroundColor: 'white', borderRadius: '12px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb', padding: '16px' }}>
-                        <p style={{ fontSize: '14px', color: '#4b5563' }}>
-                            Mostrando <span style={{ fontWeight: '600', color: '#1f2937' }}>{sortedAndFilteredOrders.length}</span> de{' '}
-                            <span style={{ fontWeight: '600', color: '#1f2937' }}>{orders.length}</span> órdenes
-                        </p>
-                    </div>
-                )}
+                    {/* Paginación */}
+                    {totalPages > 1 && (
+                        <div style={S.pagination}>
+                            <span style={S.pageInfo}>
+                                Mostrando {Math.min((currentPage - 1) * ORDERS_PER_PAGE + 1, sortedAndFilteredOrders.length)}–{Math.min(currentPage * ORDERS_PER_PAGE, sortedAndFilteredOrders.length)} de {sortedAndFilteredOrders.length} órdenes
+                            </span>
+                            <div style={S.pageButtons}>
+                                <button
+                                    style={S.pageBtn(false, currentPage === 1)}
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    <i className="bi bi-chevron-left" />
+                                </button>
+                                {getPageNumbers().map((page, idx) =>
+                                    page === '...'
+                                        ? <span key={idx} style={{ padding: '0 4px', color: '#6b87a8' }}>…</span>
+                                        : <button
+                                            key={idx}
+                                            style={S.pageBtn(currentPage === page, false)}
+                                            onClick={() => setCurrentPage(page)}
+                                        >
+                                            {page}
+                                        </button>
+                                )}
+                                <button
+                                    style={S.pageBtn(false, currentPage === totalPages)}
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    <i className="bi bi-chevron-right" />
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {totalPages <= 1 && sortedAndFilteredOrders.length > 0 && (
+                        <div style={{ padding: '14px 20px', borderTop: '1px solid #f0f4f9' }}>
+                            <span style={S.pageInfo}>{sortedAndFilteredOrders.length} órdenes en total</span>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Order Details Modal */}
+            {/* Modal */}
             {showModal && selectedOrder && (
-                <div
-                    onClick={closeModal}
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 1000,
-                        padding: '20px'
-                    }}
-                >
-                    <div
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                            backgroundColor: 'white',
-                            borderRadius: '16px',
-                            maxWidth: '600px',
-                            width: '100%',
-                            maxHeight: '90vh',
-                            overflow: 'auto',
-                            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
-                        }}
-                    >
-                        {/* Modal Header */}
-                        <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                                <div style={{ flex: 1 }}>
-                                    <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1f2937', margin: 0 }}>
-                                        Orden {selectedOrder.order_number}
-                                    </h2>
-                                    <p style={{ color: '#6b7280', fontSize: '14px', marginTop: '4px', marginBottom: 0 }}>
-                                        {new Date(selectedOrder.created_at).toLocaleString('es-ES', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit'
+                <div style={S.overlay} onClick={closeModal}>
+                    <div style={S.modal} onClick={(e) => e.stopPropagation()}>
+
+                        <div style={S.modalHeader}>
+                            <div style={S.modalHeaderRow}>
+                                <div>
+                                    <h2 style={S.modalTitle}>Orden #{selectedOrder.order_number}</h2>
+                                    <p style={S.modalDate}>
+                                        {selectedOrder.created_at && new Date(selectedOrder.created_at).toLocaleString('es-ES', {
+                                            day: '2-digit', month: 'long', year: 'numeric',
+                                            hour: '2-digit', minute: '2-digit'
                                         })}
                                     </p>
                                 </div>
-                                <button
-                                    onClick={closeModal}
-                                    style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        fontSize: '24px',
-                                        cursor: 'pointer',
-                                        color: '#6b7280',
-                                        padding: '4px 8px',
-                                        lineHeight: 1
-                                    }}
-                                    aria-label="Cerrar modal"
-                                >
-                                    ×
-                                </button>
-
-                                <button
-                                    onClick={handlePrintTicket}
-                                    style={{
-                                        background: '#059669',
-                                        color: '#fff',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        padding: '8px 16px',
-                                        cursor: 'pointer',
-                                        fontSize: '14px',
-                                        fontWeight: '500',
-                                        marginLeft: '8px'
-                                    }}
-                                    aria-label="Imprimir orden"
-                                >
-                                    Imprimir
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <button style={S.printBtn} onClick={handlePrintTicket}>
+                                        <i className="bi bi-printer" /> Imprimir
+                                    </button>
+                                    <button style={{ ...S.closeBtn, marginLeft: '8px' }} onClick={closeModal}>×</button>
+                                </div>
                             </div>
-
-                            {/* Cliente destacado en el header */}
-                            <div style={{
-                                backgroundColor: '#eff6ff',
-                                padding: '12px 16px',
-                                borderRadius: '8px',
-                                border: '1px solid #bfdbfe',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}>
-                                <svg
-                                    style={{ width: '20px', height: '20px', color: '#2563eb' }}
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                </svg>
+                            <div style={S.customerBox}>
+                                <div style={S.customerAvatar}>
+                                    {(selectedOrder.customer_name || 'C')[0].toUpperCase()}
+                                </div>
                                 <div>
-                                    <p style={{ margin: 0, fontSize: '12px', color: '#1e40af', fontWeight: '500' }}>Cliente</p>
-                                    <p style={{ margin: 0, fontSize: '16px', color: '#1e3a8a', fontWeight: '600' }}>
-                                        {selectedOrder.customer_name || 'Cliente Casual'}
-                                    </p>
+                                    <p style={S.customerLabel}>Cliente</p>
+                                    <p style={S.customerValue}>{selectedOrder.customer_name || 'Consumidor Final'}</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Modal Body */}
-                        <div style={{ padding: '24px' }}>
-                            {/* Order Info */}
-                            <div style={{ marginBottom: '24px' }}>
-                                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
-                                    Información de la Orden
-                                </h3>
-                                <div style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px' }}>
-                                    <p style={{ margin: '0 0 8px 0', color: '#1f2937' }}>
-                                        <strong>Tipo de Orden:</strong> {selectedOrder.order_type_display}
-                                    </p>
-                                    <p style={{ margin: '0 0 8px 0', color: '#1f2937' }}>
-                                        <strong>Estado:</strong>{' '}
-                                        <span style={{
-                                            padding: '4px 10px',
-                                            borderRadius: '9999px',
-                                            fontSize: '12px',
-                                            fontWeight: '500',
-                                            backgroundColor: selectedOrder.status_display?.toLowerCase() === 'completado' || selectedOrder.status?.toLowerCase() === 'completed' ? '#dcfce7' : '#fef3c7',
-                                            color: selectedOrder.status_display?.toLowerCase() === 'completado' || selectedOrder.status?.toLowerCase() === 'completed' ? '#166534' : '#92400e'
-                                        }}>
-                                            {selectedOrder.status_display || getStatusDisplay(selectedOrder.status)}
-                                        </span>
-                                    </p>
-                                    {selectedOrder.table_number && (
-                                        <p style={{ margin: '0', color: '#1f2937' }}>
-                                            <strong>Mesa:</strong> {selectedOrder.table_number}
-                                        </p>
-                                    )}
+                        <div style={S.modalBody}>
+                            <p style={S.sectionTitle}>Información</p>
+                            <div style={S.infoBox}>
+                                <div style={S.infoRow}>
+                                    <span style={{ color: '#6b87a8' }}>Tipo de orden</span>
+                                    <span style={{ fontWeight: '600' }}>{selectedOrder.order_type_display}</span>
                                 </div>
+                                <div style={{ ...S.infoRow, marginBottom: 0 }}>
+                                    <span style={{ color: '#6b87a8' }}>Estado</span>
+                                    <span style={isOrderCompleted(selectedOrder) ? S.badgeCompleted : S.badgePending}>
+                                        {selectedOrder.status_display || getStatusDisplay(selectedOrder.status)}
+                                    </span>
+                                </div>
+                                {selectedOrder.table_number && (
+                                    <div style={{ ...S.infoRow, marginTop: '6px', marginBottom: 0 }}>
+                                        <span style={{ color: '#6b87a8' }}>Mesa</span>
+                                        <span style={{ fontWeight: '600' }}>{selectedOrder.table_number}</span>
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Order Items */}
-                            <div style={{ marginBottom: '24px' }}>
-                                <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
-                                    Productos
-                                </h3>
-                                <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
-                                    {selectedOrder.loading ? (
-                                        <div style={{ padding: '32px', textAlign: 'center' }}>
-                                            <div style={{
-                                                display: 'inline-block',
-                                                width: '32px',
-                                                height: '32px',
-                                                border: '3px solid #e5e7eb',
-                                                borderTopColor: '#2563eb',
-                                                borderRadius: '50%',
-                                                animation: 'spin 1s linear infinite'
-                                            }}></div>
-                                            <p style={{ marginTop: '12px', color: '#6b7280' }}>Cargando productos...</p>
+                            <p style={S.sectionTitle}>Productos</p>
+                            <div style={S.itemsBox}>
+                                {selectedOrder.loading ? (
+                                    <div style={{ padding: '32px', textAlign: 'center', color: '#6b87a8' }}>
+                                        <div style={{
+                                            width: '32px', height: '32px', borderRadius: '50%',
+                                            border: '3px solid #dce8f5', borderTopColor: '#3a6ea8',
+                                            animation: 'spin 0.8s linear infinite', margin: '0 auto 12px',
+                                        }} />
+                                        Cargando productos...
+                                    </div>
+                                ) : selectedOrder.items?.length > 0 ? selectedOrder.items.map((item, idx) => (
+                                    <div key={idx} style={S.itemRow(idx === selectedOrder.items.length - 1)}>
+                                        <div>
+                                            <p style={S.itemName}>{item.product_details?.name || item.product_name || 'Producto'}</p>
+                                            <p style={S.itemQty}>{item.quantity} × ${item.unit_price}</p>
+                                            {item.notes && <span style={S.itemNote}>📝 {item.notes}</span>}
                                         </div>
-                                    ) : (
-                                        // MODO VISUALIZACIÓN: LISTA NORMAL (Código Original)
-                                        selectedOrder.items && selectedOrder.items.length > 0 ? (
-                                            selectedOrder.items.map((item, index) => (
-                                                <div
-                                                    key={index}
-                                                    style={{
-                                                        padding: '12px 16px',
-                                                        borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #e5e7eb' : 'none',
-                                                        display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center'
-                                                    }}
-                                                >
-                                                    <div>
-                                                        <p style={{ margin: 0, fontWeight: '500', color: '#1f2937' }}>
-                                                            {item.product_details?.name || item.product_name || 'Producto'}
-                                                        </p>
-                                                        <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#6b7280' }}>
-                                                            Cantidad: {item.quantity} × ${item.unit_price}
-                                                        </p>
-                                                        {item.notes && (
-                                                            <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#d97706', fontStyle: 'italic', backgroundColor: '#fffbeb', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
-                                                                Nota: {item.notes}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <p style={{ margin: 0, fontWeight: '600', color: '#059669' }}>
-                                                        ${item.line_total || item.subtotal}
-                                                    </p>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <p style={{ padding: '16px', margin: 0, color: '#6b7280', textAlign: 'center' }}>
-                                                No hay productos en esta orden
-                                            </p>
-                                        )
-                                    )}
-                                </div>
+                                        <span style={S.itemTotal}>${item.line_total || item.subtotal}</span>
+                                    </div>
+                                )) : (
+                                    <p style={{ padding: '20px', textAlign: 'center', color: '#6b87a8', margin: 0 }}>
+                                        No hay productos en esta orden
+                                    </p>
+                                )}
                             </div>
 
-                            {/* Order Summary */}
-                            <div style={{ backgroundColor: '#f9fafb', padding: '16px', borderRadius: '8px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                    <span style={{ color: '#6b7280' }}>Subtotal:</span>
-                                    <span style={{ fontWeight: '500', color: '#1f2937' }}>${selectedOrder.subtotal}</span>
+                            <div style={S.summaryBox}>
+                                <div style={S.summaryRow}>
+                                    <span>Subtotal</span>
+                                    <span style={{ color: '#1a2e4a', fontWeight: '500' }}>${selectedOrder.subtotal}</span>
                                 </div>
                                 {selectedOrder.tax_amount > 0 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ color: '#6b7280' }}>Impuestos:</span>
-                                        <span style={{ fontWeight: '500', color: '#1f2937' }}>${selectedOrder.tax_amount}</span>
+                                    <div style={S.summaryRow}>
+                                        <span>Impuestos</span>
+                                        <span style={{ color: '#1a2e4a', fontWeight: '500' }}>${selectedOrder.tax_amount}</span>
                                     </div>
                                 )}
                                 {selectedOrder.discount_amount > 0 && (
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                        <span style={{ color: '#6b7280' }}>Descuento:</span>
-                                        <span style={{ fontWeight: '500', color: '#ef4444' }}>-${selectedOrder.discount_amount}</span>
+                                    <div style={S.summaryRow}>
+                                        <span>Descuento</span>
+                                        <span style={{ color: '#b91c1c', fontWeight: '500' }}>-${selectedOrder.discount_amount}</span>
                                     </div>
                                 )}
-                                <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '8px', marginTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>Total:</span>
-                                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#059669' }}>${selectedOrder.total}</span>
+                                <div style={S.summaryTotal}>
+                                    <span style={S.summaryTotalLabel}>Total</span>
+                                    <span style={S.summaryTotalValue}>${selectedOrder.total}</span>
                                 </div>
                             </div>
 
-                            {/* Notes */}
-
-
-                            {/* SECCIÓN DE EDICIÓN DE NOTAS */}
                             {selectedOrder.notes && (
-                                <div style={{ marginTop: '24px' }}>
-                                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
-                                        Notas
-                                    </h3>
-                                    <p style={{ backgroundColor: '#fef3c7', padding: '12px', borderRadius: '8px', margin: 0, color: '#92400e' }}>
-                                        {selectedOrder.notes}
-                                    </p>
+                                <div style={{ marginTop: '20px', background: '#fff8e6', padding: '14px 16px', borderRadius: '10px', border: '1px solid #fde68a' }}>
+                                    <p style={{ margin: '0 0 4px 0', fontSize: '12px', fontWeight: '700', color: '#b45309', textTransform: 'uppercase' }}>Notas</p>
+                                    <p style={{ margin: 0, color: '#92400e', fontSize: '14px' }}>{selectedOrder.notes}</p>
                                 </div>
                             )}
+                        </div>
 
-                            {/* BOTONES DE ACCIÓN (FOOTER) */}
-                            <div style={{ marginTop: '32px', borderTop: '1px solid #e5e7eb', paddingTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={handleDeleteOrder}
-                                    style={{
-                                        padding: '10px 20px',
-                                        backgroundColor: '#fee2e2',
-                                        color: '#b91c1c',
-                                        border: '1px solid #fca5a5',
-                                        borderRadius: '8px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer',
-                                        marginRight: 'auto'
-                                    }}
-                                >
-                                    Eliminar Orden
-                                </button>
-                                <button
-                                    onClick={closeModal}
-                                    style={{
-                                        padding: '10px 20px',
-                                        backgroundColor: '#f3f4f6',
-                                        color: '#374151',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        fontWeight: '600',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Cerrar
-                                </button>
-                            </div>
+                        <div style={S.modalFooter}>
+                            <button style={S.deleteBtn} onClick={handleDeleteOrder}>
+                                <i className="bi bi-trash" /> Eliminar Orden
+                            </button>
+                            <button style={S.cancelBtn} onClick={closeModal}>Cerrar</button>
                         </div>
                     </div>
                 </div>
             )}
 
             <style>{`
-                @keyframes spin {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
-                }
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
             `}</style>
         </div>
     );

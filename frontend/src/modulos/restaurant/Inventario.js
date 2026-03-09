@@ -6,29 +6,30 @@ import Extras from './Extras';
 import Combos from './Combos';
 import Tamanos from './Tamanos';
 
-const Inventario = () => {
-    const [activeTab, setActiveTab] = useState('products'); // products, categories, extras, combos, sizes
+const PRODUCTS_PER_PAGE = 10;
 
-    // Estado para Productos
+const Inventario = () => {
+    const [activeTab, setActiveTab] = useState('products');
+
     const [products, setProducts] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterCategory, setFilterCategory] = useState('all');
+    const [filterAvailable, setFilterAvailable] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
 
-    // Estado del formulario de producto
     const [newProduct, setNewProduct] = useState({
-        name: '',
-        description: '',
-        price: '',
-        category: '',
-        image: null,
-        is_active: true,
-        is_available: true
+        name: '', description: '', price: '', category: '',
+        image: null, is_active: true, is_available: true
     });
     const [editingProduct, setEditingProduct] = useState(null);
+    const [saving, setSaving] = useState(false);
 
     const fetchProducts = async () => {
+        setLoading(true);
         try {
             const response = await api.get('/api/restaurant/menu/products/');
             setProducts(response.data.results || response.data || []);
@@ -56,11 +57,11 @@ const Inventario = () => {
         }
     }, [activeTab]);
 
+    useEffect(() => { setCurrentPage(1); }, [searchTerm, filterCategory, filterAvailable]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
-        const newValue = type === 'checkbox' ? checked : value;
-        setNewProduct(prev => ({ ...prev, [name]: newValue }));
+        setNewProduct(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
     };
 
     const handleImageChange = (e) => {
@@ -74,7 +75,7 @@ const Inventario = () => {
             description: product.description,
             price: product.price,
             category: product.category,
-            image: null, // Reset image input, keep existing if not changed
+            image: null,
             is_active: product.is_active !== undefined ? product.is_active : true,
             is_available: product.is_available !== undefined ? product.is_available : true
         });
@@ -82,29 +83,23 @@ const Inventario = () => {
     };
 
     const handleDeleteProduct = async (id) => {
-        if (window.confirm('¿Estás seguro de eliminar este producto? (Se archivará para no afectar reportes históricos)')) {
-            try {
-                // "Soft Delete": Desactivar en lugar de borrar físicamente para mantener integridad referencial
-                const formData = new FormData();
-                formData.append('is_active', 'false');
-                formData.append('is_available', 'false');
-
-                // Backend usa lookup_field = 'pk' (UUID), así que usamos el ID.
-                await api.patch(`/api/restaurant/menu/products/${id}/`, formData, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-                fetchProducts();
-            } catch (err) {
-                console.error('Error deleting product:', err);
-                const msg = err.response?.data?.detail || 'Error al eliminar el producto';
-                alert(`Error: ${msg}`);
-            }
+        if (!window.confirm('¿Archivar este producto? Se desactivará para no afectar reportes históricos.')) return;
+        try {
+            const formData = new FormData();
+            formData.append('is_active', 'false');
+            formData.append('is_available', 'false');
+            await api.patch(`/api/restaurant/menu/products/${id}/`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            fetchProducts();
+        } catch (err) {
+            alert(`Error: ${err.response?.data?.detail || 'Error al eliminar el producto'}`);
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-
+        setSaving(true);
         const formData = new FormData();
         formData.append('name', newProduct.name);
         formData.append('description', newProduct.description);
@@ -112,21 +107,13 @@ const Inventario = () => {
         formData.append('category', newProduct.category);
         formData.append('is_active', newProduct.is_active ? 'true' : 'false');
         formData.append('is_available', newProduct.is_available ? 'true' : 'false');
-        if (newProduct.image instanceof File) {
-            formData.append('image', newProduct.image);
-        }
-
-        // Solo generar SLUG si es un producto nuevo.
+        if (newProduct.image instanceof File) formData.append('image', newProduct.image);
         if (!editingProduct) {
-            const slug = newProduct.name.toLowerCase()
-                .replace(/ /g, '-')
-                .replace(/[^\w-]+/g, '');
+            const slug = newProduct.name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
             formData.append('slug', slug);
         }
-
         try {
             if (editingProduct) {
-                // Usar ID para el PATCH ya que el backend espera PK
                 await api.patch(`/api/restaurant/menu/products/${editingProduct.id}/`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
@@ -140,400 +127,491 @@ const Inventario = () => {
             setEditingProduct(null);
             fetchProducts();
         } catch (err) {
-            console.error('Error saving product:', err);
-            const msg = err.response?.data?.detail || err.response?.data?.name || 'Error al guardar el producto. Verifique los datos.';
-            alert(`Error: ${msg}`);
+            alert(`Error: ${err.response?.data?.detail || err.response?.data?.name || 'Error al guardar el producto.'}`);
+        } finally {
+            setSaving(false);
         }
     };
 
+    // Filtrado
+    const filtered = products.filter(p => {
+        const matchSearch = p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            p.category_name?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchCat = filterCategory === 'all' || String(p.category) === filterCategory;
+        const matchAvail = filterAvailable === 'all' ||
+            (filterAvailable === 'available' && p.is_available) ||
+            (filterAvailable === 'unavailable' && !p.is_available);
+        return matchSearch && matchCat && matchAvail;
+    });
+
+    const totalPages = Math.ceil(filtered.length / PRODUCTS_PER_PAGE);
+    const paginated = filtered.slice((currentPage - 1) * PRODUCTS_PER_PAGE, currentPage * PRODUCTS_PER_PAGE);
+
+    const availableCount = products.filter(p => p.is_available).length;
+    const unavailableCount = products.filter(p => !p.is_available).length;
+
+    const getPageNumbers = () => {
+        const pages = [];
+        const delta = 2;
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
+                pages.push(i);
+            } else if (pages[pages.length - 1] !== '...') {
+                pages.push('...');
+            }
+        }
+        return pages;
+    };
+
+    const tabs = [
+        { key: 'products', label: 'Productos', icon: 'bi-box-seam' },
+        { key: 'categories', label: 'Categorías', icon: 'bi-tag' },
+        { key: 'combos', label: 'Combos', icon: 'bi-collection' },
+        { key: 'extras', label: 'Extras', icon: 'bi-plus-circle' },
+        { key: 'sizes', label: 'Tamaños', icon: 'bi-rulers' },
+    ];
+
+    // ─── STYLES ──────────────────────────────────────────────────────────────
+    const S = {
+        page: {
+            minHeight: '100vh',
+            background: '#f0f4f9',
+            padding: '28px 24px',
+            fontFamily: "'Sora', sans-serif",
+        },
+        wrap: { maxWidth: '1280px', margin: '0 auto' },
+        header: { marginBottom: '24px' },
+        title: { fontSize: '26px', fontWeight: '700', color: '#1a2e4a', margin: '0 0 4px 0' },
+        subtitle: { color: '#6b87a8', fontSize: '14px', margin: 0 },
+
+        statsRow: { display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' },
+        statCard: (color) => ({
+            flex: '1 1 140px', background: '#fff',
+            border: `1px solid #dce8f5`, borderLeft: `4px solid ${color}`,
+            borderRadius: '10px', padding: '14px 18px',
+        }),
+        statLabel: { fontSize: '11px', color: '#6b87a8', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 5px 0' },
+        statValue: (color) => ({ fontSize: '22px', fontWeight: '700', color, margin: 0 }),
+
+        tabsWrap: {
+            display: 'flex', gap: '4px', marginBottom: '20px',
+            background: '#fff', border: '1px solid #dce8f5', borderRadius: '12px',
+            padding: '6px', overflowX: 'auto',
+        },
+        tab: (active) => ({
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '8px 16px', borderRadius: '8px',
+            border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+            whiteSpace: 'nowrap', transition: 'all 0.15s',
+            background: active ? '#2c4f7c' : 'transparent',
+            color: active ? '#fff' : '#6b87a8',
+        }),
+
+        toolbar: {
+            background: '#fff', border: '1px solid #dce8f5', borderRadius: '12px',
+            padding: '14px 18px', marginBottom: '16px',
+            display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap',
+        },
+        searchWrap: { flex: 1, minWidth: '180px', position: 'relative' },
+        searchIcon: {
+            position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)',
+            color: '#6b87a8', fontSize: '15px', pointerEvents: 'none',
+        },
+        searchInput: {
+            width: '100%', padding: '8px 10px 8px 34px',
+            border: '1px solid #dce8f5', borderRadius: '8px',
+            outline: 'none', fontSize: '13px', color: '#1a2e4a',
+            background: '#f8fbff', boxSizing: 'border-box',
+        },
+        filterSelect: {
+            padding: '8px 12px', border: '1px solid #dce8f5', borderRadius: '8px',
+            fontSize: '13px', color: '#3a6ea8', fontWeight: '600',
+            background: '#f8fbff', outline: 'none', cursor: 'pointer',
+        },
+        newBtn: {
+            padding: '8px 18px', background: '#2c4f7c', color: '#fff',
+            border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+            whiteSpace: 'nowrap',
+        },
+
+        tableWrap: { background: '#fff', border: '1px solid #dce8f5', borderRadius: '12px', overflow: 'hidden' },
+        tableScroll: { overflowX: 'auto' },
+        table: { width: '100%', borderCollapse: 'collapse', minWidth: '640px' },
+        thead: { background: '#f0f4f9', borderBottom: '1px solid #dce8f5' },
+        th: {
+            padding: '12px 18px', textAlign: 'left',
+            fontSize: '11px', fontWeight: '700', color: '#3a6ea8',
+            textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+        },
+        td: { padding: '13px 18px' },
+        trHover: { borderBottom: '1px solid #f0f4f9', transition: 'background 0.15s' },
+        productImg: { width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #dce8f5' },
+        noImg: {
+            width: '48px', height: '48px', borderRadius: '8px',
+            background: '#f0f4f9', border: '1px solid #dce8f5',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#c5d5e8', fontSize: '20px',
+        },
+        productName: { fontWeight: '600', color: '#1a2e4a', fontSize: '14px' },
+        catBadge: {
+            display: 'inline-block', padding: '2px 10px', borderRadius: '20px',
+            fontSize: '12px', fontWeight: '600',
+            background: '#eef4ff', color: '#2c4f7c', border: '1px solid #dce8f5',
+        },
+        price: { fontWeight: '700', color: '#1a7a4a', fontSize: '14px' },
+        badgeYes: {
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+            background: '#e6f7ee', color: '#166534', border: '1px solid #bbf7d0',
+        },
+        badgeNo: {
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+            padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+            background: '#fff0f0', color: '#b91c1c', border: '1px solid #fca5a5',
+        },
+        editBtn: {
+            padding: '5px 12px', background: '#f0f4f9', color: '#2c4f7c',
+            border: '1px solid #dce8f5', borderRadius: '7px', cursor: 'pointer',
+            fontSize: '12px', fontWeight: '600', marginRight: '6px',
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+        },
+        deleteBtn: {
+            padding: '5px 12px', background: '#fff0f0', color: '#b91c1c',
+            border: '1px solid #fca5a5', borderRadius: '7px', cursor: 'pointer',
+            fontSize: '12px', fontWeight: '600',
+            display: 'inline-flex', alignItems: 'center', gap: '4px',
+        },
+        emptyCell: { padding: '48px 24px', textAlign: 'center', color: '#6b87a8' },
+
+        pagination: {
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 18px', borderTop: '1px solid #f0f4f9', flexWrap: 'wrap', gap: '10px',
+        },
+        pageInfo: { fontSize: '13px', color: '#6b87a8' },
+        pageButtons: { display: 'flex', gap: '5px', alignItems: 'center' },
+        pageBtn: (active, disabled) => ({
+            minWidth: '34px', height: '34px', borderRadius: '7px',
+            border: active ? '1.5px solid #2c4f7c' : '1px solid #dce8f5',
+            background: active ? '#2c4f7c' : disabled ? '#f8fbff' : '#fff',
+            color: active ? '#fff' : disabled ? '#c5d5e8' : '#3a6ea8',
+            fontWeight: '600', fontSize: '13px', cursor: disabled ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }),
+
+        formGroup: { marginBottom: '16px' },
+        label: { display: 'block', marginBottom: '6px', fontWeight: '600', color: '#1a2e4a', fontSize: '13px' },
+        input: {
+            width: '100%', padding: '9px 12px', border: '1px solid #dce8f5',
+            borderRadius: '8px', fontSize: '14px', color: '#1a2e4a',
+            background: '#f8fbff', outline: 'none', boxSizing: 'border-box',
+        },
+        textarea: {
+            width: '100%', padding: '9px 12px', border: '1px solid #dce8f5',
+            borderRadius: '8px', fontSize: '14px', color: '#1a2e4a',
+            background: '#f8fbff', outline: 'none', resize: 'vertical',
+            minHeight: '80px', boxSizing: 'border-box', fontFamily: 'inherit',
+        },
+        select: {
+            width: '100%', padding: '9px 12px', border: '1px solid #dce8f5',
+            borderRadius: '8px', fontSize: '14px', color: '#1a2e4a',
+            background: '#f8fbff', outline: 'none', cursor: 'pointer',
+        },
+        checkRow: { display: 'flex', alignItems: 'center', gap: '8px' },
+        checkLabel: { fontWeight: '600', color: '#1a2e4a', fontSize: '14px', cursor: 'pointer' },
+        formRow: { display: 'flex', gap: '12px' },
+        formActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', borderTop: '1px solid #f0f4f9', paddingTop: '16px' },
+        cancelBtn: {
+            padding: '9px 18px', background: '#f0f4f9', color: '#3a6ea8',
+            border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '13px',
+        },
+        saveBtn: (saving) => ({
+            padding: '9px 20px', background: saving ? '#6b87a8' : '#2c4f7c', color: '#fff',
+            border: 'none', borderRadius: '8px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer',
+            fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px',
+        }),
+    };
+
     return (
-        <div className="page-container">
-            <div className="page-header">
-                <h2>Inventario (Menú)</h2>
-            </div>
+        <div style={S.page}>
+            <div style={S.wrap}>
 
-            {/* Tabs de Navegación */}
-            <div className="tabs" style={{ marginBottom: '20px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px' }}>
-                <button
-                    className={`btn ${activeTab === 'products' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setActiveTab('products')}
-                >
-                    Productos
-                </button>
-                <button
-                    className={`btn ${activeTab === 'categories' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setActiveTab('categories')}
-                >
-                    Categorías
-                </button>
-                <button
-                    className={`btn ${activeTab === 'combos' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setActiveTab('combos')}
-                >
-                    Combos
-                </button>
-                <button
-                    className={`btn ${activeTab === 'extras' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setActiveTab('extras')}
-                >
-                    Extras
-                </button>
-                <button
-                    className={`btn ${activeTab === 'sizes' ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setActiveTab('sizes')}
-                >
-                    Tamaños
-                </button>
-            </div>
+                {/* Header */}
+                <div style={S.header}>
+                    <h1 style={S.title}>Inventario · Restaurante</h1>
+                    <p style={S.subtitle}>Gestiona productos, categorías, combos, extras y tamaños</p>
+                </div>
 
-            {/* Contenido de Pestañas */}
-            {activeTab === 'categories' && <Categorias />}
-            {activeTab === 'extras' && <Extras />}
-            {activeTab === 'combos' && <Combos />}
-            {activeTab === 'sizes' && <Tamanos />}
+                {/* Tabs */}
+                <div style={S.tabsWrap}>
+                    {tabs.map(t => (
+                        <button key={t.key} style={S.tab(activeTab === t.key)} onClick={() => setActiveTab(t.key)}>
+                            <i className={`bi ${t.icon}`} />
+                            {t.label}
+                        </button>
+                    ))}
+                </div>
 
-            {/* Contenido de Productos */}
-            {
-                activeTab === 'products' && (
+                {/* Sub-módulos */}
+                {activeTab === 'categories' && <Categorias />}
+                {activeTab === 'extras' && <Extras />}
+                {activeTab === 'combos' && <Combos />}
+                {activeTab === 'sizes' && <Tamanos />}
+
+                {/* Productos */}
+                {activeTab === 'products' && (
                     <>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
-                            <button className="btn btn-primary" onClick={() => {
+                        {/* Stats */}
+                        {!loading && !error && (
+                            <div style={S.statsRow}>
+                                <div style={S.statCard('#3a6ea8')}>
+                                    <p style={S.statLabel}>Total Productos</p>
+                                    <p style={S.statValue('#1a2e4a')}>{products.length}</p>
+                                </div>
+                                <div style={S.statCard('#10b981')}>
+                                    <p style={S.statLabel}>Disponibles</p>
+                                    <p style={S.statValue('#166534')}>{availableCount}</p>
+                                </div>
+                                <div style={S.statCard('#ef4444')}>
+                                    <p style={S.statLabel}>No Disponibles</p>
+                                    <p style={S.statValue('#b91c1c')}>{unavailableCount}</p>
+                                </div>
+                                <div style={S.statCard('#f59e0b')}>
+                                    <p style={S.statLabel}>Categorías</p>
+                                    <p style={S.statValue('#b45309')}>{categories.length}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Toolbar */}
+                        <div style={S.toolbar}>
+                            <div style={S.searchWrap}>
+                                <i className="bi bi-search" style={S.searchIcon} />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar producto o categoría..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    style={S.searchInput}
+                                    onFocus={(e) => e.target.style.borderColor = '#3a6ea8'}
+                                    onBlur={(e) => e.target.style.borderColor = '#dce8f5'}
+                                />
+                            </div>
+                            <select style={S.filterSelect} value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                                <option value="all">Todas las categorías</option>
+                                {categories.map(c => (
+                                    <option key={c.id} value={String(c.id)}>{c.name}</option>
+                                ))}
+                            </select>
+                            <select style={S.filterSelect} value={filterAvailable} onChange={(e) => setFilterAvailable(e.target.value)}>
+                                <option value="all">Disponibilidad</option>
+                                <option value="available">Disponibles</option>
+                                <option value="unavailable">No disponibles</option>
+                            </select>
+                            <button style={S.newBtn} onClick={() => {
                                 setEditingProduct(null);
-                                setNewProduct({ name: '', description: '', price: '', category: '', image: null });
+                                setNewProduct({ name: '', description: '', price: '', category: '', image: null, is_active: true, is_available: true });
                                 setIsModalOpen(true);
                             }}>
-                                Nuevo Producto
+                                <i className="bi bi-plus-lg" /> Nuevo Producto
                             </button>
                         </div>
 
-                        {loading ? <div>Cargando inventario...</div> : error ? <div className="alert alert-error">{error}</div> : (
-                            <div className="table-responsive">
-                                <table className="table">
-                                    <thead>
-                                        <tr>
-                                            <th>Imagen</th>
-                                            <th>Nombre</th>
-                                            <th>Categoría</th>
-                                            <th>Precio</th>
-                                            <th>Disponible</th>
-                                            <th>Acciones</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {products.length === 0 ? (
-                                            <tr><td colSpan="5">No hay productos registrados</td></tr>
-                                        ) : (
-                                            products.map(product => (
-                                                <tr key={product.id}>
-                                                    <td>
+                        {/* Table */}
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: '60px', color: '#6b87a8' }}>
+                                <div style={{
+                                    width: '40px', height: '40px', margin: '0 auto 14px',
+                                    border: '4px solid #dce8f5', borderTopColor: '#3a6ea8',
+                                    borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+                                }} />
+                                Cargando inventario...
+                            </div>
+                        ) : error ? (
+                            <div style={{ background: '#fff0f0', border: '1px solid #fca5a5', borderRadius: '10px', padding: '16px', color: '#b91c1c', fontWeight: '600' }}>
+                                {error}
+                            </div>
+                        ) : (
+                            <div style={S.tableWrap}>
+                                <div style={S.tableScroll}>
+                                    <table style={S.table}>
+                                        <thead style={S.thead}>
+                                            <tr>
+                                                {['Imagen', 'Nombre', 'Categoría', 'Precio', 'Disponible', 'Acciones'].map(h => (
+                                                    <th key={h} style={S.th}>{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {paginated.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="6" style={S.emptyCell}>
+                                                        <i className="bi bi-box-seam" style={{ fontSize: '28px', display: 'block', marginBottom: '8px', color: '#c5d5e8' }} />
+                                                        {searchTerm ? 'No se encontraron productos' : 'No hay productos registrados'}
+                                                    </td>
+                                                </tr>
+                                            ) : paginated.map(product => (
+                                                <tr
+                                                    key={product.id}
+                                                    style={S.trHover}
+                                                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fbff'}
+                                                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                                >
+                                                    <td style={S.td}>
                                                         {product.image ? (
                                                             <img
                                                                 src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_RESTAURANT_SERVICE}${product.image}`}
                                                                 alt={product.name}
-                                                                style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '5px' }}
+                                                                style={S.productImg}
                                                             />
                                                         ) : (
-                                                            <span style={{ color: '#888' }}>Sin imagen</span>
+                                                            <div style={S.noImg}>
+                                                                <i className="bi bi-image" />
+                                                            </div>
                                                         )}
                                                     </td>
-                                                    <td>{product.name}</td>
-                                                    <td>{product.category_name || product.category}</td>
-                                                    <td>${product.price}</td>
-                                                    <td>{product.is_available ? 'Sí' : 'No'}</td>
-                                                    <td>
-                                                        <button
-                                                            className="btn btn-secondary"
-                                                            onClick={() => handleEditProduct(product)}
-                                                            style={{ marginRight: '5px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                                                        >
-                                                            Editar
+                                                    <td style={S.td}>
+                                                        <span style={S.productName}>{product.name}</span>
+                                                    </td>
+                                                    <td style={S.td}>
+                                                        <span style={S.catBadge}>{product.category_name || product.category}</span>
+                                                    </td>
+                                                    <td style={S.td}>
+                                                        <span style={S.price}>${product.price}</span>
+                                                    </td>
+                                                    <td style={S.td}>
+                                                        {product.is_available
+                                                            ? <span style={S.badgeYes}><i className="bi bi-check-circle-fill" /> Sí</span>
+                                                            : <span style={S.badgeNo}><i className="bi bi-x-circle-fill" /> No</span>
+                                                        }
+                                                    </td>
+                                                    <td style={S.td}>
+                                                        <button style={S.editBtn} onClick={() => handleEditProduct(product)}>
+                                                            <i className="bi bi-pencil" /> Editar
                                                         </button>
-                                                        <button
-                                                            className="btn btn-danger"
-                                                            onClick={() => handleDeleteProduct(product.id)}
-                                                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
-                                                        >
-                                                            Eliminar
+                                                        <button style={S.deleteBtn} onClick={() => handleDeleteProduct(product.id)}>
+                                                            <i className="bi bi-archive" /> Archivar
                                                         </button>
                                                     </td>
                                                 </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
 
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                                {/* Paginación */}
+                                {totalPages > 1 && (
+                                    <div style={S.pagination}>
+                                        <span style={S.pageInfo}>
+                                            Mostrando {Math.min((currentPage - 1) * PRODUCTS_PER_PAGE + 1, filtered.length)}–{Math.min(currentPage * PRODUCTS_PER_PAGE, filtered.length)} de {filtered.length} productos
+                                        </span>
+                                        <div style={S.pageButtons}>
+                                            <button
+                                                style={S.pageBtn(false, currentPage === 1)}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                disabled={currentPage === 1}
+                                            >
+                                                <i className="bi bi-chevron-left" />
+                                            </button>
+                                            {getPageNumbers().map((page, idx) =>
+                                                page === '...'
+                                                    ? <span key={idx} style={{ padding: '0 4px', color: '#6b87a8' }}>…</span>
+                                                    : <button
+                                                        key={idx}
+                                                        style={S.pageBtn(currentPage === page, false)}
+                                                        onClick={() => setCurrentPage(page)}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                            )}
+                                            <button
+                                                style={S.pageBtn(false, currentPage === totalPages)}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                disabled={currentPage === totalPages}
+                                            >
+                                                <i className="bi bi-chevron-right" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {totalPages <= 1 && filtered.length > 0 && (
+                                    <div style={{ padding: '12px 18px', borderTop: '1px solid #f0f4f9' }}>
+                                        <span style={S.pageInfo}>{filtered.length} productos en total</span>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-
-                        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? "Editar Producto" : "Nuevo Producto"}>
+                        {/* Modal */}
+                        <Modal
+                            isOpen={isModalOpen}
+                            onClose={() => setIsModalOpen(false)}
+                            title={editingProduct ? 'Editar Producto' : 'Nuevo Producto'}
+                        >
                             <form onSubmit={handleSubmit}>
-                                <div className="form-group">
-                                    <label>Nombre</label>
-                                    <input
-                                        type="text"
-                                        name="name"
-                                        value={newProduct.name}
-                                        onChange={handleInputChange}
-                                        required
-                                    />
+                                <div style={S.formGroup}>
+                                    <label style={S.label}>Nombre *</label>
+                                    <input style={S.input} type="text" name="name" value={newProduct.name} onChange={handleInputChange} required
+                                        onFocus={(e) => e.target.style.borderColor = '#3a6ea8'}
+                                        onBlur={(e) => e.target.style.borderColor = '#dce8f5'} />
                                 </div>
-                                <div className="form-group">
-                                    <label>Descripción</label>
-                                    <textarea
-                                        name="description"
-                                        value={newProduct.description}
-                                        onChange={handleInputChange}
-                                        required
-                                    />
+                                <div style={S.formGroup}>
+                                    <label style={S.label}>Descripción *</label>
+                                    <textarea style={S.textarea} name="description" value={newProduct.description} onChange={handleInputChange} required
+                                        onFocus={(e) => e.target.style.borderColor = '#3a6ea8'}
+                                        onBlur={(e) => e.target.style.borderColor = '#dce8f5'} />
                                 </div>
-                                <div className="form-group">
-                                    <label>Precio</label>
-                                    <input
-                                        type="number"
-                                        name="price"
-                                        value={newProduct.price}
-                                        onChange={handleInputChange}
-                                        step="0.01"
-                                        required
-                                    />
+                                <div style={{ ...S.formGroup, ...S.formRow }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={S.label}>Precio *</label>
+                                        <input style={S.input} type="number" name="price" value={newProduct.price} onChange={handleInputChange} step="0.01" required
+                                            onFocus={(e) => e.target.style.borderColor = '#3a6ea8'}
+                                            onBlur={(e) => e.target.style.borderColor = '#dce8f5'} />
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={S.label}>Categoría *</label>
+                                        <select style={S.select} name="category" value={newProduct.category} onChange={handleInputChange} required>
+                                            <option value="">Seleccionar...</option>
+                                            {categories.map(cat => (
+                                                <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="form-group">
-                                    <label>Categoría</label>
-                                    <select
-                                        className="form-control"
-                                        name="category"
-                                        value={newProduct.category}
-                                        onChange={handleInputChange}
-                                        required
-                                    >
-                                        <option value="">Seleccione una categoría</option>
-                                        {categories.map(cat => (
-                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            name="is_active"
-                                            checked={newProduct.is_active}
-                                            onChange={handleInputChange}
-                                            style={{ marginRight: '8px' }}
-                                        />
-                                        Activo
+                                <div style={{ ...S.formGroup, display: 'flex', gap: '24px' }}>
+                                    <label style={S.checkRow}>
+                                        <input type="checkbox" name="is_active" checked={newProduct.is_active} onChange={handleInputChange} />
+                                        <span style={S.checkLabel}>Activo</span>
+                                    </label>
+                                    <label style={S.checkRow}>
+                                        <input type="checkbox" name="is_available" checked={newProduct.is_available} onChange={handleInputChange} />
+                                        <span style={S.checkLabel}>Disponible</span>
                                     </label>
                                 </div>
-                                <div className="form-group">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            name="is_available"
-                                            checked={newProduct.is_available}
-                                            onChange={handleInputChange}
-                                            style={{ marginRight: '8px' }}
-                                        />
-                                        Disponible
-                                    </label>
+                                <div style={S.formGroup}>
+                                    <label style={S.label}>Imagen {!editingProduct && '*'}</label>
+                                    <input style={{ ...S.input, padding: '7px 12px' }} type="file" accept="image/*" onChange={handleImageChange} required={!editingProduct} />
+                                    {editingProduct && <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#6b87a8' }}>Deja vacío para mantener la imagen actual</p>}
                                 </div>
-                                <div className="form-group">
-                                    <label>Imagen</label>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={handleImageChange}
-                                        required={!editingProduct}
-                                    />
-                                </div>
-                                <div className="form-actions">
-                                    <button type="button" className="btn btn-secondary" onClick={() => setIsModalOpen(false)}>Cancelar</button>
-                                    <button type="submit" className="btn btn-primary">Guardar</button>
+                                <div style={S.formActions}>
+                                    <button type="button" style={S.cancelBtn} onClick={() => setIsModalOpen(false)}>Cancelar</button>
+                                    <button type="submit" style={S.saveBtn(saving)} disabled={saving}>
+                                        {saving ? <><i className="bi bi-hourglass-split" /> Guardando...</> : <><i className="bi bi-check-lg" /> Guardar</>}
+                                    </button>
                                 </div>
                             </form>
                         </Modal>
                     </>
-                )
-            }
-        </div >
+                )}
+            </div>
+
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap');
+            `}</style>
+        </div>
     );
 };
 
 export default Inventario;
-
-const styles = `
-    .page-container {
-        padding: 20px;
-        max-width: 1600px;
-        margin: 0 auto;
-    }
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-    .page-header h2 {
-        margin: 0;
-        color: #1f2937;
-    }
-    
-    /* Tabs */
-    .tabs {
-        display: flex;
-        gap: 10px;
-        border-bottom: 1px solid #e2e8f0;
-        margin-bottom: 20px;
-        overflow-x: auto;
-        padding-bottom: 5px;
-        white-space: nowrap;
-        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
-    }
-    .tabs::-webkit-scrollbar {
-        height: 4px;
-    }
-    .tabs::-webkit-scrollbar-thumb {
-        background-color: #ccc;
-        border-radius: 4px;
-    }
-
-    .btn {
-        padding: 0.5rem 1rem;
-        border-radius: 0.375rem;
-        font-weight: 500;
-        cursor: pointer;
-        transition: all 0.2s;
-        border: 1px solid transparent;
-    }
-    .btn-primary {
-        background-color: #3b82f6;
-        color: white;
-        border-color: #3b82f6;
-    }
-    .btn-primary:hover {
-        background-color: #2563eb;
-    }
-    .btn-secondary {
-        background-color: #f3f4f6;
-        color: #374151;
-        border-color: #d1d5db;
-    }
-    .btn-secondary:hover {
-        background-color: #e5e7eb;
-    }
-    .btn-danger {
-        background-color: #fee2e2;
-        color: #dc2626;
-        border-color: #fca5a5;
-    }
-    .btn-danger:hover {
-        background-color: #fecaca;
-    }
-
-    /* Table */
-    .table-responsive {
-        width: 100%;
-        overflow-x: auto;
-        overflow-y: auto; /* Scroll vertical */
-        max-height: 70vh; /* Altura máxima para permitir scroll */
-        -webkit-overflow-scrolling: touch;
-        border-radius: 0.5rem;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        border: 1px solid #e5e7eb;
-        position: relative; /* Para sticky header */
-    }
-    .table {
-        width: 100%;
-        border-collapse: collapse;
-        background-color: white;
-        min-width: 600px; 
-    }
-    .table th, .table td {
-        padding: 0.75rem 1rem;
-        text-align: left;
-        border-bottom: 1px solid #e5e7eb;
-    }
-    .table th {
-        background-color: #f9fafb;
-        font-weight: 600;
-        color: #374151;
-        font-size: 0.875rem;
-        text-transform: uppercase;
-        letter-spacing: 0.05em;
-        position: sticky; /* Header fijo */
-        top: 0;
-        z-index: 10;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .table td {
-        font-size: 0.875rem;
-        color: #4b5563;
-    }
-    .table tr:last-child td {
-        border-bottom: none;
-    }
-
-    /* Form */
-    .form-group {
-        margin-bottom: 1rem;
-    }
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-        color: #374151;
-    }
-    .form-control, input[type="text"], input[type="number"], textarea, select {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #d1d5db;
-        border-radius: 0.375rem;
-        font-size: 1rem;
-    }
-    .form-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 1rem;
-        margin-top: 1.5rem;
-    }
-
-    /* Alerts */
-    .alert {
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 0.375rem;
-    }
-    .alert-error {
-        background-color: #fee2e2;
-        color: #991b1b;
-        border: 1px solid #fecaca;
-    }
-
-    /* Responsive Media Queries */
-    @media (max-width: 768px) {
-        .page-container {
-            padding: 10px;
-        }
-        .page-header {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 10px;
-        }
-        .page-header h2 {
-            font-size: 1.5rem;
-        }
-        .tabs {
-            padding-bottom: 10px;
-        }
-        .btn {
-            padding: 0.4rem 0.8rem;
-            font-size: 0.9rem;
-        }
-    }
-`;
-
-// Inject styles
-const styleSheet = document.createElement("style");
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);
-

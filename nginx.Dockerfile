@@ -1,7 +1,7 @@
 FROM nginx:alpine
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx-dev.conf /etc/nginx/nginx.conf
 
 # Expose port 80
 EXPOSE 80

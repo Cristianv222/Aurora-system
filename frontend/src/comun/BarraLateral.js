@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -6,6 +6,7 @@ const BarraLateral = () => {
     const location = useLocation();
     const { user, logout } = useContext(AuthContext);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     const isActive = (path) => {
         return location.pathname === path || location.pathname.startsWith(path) ? 'active' : '';
@@ -16,279 +17,300 @@ const BarraLateral = () => {
     };
 
     const menuItems = [
-        { path: '/', icon: 'bi-house-door-fill', label: 'Inicio' },
-        { path: '/users', icon: 'bi-people-fill', label: 'Usuarios' },
-        { path: '/fast-food', icon: 'bi-cart-fill', label: 'Comida Rápida' },
-        { path: '/hotel', icon: 'bi-building', label: 'Hotel' },
-        { path: '/pool', icon: 'bi-water', label: 'Piscinas' },
-        { path: '/restaurant', icon: 'bi-cup-straw', label: 'Restaurante' },
+        { path: '/',            icon: 'bi-house-door-fill',  label: 'Inicio'     },
+        { path: '/users',       icon: 'bi-people-fill',      label: 'Usuarios'   },
+        { path: '/fast-food',   icon: 'bi-egg-fried',        label: 'Kroky'      },
+        { path: '/hotel',       icon: 'bi-building-fill',    label: 'Hotel Park' },
+        { path: '/pool',        icon: 'bi-water',            label: 'P. Caribe'  },
+        { path: '/restaurant',  icon: 'bi-shield-fill',      label: 'Fortaleza'  },
     ];
 
-    // Estilos inline
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+    useEffect(() => {
+        const handleResize = () => setIsMobile(window.innerWidth <= 768);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
     const styles = {
         sidebar: {
             position: 'fixed',
-            top: 0,
+            top: isMobile ? '54px' : '0',
             left: 0,
-            height: '100vh',
-            width: isCollapsed ? '70px' : '250px',
-            background: 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
-            color: '#fff',
-            transition: 'width 0.3s ease',
+            height: isMobile ? 'calc(100vh - 54px)' : '100vh',
+            width: isMobile ? '250px' : (isCollapsed ? '70px' : '250px'),
+            background: '#ffffff',
+            color: '#1a2e4a',
+            transition: 'width 0.3s ease, transform 0.3s ease',
             zIndex: 1000,
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '2px 0 10px rgba(0, 0, 0, 0.1)',
-            overflowX: 'hidden'
+            boxShadow: '2px 0 10px rgba(26,46,74,0.1)',
+            overflowX: 'hidden',
+            borderRight: '1.5px solid #dce8f5',
+            transform: isMobile ? (mobileOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
         },
         sidebarHeader: {
-            padding: '1.5rem 1rem',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: '1rem 0.75rem',
+            borderBottom: '1.5px solid rgba(255,255,255,0.1)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1rem'
+            gap: '0.75rem',
+            background: 'linear-gradient(160deg, #1a2e4a 0%, #243b5e 100%)',
         },
         brandContainer: {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '0.5rem'
+            gap: '0.5rem',
         },
         brandLogo: {
             display: 'flex',
             alignItems: 'center',
-            gap: '0.75rem',
             flex: 1,
-            minWidth: 0
-        },
-        brandIcon: {
-            fontSize: '1.75rem',
-            color: '#3b82f6',
-            flexShrink: 0
-        },
-        brandText: {
-            fontSize: '1.25rem',
-            fontWeight: '700',
-            whiteSpace: 'nowrap',
+            minWidth: 0,
             overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            opacity: isCollapsed ? 0 : 1,
-            transition: 'opacity 0.2s',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
+        },
+        logoImg: {
+            width: isCollapsed ? '36px' : '160px',
+            height: '44px',
+            objectFit: 'cover',
+            objectPosition: 'left center',
+            filter: 'brightness(0) invert(1)',
+            transition: 'width 0.3s ease',
+            borderRadius: isCollapsed ? '6px' : '0',
+            flexShrink: 0,
         },
         btnToggle: {
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: 'none',
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
             color: '#fff',
-            width: '36px',
-            height: '36px',
+            width: '32px', height: '32px',
             borderRadius: '8px',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'all 0.2s',
-            fontSize: '1.1rem',
-            flexShrink: 0
+            fontSize: '0.9rem',
+            flexShrink: 0,
         },
         userInfo: {
             display: 'flex',
             alignItems: 'center',
             gap: '0.75rem',
-            padding: '0.75rem',
-            background: 'rgba(255, 255, 255, 0.05)',
+            padding: isCollapsed ? '0' : '0.6rem 0.75rem',
+            background: 'rgba(255,255,255,0.08)',
             borderRadius: '8px',
             opacity: isCollapsed ? 0 : 1,
-            height: isCollapsed ? 0 : 'auto',
+            maxHeight: isCollapsed ? 0 : '60px',
             overflow: 'hidden',
-            transition: 'all 0.3s'
+            transition: 'all 0.3s',
         },
         userAvatar: {
-            width: '40px',
-            height: '40px',
+            width: '34px', height: '34px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
+            background: 'linear-gradient(135deg, #5b8fc9 0%, #3a6ea8 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.2rem',
-            fontWeight: '600',
-            flexShrink: 0
-        },
-        userDetails: {
-            flex: 1,
-            minWidth: 0
-        },
-        userName: {
-            fontSize: '0.875rem',
+            fontSize: '1rem',
             fontWeight: '600',
             color: '#fff',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
+            flexShrink: 0,
+            border: '2px solid rgba(255,255,255,0.25)',
+        },
+        userDetails: { flex: 1, minWidth: 0 },
+        userName: {
+            fontSize: '0.8rem', fontWeight: '600', color: '#fff',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         },
         userRole: {
-            fontSize: '0.75rem',
-            color: '#94a3b8',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
+            fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         },
         sidebarNav: {
             listStyle: 'none',
-            padding: '1rem 0',
+            padding: '0.75rem 0.5rem',
             margin: 0,
             flex: 1,
-            overflowY: 'auto'
+            overflowY: 'auto',
         },
-        navItem: {
-            margin: '0.25rem 0'
-        },
+        navItem: { margin: '2px 0' },
         navLink: {
             display: 'flex',
             alignItems: 'center',
-            padding: '0.875rem 1.25rem',
-            color: '#cbd5e1',
+            padding: '0.7rem 0.75rem',
+            color: '#6b87a8',
             textDecoration: 'none',
             transition: 'all 0.2s',
-            gap: '1rem',
-            position: 'relative'
+            gap: '0.85rem',
+            position: 'relative',
+            borderRadius: '9px',
+            fontSize: '0.82rem',
+            fontWeight: '500',
         },
         navLinkActive: {
-            background: 'rgba(59, 130, 246, 0.2)',
-            color: '#3b82f6',
-            borderLeft: '4px solid #3b82f6',
-            paddingLeft: 'calc(1.25rem - 4px)'
+            background: 'linear-gradient(135deg, #1a2e4a 0%, #2c4f7c 100%)',
+            color: '#ffffff',
+            fontWeight: '600',
+            boxShadow: '0 4px 12px rgba(26,46,74,0.18)',
         },
         navIcon: {
-            fontSize: '1.25rem',
-            minWidth: '24px',
-            transition: 'all 0.2s'
+            fontSize: '1.1rem',
+            minWidth: '20px',
+            textAlign: 'center',
+            transition: 'all 0.2s',
         },
         navText: {
             whiteSpace: 'nowrap',
             opacity: isCollapsed ? 0 : 1,
-            width: isCollapsed ? 0 : 'auto',
+            maxWidth: isCollapsed ? 0 : '180px',
             overflow: 'hidden',
-            transition: 'opacity 0.2s'
+            transition: 'opacity 0.2s, max-width 0.3s',
         },
         sidebarFooter: {
-            padding: '1rem',
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)'
+            padding: '0.75rem 0.5rem',
+            borderTop: '1.5px solid #dce8f5',
         },
         logoutButton: {
             width: '100%',
-            padding: '0.75rem 1rem',
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            borderRadius: '8px',
-            color: '#ef4444',
+            padding: '0.65rem 0.75rem',
+            background: '#fef2f2',
+            border: '1.5px solid #fee2e2',
+            borderRadius: '9px',
+            color: '#dc2626',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: isCollapsed ? 'center' : 'flex-start',
             gap: '0.75rem',
-            fontSize: '0.875rem',
+            fontSize: '0.8rem',
             fontWeight: '600',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
         },
         versionText: {
             textAlign: 'center',
-            fontSize: '0.7rem',
-            color: '#64748b',
+            fontSize: '0.62rem',
+            color: '#6b87a8',
             marginTop: '0.5rem',
             opacity: isCollapsed ? 0 : 1,
-            height: isCollapsed ? 0 : 'auto',
+            maxHeight: isCollapsed ? 0 : '18px',
             overflow: 'hidden',
-            transition: 'all 0.2s'
-        }
+            transition: 'all 0.2s',
+        },
     };
 
     return (
         <>
-            {/* Agregar Bootstrap Icons */}
-            <link 
-                rel="stylesheet" 
+            <link
+                rel="stylesheet"
                 href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
             />
 
-            <aside style={styles.sidebar}>
-                {/* Header con Logo y Toggle */}
+            {/* OVERLAY móvil */}
+            {mobileOpen && (
+                <div
+                    onClick={() => setMobileOpen(false)}
+                    style={{
+                        position: 'fixed', inset: 0,
+                        background: 'rgba(26,46,74,0.45)',
+                        zIndex: 999,
+                        backdropFilter: 'blur(2px)',
+                    }}
+                />
+            )}
+
+            {/* BARRA SUPERIOR MÓVIL */}
+            <div style={{
+                display: 'none',
+                position: 'fixed', top: 0, left: 0, right: 0,
+                height: '54px',
+                background: 'linear-gradient(160deg, #1a2e4a 0%, #243b5e 100%)',
+                alignItems: 'center',
+                padding: '0 14px',
+                gap: '12px',
+                zIndex: 998,
+                boxShadow: '0 2px 12px rgba(26,46,74,0.2)',
+            }} className="sl-mobile-bar">
+                <button
+                    onClick={() => setMobileOpen(o => !o)}
+                    style={{
+                        background: 'rgba(255,255,255,0.12)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        color: '#fff', width: '36px', height: '36px',
+                        borderRadius: '8px', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '1.2rem', flexShrink: 0,
+                    }}
+                >
+                    <i className={`bi ${mobileOpen ? 'bi-x-lg' : 'bi-list'}`}></i>
+                </button>
+                <img
+                    src="/logo-aurora.png"
+                    alt="Aurora System"
+                    style={{ height: '30px', objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+                />
+            </div>
+
+            <aside style={styles.sidebar} className="sl-sidebar-aside">
                 <div style={styles.sidebarHeader}>
                     <div style={styles.brandContainer}>
                         <div style={styles.brandLogo}>
-                            <i className="bi bi-stars" style={styles.brandIcon}></i>
-                            <span style={styles.brandText}>Aurora System</span>
+                            <img src="/logo-aurora.png" alt="Aurora System" style={styles.logoImg} />
                         </div>
-                        <button 
+                        <button
                             style={styles.btnToggle}
                             onClick={toggleSidebar}
                             title={isCollapsed ? 'Expandir' : 'Contraer'}
-                            onMouseEnter={(e) => {
-                                e.target.style.background = 'rgba(255, 255, 255, 0.2)';
-                                e.target.style.transform = 'scale(1.05)';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.target.style.background = 'rgba(255, 255, 255, 0.1)';
-                                e.target.style.transform = 'scale(1)';
-                            }}
                         >
                             <i className={`bi ${isCollapsed ? 'bi-chevron-right' : 'bi-chevron-left'}`}></i>
                         </button>
                     </div>
 
-                    {/* Info del Usuario */}
                     <div style={styles.userInfo}>
                         <div style={styles.userAvatar}>
                             {user?.username?.charAt(0).toUpperCase() || 'U'}
                         </div>
                         <div style={styles.userDetails}>
-                            <div style={styles.userName}>
-                                {user?.username || 'Usuario'}
-                            </div>
-                            <div style={styles.userRole}>
-                                {user?.role || 'Administrador'}
-                            </div>
+                            <div style={styles.userName}>{user?.username || 'Usuario'}</div>
+                            <div style={styles.userRole}>{user?.role || 'Administrador'}</div>
                         </div>
                     </div>
                 </div>
 
-                {/* Navegación */}
                 <ul style={styles.sidebarNav}>
                     {menuItems.map((item) => {
                         const active = isActive(item.path);
                         return (
                             <li key={item.path} style={styles.navItem}>
-                                <Link 
-                                    to={item.path} 
+                                <Link
+                                    to={item.path}
                                     title={isCollapsed ? item.label : ''}
                                     style={{
                                         ...styles.navLink,
-                                        ...(active ? styles.navLinkActive : {})
+                                        ...(active ? styles.navLinkActive : {}),
                                     }}
+                                    onClick={() => setMobileOpen(false)}
                                     onMouseEnter={(e) => {
                                         if (!active) {
-                                            e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
-                                            e.currentTarget.style.color = '#60a5fa';
-                                            e.currentTarget.style.paddingLeft = '1.5rem';
+                                            e.currentTarget.style.background = '#eaf1f9';
+                                            e.currentTarget.style.color = '#1a2e4a';
                                         }
                                     }}
                                     onMouseLeave={(e) => {
                                         if (!active) {
                                             e.currentTarget.style.background = 'transparent';
-                                            e.currentTarget.style.color = '#cbd5e1';
-                                            e.currentTarget.style.paddingLeft = '1.25rem';
+                                            e.currentTarget.style.color = '#6b87a8';
                                         }
                                     }}
                                 >
-                                    <i 
-                                        className={`bi ${item.icon}`} 
+                                    <i
+                                        className={`bi ${item.icon}`}
                                         style={{
                                             ...styles.navIcon,
-                                            color: active ? '#3b82f6' : 'inherit'
+                                            color: active ? '#ffffff' : '#6b87a8',
                                         }}
                                     ></i>
                                     <span style={styles.navText}>{item.label}</span>
@@ -298,62 +320,43 @@ const BarraLateral = () => {
                     })}
                 </ul>
 
-                {/* Footer con Logout */}
                 <div style={styles.sidebarFooter}>
-                    <button 
+                    <button
                         style={styles.logoutButton}
                         onClick={logout}
                         title="Cerrar Sesión"
                         onMouseEnter={(e) => {
-                            e.target.style.background = 'rgba(239, 68, 68, 0.2)';
-                            e.target.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                            e.currentTarget.style.background = '#fee2e2';
+                            e.currentTarget.style.borderColor = '#fca5a5';
                         }}
                         onMouseLeave={(e) => {
-                            e.target.style.background = 'rgba(239, 68, 68, 0.1)';
-                            e.target.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                            e.currentTarget.style.background = '#fef2f2';
+                            e.currentTarget.style.borderColor = '#fee2e2';
                         }}
                     >
-                        <i className="bi bi-box-arrow-right" style={{ fontSize: '1.1rem' }}></i>
+                        <i className="bi bi-box-arrow-right" style={{ fontSize: '1rem' }}></i>
                         <span style={styles.navText}>Cerrar Sesión</span>
                     </button>
-                    
-                    <div style={styles.versionText}>
-                        v1.0.0
-                    </div>
+                    <div style={styles.versionText}>v1.0.0</div>
                 </div>
             </aside>
 
-            {/* Estilos globales adicionales */}
             <style>{`
-                /* Scrollbar personalizado */
-                .sidebar-nav::-webkit-scrollbar {
-                    width: 6px;
+                .sl-mobile-bar {
+                    display: none;
                 }
-                .sidebar-nav::-webkit-scrollbar-track {
-                    background: rgba(255, 255, 255, 0.05);
-                }
-                .sidebar-nav::-webkit-scrollbar-thumb {
-                    background: rgba(255, 255, 255, 0.2);
-                    border-radius: 3px;
-                }
-                .sidebar-nav::-webkit-scrollbar-thumb:hover {
-                    background: rgba(255, 255, 255, 0.3);
-                }
-
-                /* Ajuste para el contenido principal */
                 .main-content {
                     margin-left: ${isCollapsed ? '70px' : '250px'};
                     transition: margin-left 0.3s ease;
                     min-height: 100vh;
                 }
-
-                /* Responsive */
                 @media (max-width: 768px) {
-                    aside {
-                        transform: ${isCollapsed ? 'translateX(-100%)' : 'translateX(0)'};
+                    .sl-mobile-bar {
+                        display: flex !important;
                     }
                     .main-content {
                         margin-left: 0 !important;
+                        padding-top: 54px !important;
                     }
                 }
             `}</style>
