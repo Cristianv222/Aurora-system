@@ -57,7 +57,7 @@ const PanelRestaurant = () => {
                 if (table.current_order_number) {
                     // ✅ Fetch directo — el detalle siempre trae los items completos
                     const res = await api.get(`/api/restaurant/orders/orders/${table.current_order_number}/`);
-                    items = res.data.items || [];
+                    items = (res.data.items || []).filter(i => !i.is_paid);
                 } else {
                     // Fallback: buscar por número de mesa
                     const today = new Date().toISOString().split('T')[0];
@@ -148,7 +148,7 @@ const PanelRestaurant = () => {
     // === AGRUPAR ITEMS PARA EL MODAL ===
     const getGroupedItems = () => {
         if (!tableOrders || tableOrders.length === 0) return [];
-        const allItems = tableOrders.flatMap(o => o.items || []);
+        const allItems = tableOrders.flatMap(o => (o.items || []).filter(i => !i.is_paid));
         
         const grouped = allItems.reduce((acc, item) => {
             const name = item.product_details?.name || item.product_name || 'Producto';
@@ -430,7 +430,7 @@ const PanelRestaurant = () => {
                                 <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#e2e8f0' }}>Total Pendiente (Sin Pagar)</span>
                                 <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b' }}>
                                     ${tableOrders.reduce((sum, o) => {
-                                        const itemsTotal = (o.items || []).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
+                                        const itemsTotal = (o.items || []).filter(i => !i.is_paid).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
                                         const paid = parseFloat(o.amount_paid || 0);
                                         return sum + (itemsTotal - paid);
                                     }, 0).toFixed(2)}
@@ -481,7 +481,7 @@ const PanelRestaurant = () => {
                                             await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/checkout/`, {
                                                 payment_method: 'cash',
                                                 amount_paid: tableOrders.reduce((sum, o) => {
-                                                    const itemsTotal = (o.items || []).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
+                                                    const itemsTotal = (o.items || []).filter(i => !i.is_paid).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
                                                     const paid = parseFloat(o.amount_paid || 0);
                                                     return sum + (itemsTotal - paid);
                                                 }, 0)
@@ -650,10 +650,50 @@ const PanelRestaurant = () => {
                                                     items: itemsToSplit
                                                 });
                                                 
-                                                // res.data.data contiene la nueva orden generada
-                                                const newOrderTicket = res.data;
-                                                await printerServiceRestaurant.printReceipt(newOrderTicket);
-                                                window.location.reload();
+                                                // Construir payload desde items seleccionados
+                                                const splitPrintItems = itemsToSplit.map(si => {
+                                                    const found = groupedItemsForModal.find(g => g.product_id === si.product_id);
+                                                    const unitPrice = found ? parseFloat(found.line_total || 0) / (found.quantity || 1) : 0;
+                                                    return {
+                                                        name: found ? found.name : si.product_id,
+                                                        quantity: si.quantity,
+                                                        price: unitPrice,
+                                                        total: unitPrice * si.quantity,
+                                                        note: found ? (found.notes || '') : ''
+                                                    };
+                                                });
+                                                const splitSubtotal = splitPrintItems.reduce((s, i) => s + i.total, 0);
+                                                const splitPayload = {
+                                                    order_number: res.data.order_number || '',
+                                                    table_number: lastOrder.table_number || 'N/A',
+                                                    customer_name: 'CONSUMIDOR FINAL',
+                                                    items: splitPrintItems,
+                                                    subtotal: splitSubtotal,
+                                                    discount: 0,
+                                                    total: splitSubtotal,
+                                                    notes: res.data.notes || '',
+                                                    printed_at: new Date().toISOString()
+                                                };
+                                                await api.post('/api/restaurant/api/hardware/print/order/pos/', splitPayload);
+                                                // Refrescar la orden madre desde la API
+                                                const lastOrderNumber = lastOrder.order_number || lastOrder.id;
+                                                try {
+                                                    const refreshed = await api.get(`/api/restaurant/orders/orders/${lastOrderNumber}/`);
+                                                    const unpaidItems = (refreshed.data.items || []).filter(i => !i.is_paid);
+                                                    if (unpaidItems.length > 0) {
+                                                        setTableOrders([{ items: unpaidItems, order_number: lastOrderNumber }]);
+                                                    } else {
+                                                        // Si no quedan items, cerrar modal y recargar mesas
+                                                        setSelectedOrderModal(null);
+                                                        setTableOrders([]);
+                                                        const tablesRes = await api.get('/api/restaurant/pos/tables/');
+                                                        setTables(tablesRes.data.results || tablesRes.data || []);
+                                                    }
+                                                } catch (_) {
+                                                    window.location.reload();
+                                                }
+                                                setShowSplitItems(false);
+                                                setSplitItemsSelection({});
                                             } catch (e) {
                                                 alert('Error al separar cuenta: ' + (e.response?.data?.error || e.message || e));
                                             }

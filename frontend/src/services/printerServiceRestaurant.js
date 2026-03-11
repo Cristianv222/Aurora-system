@@ -30,6 +30,8 @@ class PrinterServiceRestaurant {
         order_number: orderData.order_number || orderData.id || '',
         table_number: orderData.table_number || '',
         items:        this._normalizeItems(orderData.items || []),
+        subtotal:     parseFloat(orderData.subtotal || 0),
+        total:        parseFloat(orderData.total || 0),
         notes:        orderData.notes || '',
         printed_at:   new Date().toISOString(),
         destination:  destination,

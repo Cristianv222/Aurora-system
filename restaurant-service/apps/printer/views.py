@@ -689,12 +689,28 @@ class PrintOrderPOSView(APIView):
         return super().dispatch(*args, **kwargs)
 
     def post(self, request):
+        import logging; logger2 = logging.getLogger(__name__)
+        logger2.error(f"KITCHEN DEBUG body: {request.data}")
         serializer = PrintOrderSerializer(data=request.data)
         if not serializer.is_valid():
             logger.error(f"Error en validación de PrintOrderSerializer: {serializer.errors}")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
+
+        # FIX: Recalcular subtotal y total desde los items
+        items = data.get('items', [])
+        calculated_subtotal = sum(
+            item.get('quantity', 1) * item.get('price', 0)
+            for item in items
+        )
+        discount = data.get('discount', 0)
+        calculated_total = calculated_subtotal - discount
+        if not data.get('subtotal') or data['subtotal'] == 0:
+            data['subtotal'] = calculated_subtotal
+        if not data.get('total') or data['total'] == 0:
+            data['total'] = calculated_total
+
         username = request.user.username if request.user.is_authenticated else 'system'
 
         # Resolver impresora POS

@@ -299,76 +299,55 @@ class OrderViewSet(viewsets.ModelViewSet):
             return Response({'error': 'No se especificaron items para separar'}, status=status.HTTP_400_BAD_REQUEST)
             
         with transaction.atomic():
-            # 1. Crear nueva orden derivada
-            new_order = Order.objects.create(
-                order_type=order.order_type,
-                table_number=order.table_number,
-                status='completed',  # Se asume pagada de inmediato
-                payment_status='paid',
-                notes=f"Separada de la orden #{order.order_number}"
-            )
-            
-            # Timestamp the completion
-            new_order.confirmed_at = timezone.now()
-            new_order.ready_at = timezone.now()
-            new_order.delivered_at = timezone.now()
-            
-            # 2. Iterar items a separar y deducirlos de la orden madre
+            split_items_for_response = []
+
             for split_req in split_items_data:
                 prod_id = split_req.get('product_id')
                 qty_to_split = int(split_req.get('quantity', 0))
-                
-                if qty_to_split <= 0: continue
-                
-                # Buscar el item en madre
-                madre_items = order.items.filter(product_id=prod_id)
+                if qty_to_split <= 0:
+                    continue
+
+                madre_items = order.items.filter(product_id=prod_id, is_paid=False)
                 for m_item in madre_items:
-                    if qty_to_split <= 0: break
-                    
+                    if qty_to_split <= 0:
+                        break
                     extract_qty = min(m_item.quantity, qty_to_split)
-                    
-                    # Agregar a la nueva orden
-                    new_item = OrderItem.objects.create(
-                        order=new_order,
-                        product=m_item.product,
-                        size=m_item.size,
-                        quantity=extract_qty,
-                        notes=m_item.notes,
-                        unit_price=m_item.unit_price,
-                        line_total=m_item.unit_price * extract_qty
-                    )
-                    
-                    # Copiar extras si los tenía
-                    for extra_rel in m_item.extras.all():
-                        OrderItemExtra.objects.create(
-                            order_item=new_item,
-                            extra=extra_rel.extra,
-                            price=extra_rel.price
-                        )
-                        
-                    # Deducir cantidad de la orden madre
-                    m_item.quantity -= extract_qty
-                    qty_to_split -= extract_qty
-                    
-                    if m_item.quantity == 0:
-                        m_item.delete()
+                    if extract_qty == m_item.quantity:
+                        order.items.filter(id=m_item.id).update(is_paid=True)
+                        m_item.refresh_from_db()
+                        split_items_for_response.append({
+                            'name': m_item.product.name,
+                            'quantity': extract_qty,
+                            'unit_price': float(m_item.unit_price),
+                            'line_total': float(m_item.line_total)
+                        })
                     else:
+                        m_item.quantity -= extract_qty
+                        m_item.line_total = m_item.unit_price * m_item.quantity
                         m_item.save()
-                        
-            # 3. Recalcular totales de ambas
-            new_order.calculate_totals()
-            new_order.amount_paid = new_order.total
-            new_order.save()
-            
+                        paid_item = OrderItem.objects.create(
+                            order=order,
+                            product=m_item.product,
+                            size=m_item.size,
+                            quantity=extract_qty,
+                            notes=m_item.notes,
+                            unit_price=m_item.unit_price,
+                            line_total=m_item.unit_price * extract_qty,
+                            is_paid=True
+                        )
+                        split_items_for_response.append({
+                            'name': paid_item.product.name,
+                            'quantity': extract_qty,
+                            'unit_price': float(paid_item.unit_price),
+                            'line_total': float(paid_item.line_total)
+                        })
+                    qty_to_split -= extract_qty
+
             order.calculate_totals()
-            if order.items.count() == 0:
-                # Si sacaron todo, completamos la orden madre o la cancelamos
+            if not order.items.filter(is_paid=False).exists():
                 order.status = 'completed'
                 order.payment_status = 'paid'
-                # Liberar mesa si aplica
                 from apps.pos.models import Table
-                if hasattr(order, 'table_assignment') and order.table_assignment.exists():
-                    for t in order.table_assignment.all(): t.free()
                 if order.table_number:
                     try:
                         t = Table.objects.get(number=order.table_number)
@@ -377,8 +356,15 @@ class OrderViewSet(viewsets.ModelViewSet):
                         pass
             order.save()
 
-        detail_serializer = OrderDetailSerializer(new_order)
-        return Response(detail_serializer.data, status=status.HTTP_201_CREATED)
+        split_subtotal = sum(i['line_total'] for i in split_items_for_response)
+        return Response({
+            'order_number': f"SPLIT-{order.order_number}",
+            'table_number': order.table_number,
+            'items': split_items_for_response,
+            'subtotal': split_subtotal,
+            'total': split_subtotal,
+            'notes': f"Separada de la orden #{order.order_number}"
+        }, status=status.HTTP_201_CREATED)
     @action(detail=True, methods=['post'])
     def update_status(self, request, order_number=None):
         """

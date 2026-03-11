@@ -603,7 +603,7 @@ const PuntosVenta = () => {
             }
 
             alert('✅ Productos guardados en la mesa.');
-            window.location.href = '/restaurant/panel';
+            window.location.href = '/restaurant';
         } catch (err) {
             console.error('❌ Error al guardar en mesa:', err.response?.data || err.message || err);
             alert('❌ Error al guardar en la mesa: ' + (err.response?.data ? JSON.stringify(err.response.data) : err.message));
@@ -682,24 +682,23 @@ const PuntosVenta = () => {
             }
 
             // 2. PREPARAR DATOS PARA EL TICKET (incluyendo notas)
+            console.log("DEBUG createdOrder:", JSON.stringify(createdOrder));
             const receiptData = {
                 order_number: createdOrder.order_number || createdOrder.id,
-                customer_name: selectedCustomer
-                    ? `${selectedCustomer.first_name} ${selectedCustomer.last_name} `
-                    : 'CONSUMIDOR FINAL',
-                table_number: selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA'),
-                items: cart.map(item => ({
-                    name: item.name,
+                customer_name: createdOrder.customer_name || (selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'CONSUMIDOR FINAL'),
+                table_number: createdOrder.table_number || (selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA')),
+                items: (createdOrder.items || cart).map(item => ({
+                    name: item.product_details?.name || item.product_name || item.name || 'Producto',
                     quantity: item.quantity,
-                    price: parseFloat(item.price),
-                    total: parseFloat(item.price * item.quantity),
-                    note: item.note || '' // Incluir nota en los datos del ticket
+                    price: parseFloat(item.unit_price || item.price || 0),
+                    total: parseFloat(item.line_total || item.subtotal || (item.price * item.quantity) || 0),
+                    note: item.notes || item.note || ''
                 })),
-                subtotal: parseFloat(calculateSubtotal),
-                discount: parseFloat(calculateDiscountAmount),
-                tax: parseFloat(calculateSubtotal * 0.12), // IVA 12%
-                total: parseFloat(calculateTotal),
-                printed_at: new Date().toISOString() // Hora del cliente para el ticket
+                subtotal: parseFloat(createdOrder.subtotal || cart.reduce((s, i) => s + (i.price * i.quantity), 0)),
+                discount: parseFloat(createdOrder.discount_amount || 0),
+                tax: parseFloat(createdOrder.tax_amount || 0),
+                total: parseFloat(createdOrder.total || cart.reduce((s, i) => s + (i.price * i.quantity), 0)),
+                printed_at: new Date().toISOString()
             };
 
             // 3. ENVIAR A IMPRIMIR (esto abre la caja automáticamente)
@@ -781,7 +780,10 @@ const PuntosVenta = () => {
                     quantity: item.quantity,
                     note: item.note || ''
                 })),
-                destination: destination
+                destination: destination,
+                order_number: `COMANDA-${Date.now()}`,
+                subtotal: cart.reduce((s, i) => s + ((i.price || 0) * (i.quantity || 1)), 0),
+                total: cart.reduce((s, i) => s + ((i.price || 0) * (i.quantity || 1)), 0)
             };
 
             await printerServiceRestaurant.printKitchenOrder(orderData, destination.toLowerCase());

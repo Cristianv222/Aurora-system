@@ -194,7 +194,7 @@ class Order(models.Model):
     def calculate_totals(self):
         """Calcula los totales de la orden"""
         # Calcular subtotal de items
-        items_total = sum(item.line_total for item in self.items.all())
+        items_total = sum(item.line_total for item in self.items.filter(is_paid=False))
         self.subtotal = items_total
         
         # Calcular impuestos (ejemplo: 12%)
@@ -322,7 +322,7 @@ class OrderItem(models.Model):
     
     # Notas específicas del item
     notes = models.TextField(blank=True, verbose_name='Notas')
-    
+    is_paid = models.BooleanField(default=False, verbose_name="Ya pagado (separado)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

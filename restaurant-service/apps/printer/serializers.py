@@ -159,8 +159,8 @@ class PrintOrderItemSerializer(serializers.Serializer):
     """Ítem individual dentro de una orden a imprimir"""
     name = serializers.CharField()
     quantity = serializers.IntegerField(min_value=1)
-    price = serializers.FloatField(min_value=0)
-    total = serializers.FloatField(min_value=0)
+    price = serializers.FloatField(min_value=0, required=False, default=0)
+    total = serializers.FloatField(min_value=0, required=False, default=0)
     note = serializers.CharField(required=False, allow_blank=True, default='')
     # product_id es necesario para detectar si el ítem va a cocina
     product_id = serializers.CharField(required=False, allow_blank=True, default='')
@@ -199,16 +199,16 @@ class PrintOrderSerializer(serializers.Serializer):
     El campo printer_id es OPCIONAL. Si no se envía, el sistema
     busca automáticamente la impresora por su rol (pos/kitchen).
     """
-    order_number = serializers.CharField()
+    order_number = serializers.CharField(required=False, default="")
     customer_name = serializers.CharField(default='CONSUMIDOR FINAL')
     table_number = serializers.CharField(default='N/A')
     items = serializers.ListField(
         child=PrintOrderItemSerializer(),
         min_length=1
     )
-    subtotal = serializers.FloatField(min_value=0)
+    subtotal = serializers.FloatField(min_value=0, required=False, default=0)
     discount = serializers.FloatField(default=0, min_value=0)
-    total = serializers.FloatField(min_value=0)
+    total = serializers.FloatField(min_value=0, required=False, default=0)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
     printed_at = serializers.CharField(required=False, allow_blank=True, default='')
 
