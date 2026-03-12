@@ -307,21 +307,40 @@ def agente_registrar(request):
 @api_view(['GET'])
 @permission_classes([AllowAny])
 def agente_trabajos_pendientes(request):
-    """Endpoint para obtener trabajos pendientes"""
+    """Endpoint para obtener trabajos pendientes - con caché para reducir carga"""
     es_sistema = (request.user.is_superuser or request.user.is_staff) if request.user.is_authenticated else True
+    username = request.user.username if request.user.is_authenticated else 'system'
 
+    # ── Caché rápida: si no hay pendientes, evitar hit a BD ──────────────────
+    cache_key = f'pending_jobs_count_{"sys" if es_sistema else username}'
+    cached_count = cache.get(cache_key)
+
+    if cached_count == 0:
+        logger.info(f"📥 Agente {username} consultó trabajos: 0 pendientes [CACHE]")
+        return Response({'es_sistema': es_sistema, 'trabajos': []})
+
+    # ── Solo llega aquí si caché expiró o hay trabajos reales ────────────────
     if es_sistema:
-        trabajos = PrintJob.objects.filter(
+        trabajos_qs = PrintJob.objects.filter(
             status='pending'
         ).select_related('printer').order_by('created_at')[:10]
     else:
-        trabajos = PrintJob.objects.filter(
+        trabajos_qs = PrintJob.objects.filter(
             status='pending',
-            created_by=request.user.username
+            created_by=username
         ).select_related('printer').order_by('created_at')[:10]
 
+    trabajos_list = list(trabajos_qs)
+
+    if not trabajos_list:
+        # Cachear "sin trabajos" por 3 segundos
+        cache.set(cache_key, 0, timeout=3)
+        logger.info(f"📥 Agente {username} consultó trabajos: 0 pendientes [SISTEMA]")
+        return Response({'es_sistema': es_sistema, 'trabajos': []})
+
+    # ── Hay trabajos reales — procesar ───────────────────────────────────────
     trabajos_data = []
-    for trabajo in trabajos:
+    for trabajo in trabajos_list:
         try:
             if not trabajo.printer:
                 logger.warning(f"⚠️ Trabajo {trabajo.id} sin impresora asignada, marcando como fallido")
@@ -329,7 +348,6 @@ def agente_trabajos_pendientes(request):
                 continue
 
             trabajo.mark_as_printing()
-
             comandos_hex = generar_comandos_escpos(trabajo)
 
             trabajos_data.append({
@@ -347,12 +365,7 @@ def agente_trabajos_pendientes(request):
             trabajo.mark_as_failed(f"Error al preparar impresión: {str(e)}")
             continue
 
-    username = request.user.username if request.user.is_authenticated else 'system'
-    logger.info(
-        f"📥 Agente {username} consultó trabajos: "
-        f"{len(trabajos_data)} pendientes [{'SISTEMA' if es_sistema else 'NORMAL'}]"
-    )
-
+    logger.info(f"📥 Agente {username} consultó trabajos: {len(trabajos_data)} pendientes [{'SISTEMA' if es_sistema else 'NORMAL'}]")
     return Response({'es_sistema': es_sistema, 'trabajos': trabajos_data})
 
 
