@@ -17,6 +17,16 @@ const PanelRestaurant = () => {
     const [showSplitItems, setShowSplitItems] = useState(false);
     const [splitItemsSelection, setSplitItemsSelection] = useState({});
 
+    // Estados para pagos y monedas
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+    const [selectedCurrency, setSelectedCurrency] = useState('USD');
+    const [exchangeRate, setExchangeRate] = useState(null);
+    const [loadingRate, setLoadingRate] = useState(false);
+    
+    const [inputCash, setInputCash] = useState('');
+    const [cashGiven, setCashGiven] = useState(null);
+
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 600);
     // isCompact: tablet range (601–1024px) → left column, icons only
     const [isCompact, setIsCompact] = useState(window.innerWidth > 600 && window.innerWidth <= 1024);
@@ -33,6 +43,38 @@ const PanelRestaurant = () => {
             try {
                 const tablesRes = await api.get('/api/restaurant/pos/tables/');
                 setTables(tablesRes.data.results || tablesRes.data || []);
+                
+                // Cargar métodos de pago activos
+                try {
+                    const paymentsRes = await api.get('/api/restaurant/payments/payment-methods/active/');
+                    const methods = paymentsRes.data.results || paymentsRes.data || [];
+                    setPaymentMethods(methods);
+                    if (methods.length > 0) {
+                        const cashMethod = methods.find(m => m.method_type === 'cash');
+                        setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
+                    }
+                } catch (err) {
+                    console.warn('Métodos de pago no disponibles', err);
+                }
+
+                // Cargar tasa de cambio activa
+                try {
+                    setLoadingRate(true);
+                    const ratesRes = await api.get('/api/restaurant/payments/exchange-rates/active/');
+                    const rates = ratesRes.data.results || ratesRes.data || [];
+                    const usdCopRate = rates.find(r => r.from_currency === 'USD' && r.to_currency === 'COP');
+                    if (usdCopRate) {
+                        setExchangeRate(usdCopRate.rate);
+                    } else {
+                        setExchangeRate('4000'); // Fallback manual
+                    }
+                } catch (err) {
+                    console.warn('Tasas de cambio no disponibles', err);
+                    setExchangeRate('4000'); // Fallback manual
+                } finally {
+                    setLoadingRate(false);
+                }
+
             } catch (err) {
                 console.error('Error cargando mesas', err);
             } finally {
@@ -93,6 +135,35 @@ const PanelRestaurant = () => {
             </div>
         );
     }
+
+    const TOUCH_MIN_SIZE = '44px';
+
+    const calculateTotalToPay = () => {
+        return tableOrders.reduce((sum, o) => {
+            const itemsTotal = (o.items || []).filter(i => !i.is_paid).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
+            const paid = parseFloat(o.amount_paid || 0);
+            return sum + (itemsTotal - paid);
+        }, 0);
+    };
+
+    const calculateTotalInCurrency = () => {
+        const totalUSD = calculateTotalToPay();
+        if (selectedCurrency === 'COP' && exchangeRate) {
+            return totalUSD * parseFloat(exchangeRate);
+        }
+        return totalUSD;
+    };
+
+    const formatCurrency = (amount, currency = selectedCurrency) => {
+        if (amount === null || amount === undefined || isNaN(amount)) return `$0.00`;
+        if (currency === 'COP') {
+            return `$${Math.round(amount).toLocaleString('es-CO')} COP`;
+        }
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(amount);
+    };
 
     // Estilo base de los botones
     const floatingBtnStyle = {
@@ -304,8 +375,8 @@ const PanelRestaurant = () => {
                     <div style={{
                         backgroundColor: '#1e293b',
                         borderRadius: '16px',
-                        width: '100%',
-                        maxWidth: '500px',
+                        width: '95%',
+                        maxWidth: '960px',
                         overflow: 'hidden',
                         boxShadow: '0 25px 60px rgba(0,0,0,0.65)',
                         display: 'flex',
@@ -334,8 +405,12 @@ const PanelRestaurant = () => {
                                 &times;
                             </button>
                         </div>
-                                      {/* Scrollable body */}
-                        <div style={{ overflowY: 'auto', flex: 1 }}>
+
+                        {/* Body Container Split */}
+                        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, overflow: 'hidden' }}>
+                            {/* Lado Izquierdo: Lista de Productos */}
+                            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', borderRight: isMobile ? 'none' : '1px solid #334155' }}>
+
 
                             {tableOrders.length === 0 && (
                                 <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
@@ -418,10 +493,13 @@ const PanelRestaurant = () => {
                             </div>
                         </div>
 
-                        {/* Footer */}
+                        {/* Lado Derecho: Pagos y Footer */}
                         <div style={{
-                            backgroundColor: '#0f172a', borderTop: '1px solid #334155',
-                            padding: '1.25rem', flexShrink: 0,
+                            width: isMobile ? '100%' : '420px',
+                            backgroundColor: '#0f172a',
+                            padding: '1.25rem',
+                            flexShrink: 0,
+                            overflowY: 'auto'
                         }}>
                             <div style={{
                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -429,12 +507,164 @@ const PanelRestaurant = () => {
                             }}>
                                 <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#e2e8f0' }}>Total Pendiente (Sin Pagar)</span>
                                 <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b' }}>
-                                    ${tableOrders.reduce((sum, o) => {
-                                        const itemsTotal = (o.items || []).filter(i => !i.is_paid).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
-                                        const paid = parseFloat(o.amount_paid || 0);
-                                        return sum + (itemsTotal - paid);
-                                    }, 0).toFixed(2)}
+                                    {formatCurrency(calculateTotalToPay(), 'USD')}
                                 </span>
+                            </div>
+
+                            {/* SECCIÓN: MÉTODO DE PAGO */}
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: '0.5rem',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '600',
+                                    color: '#cbd5e1'
+                                }}>
+                                    💳 Método de Pago
+                                </label>
+                                <select
+                                    value={selectedPaymentMethod}
+                                    onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        borderRadius: '8px',
+                                        border: '1px solid #334155',
+                                        fontSize: '0.9rem',
+                                        backgroundColor: '#1e293b',
+                                        color: '#f8fafc',
+                                        appearance: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {paymentMethods.map(method => (
+                                        <option key={method.id} value={method.id}>
+                                            {method.name} 
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <label style={{
+                                display: 'block',
+                                marginBottom: '0.5rem',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                color: '#cbd5e1'
+                            }}>
+                                💰 Tasa de Cambio
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <button
+                                    onClick={() => {
+                                        setSelectedCurrency('USD');
+                                        setCashGiven(null);
+                                        setInputCash('');
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '0.75rem',
+                                        backgroundColor: selectedCurrency === 'USD' ? '#3b82f6' : '#1e293b',
+                                        color: selectedCurrency === 'USD' ? '#ffffff' : '#94a3b8',
+                                        border: `1px solid ${selectedCurrency === 'USD' ? '#3b82f6' : '#334155'} `,
+                                        borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
+                                    }}
+                                >
+                                    💵 Dólares (USD)
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        setSelectedCurrency('COP');
+                                        setCashGiven(null);
+                                        setInputCash('');
+                                    }}
+                                    style={{
+                                        flex: 1, padding: '0.75rem',
+                                        backgroundColor: selectedCurrency === 'COP' ? '#10b981' : '#1e293b',
+                                        color: selectedCurrency === 'COP' ? '#ffffff' : '#94a3b8',
+                                        border: `1px solid ${selectedCurrency === 'COP' ? '#10b981' : '#334155'} `,
+                                        borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
+                                    }}
+                                >
+                                    🇨🇴 Pesos (COP)
+                                </button>
+                            </div>
+
+                            {selectedCurrency === 'COP' && (
+                                <div style={{
+                                    padding: '0.75rem', marginBottom: '1rem',
+                                    backgroundColor: '#0f172a', borderRadius: '6px', border: '1px solid #10b981'
+                                }}>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#10b981' }}>
+                                        Tasa de Cambio Actual (1 USD = ? COP)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={loadingRate ? 'Cargando...' : (exchangeRate ? `${parseFloat(exchangeRate).toLocaleString('es-CO')} COP` : '')}
+                                        readOnly
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #10b981', fontSize: '0.9rem', color: '#34d399', backgroundColor: '#1e293b', cursor: 'not-allowed' }}
+                                    />
+                                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
+                                        Pendiente en COP: <strong style={{ color: '#34d399' }}>{formatCurrency(calculateTotalInCurrency(), 'COP')}</strong>
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* SECCIÓN: CALCULADORA DE VUELTO */}
+                            <div style={{
+                                marginBottom: '1.5rem', padding: '1rem',
+                                backgroundColor: '#1e293b', borderRadius: '8px', border: '1px solid #334155'
+                            }}>
+                                <h4 style={{ margin: '0 0 0.5rem 0', color: '#e2e8f0', fontSize: '0.95rem' }}>🧮 Calculadora de Vuelto</h4>
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <input
+                                            type="number" value={inputCash}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                setInputCash(val);
+                                                setCashGiven(val ? parseFloat(val) : null);
+                                            }}
+                                            placeholder="Ingreso manual..."
+                                            style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#fff', fontSize: '0.9rem' }}
+                                        />
+                                        <button onClick={() => { setCashGiven(null); setInputCash(''); }}
+                                            style={{ padding: '0.5rem 1rem', backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                                            Borrar
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+                                    {(selectedCurrency === 'COP' ? [2000, 5000, 10000, 20000, 50000, 100000] : [1, 5, 10, 20, 50, 100]).map(bill => (
+                                        <button key={bill}
+                                            onClick={() => {
+                                                const newVal = (cashGiven || 0) + bill;
+                                                setCashGiven(newVal);
+                                                setInputCash(newVal.toString());
+                                            }}
+                                            style={{ padding: '0.5rem', backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid #475569', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', minHeight: TOUCH_MIN_SIZE }}>
+                                            + {selectedCurrency === 'COP' ? formatCurrency(bill, 'COP') : `$${bill}`}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {cashGiven !== null && (
+                                    <div style={{ padding: '0.75rem', backgroundColor: '#0f172a', borderRadius: '6px', border: '1px solid #475569', textAlign: 'center' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                            <span style={{ color: '#94a3b8' }}>Recibido:</span>
+                                            <span style={{ fontWeight: 'bold', color: '#818cf8' }}>{formatCurrency(cashGiven, selectedCurrency)}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #475569', fontSize: '1.2rem', fontWeight: '800' }}>
+                                            <span style={{ color: '#cbd5e1' }}>VUELTO:</span>
+                                            <div style={{ textAlign: 'right' }}>
+                                                <div style={{ color: (cashGiven - calculateTotalInCurrency()) < 0 ? '#ef4444' : '#10b981' }}>
+                                                    {formatCurrency(cashGiven - calculateTotalInCurrency(), selectedCurrency)}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
@@ -477,14 +707,11 @@ const PanelRestaurant = () => {
                                             const lastOrder = tableOrders[tableOrders.length - 1];
                                             if (!lastOrder) return;
                                             
-                                            // 1. Cobrar la cuenta (default efectivo para cobro rápido)
+                                            // 1. Cobrar la cuenta utilizando el método seleccionado
                                             await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/checkout/`, {
-                                                payment_method: 'cash',
-                                                amount_paid: tableOrders.reduce((sum, o) => {
-                                                    const itemsTotal = (o.items || []).filter(i => !i.is_paid).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
-                                                    const paid = parseFloat(o.amount_paid || 0);
-                                                    return sum + (itemsTotal - paid);
-                                                }, 0)
+                                                payment_method: selectedPaymentMethod,
+                                                amount_paid: cashGiven ? cashGiven : calculateTotalInCurrency(),
+                                                currency_code: selectedCurrency
                                             });
 
                                             // 2. Imprimir
@@ -533,6 +760,8 @@ const PanelRestaurant = () => {
                                     <i className="bi bi-printer"></i> Solo Imp.
                                 </button>
                             </div>
+                        </div>
+                        {/* Cierre Body Container Split */}
                         </div>
                     </div>
 
@@ -674,7 +903,7 @@ const PanelRestaurant = () => {
                                                     notes: res.data.notes || '',
                                                     printed_at: new Date().toISOString()
                                                 };
-                                                await api.post('/api/restaurant/api/hardware/print/order/pos/', splitPayload);
+                                                await api.post('/api/restaurant/hardware/print/order/pos/', splitPayload);
                                                 // Refrescar la orden madre desde la API
                                                 const lastOrderNumber = lastOrder.order_number || lastOrder.id;
                                                 try {

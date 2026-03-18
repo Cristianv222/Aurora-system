@@ -2,7 +2,7 @@
 import api from './api';
 
 // Base URL del módulo de impresión en el backend
-const PRINTER_API_URL = '/api/restaurant/api/hardware';
+const PRINTER_API_URL = '/api/restaurant/hardware';
 
 class PrinterServiceRestaurant {
 

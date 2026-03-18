@@ -129,7 +129,7 @@ const emptyForm = {
 // ─── Main Component ─────────────────────────────────────────────────────────
 const Impresoras = () => {
   const navigate = useNavigate();
-  const API = '/api/restaurant/api/hardware';
+  const API = '/api/restaurant/hardware';
 
   // Tabs
   const [tab, setTab] = useState('printers'); // printers | jobs | settings | status

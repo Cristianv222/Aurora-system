@@ -78,7 +78,9 @@ const PuntosVenta = () => {
 
     const [showReviewModal, setShowReviewModal] = useState(false);
 
-    // 3.5 ESTADO DE CALCULADORA DE VUELTO Y MONEDA
+    // 3.5 ESTADO DE CALCULADORA DE VUELTO, MONEDA Y MÉTODOS DE PAGO
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
     const [cashGiven, setCashGiven] = useState(null);
     const [inputCash, setInputCash] = useState('');
     const [selectedCurrency, setSelectedCurrency] = useState('USD');
@@ -174,6 +176,40 @@ const PuntosVenta = () => {
                 if (isMounted) {
                     setTables([]);
                 }
+            }
+
+            // Cargar métodos de pago activos
+            try {
+                const paymentsRes = await api.get('/api/restaurant/payments/payment-methods/active/');
+                if (!isMounted) return;
+                const methods = paymentsRes.data.results || paymentsRes.data || [];
+                setPaymentMethods(methods);
+                if (methods.length > 0) {
+                    // Seleccionar efectivo ('cash') por defecto si existe, o el primero
+                    const cashMethod = methods.find(m => m.method_type === 'cash');
+                    setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
+                }
+            } catch (err) {
+                console.warn('Métodos de pago no disponibles', err);
+            }
+
+            // Cargar tasa de cambio activa
+            try {
+                setLoadingRate(true);
+                const ratesRes = await api.get('/api/restaurant/payments/exchange-rates/active/');
+                if (!isMounted) return;
+                const rates = ratesRes.data.results || ratesRes.data || [];
+                const usdCopRate = rates.find(r => r.from_currency === 'USD' && r.to_currency === 'COP');
+                if (usdCopRate) {
+                    setExchangeRate(usdCopRate.rate);
+                } else {
+                    setExchangeRate('4000'); // Fallback manual
+                }
+            } catch (err) {
+                console.warn('Tasas de cambio no disponibles', err);
+                if (isMounted) setExchangeRate('4000'); // Fallback manual
+            } finally {
+                if (isMounted) setLoadingRate(false);
             }
 
             if (isMounted) {
@@ -652,11 +688,14 @@ const PuntosVenta = () => {
             orderNotes = `Moneda: Pesos Colombianos(Tasa: 1 USD = ${rate} COP, Total COP: ${formatCurrency(calculateTotalInCurrency, 'COP')}, Equivalente USD: ${formatCurrency(calculateTotal, 'USD')})`;
         }
 
-        // Modificado para incluir notas en los items
+        // Modificado para incluir notas en los items y detalles del pago
         const orderPayload = {
             order_type: orderType,
             table_number: tableNumber,
             notes: orderNotes, // Nueva nota general
+            payment_method_id: selectedPaymentMethod,
+            currency_code: selectedCurrency,
+            amount_paid: cashGiven || calculateTotalInCurrency,
             items: cart.map(item => ({
                 product_id: item.product_id,
                 quantity: item.quantity,
@@ -1194,6 +1233,39 @@ const PuntosVenta = () => {
                 borderRadius: '8px',
                 border: '2px solid #86efac'
             }}>
+                {/* SECCIÓN: MÉTODO DE PAGO */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                    <label style={{
+                        display: 'block',
+                        marginBottom: '0.5rem',
+                        fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem',
+                        fontWeight: '600',
+                        color: '#374151'
+                    }}>
+                        💳 Método de Pago
+                    </label>
+                    <select
+                        value={selectedPaymentMethod}
+                        onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                        style={{
+                            width: '100%',
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            border: '2px solid #d1d5db',
+                            fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem',
+                            backgroundColor: '#f9fafb',
+                            appearance: 'none',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        {paymentMethods.map(method => (
+                            <option key={method.id} value={method.id}>
+                                {method.name} 
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
                 <h4 style={{
                     margin: '0 0 0.75rem 0',
                     color: '#166534',

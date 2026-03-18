@@ -944,8 +944,30 @@ class DailySummary(models.Model):
             total=models.Sum('tip_amount')
         )['total'] or Decimal('0')
         
-        # ============ CONSULTAR PAGOS DEL DÍA Y TURNOS (Código omitido) ============
+        # ============ CONSULTAR PAGOS DEL DÍA Y TURNOS ============
+        payments = Payment.objects.filter(
+            created_at__date=date,
+            status='completed'
+        )
         
+        summary.cash_sales = payments.filter(
+            payment_method__method_type='cash'
+        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        
+        summary.card_sales = payments.filter(
+            payment_method__method_type__in=['credit_card', 'debit_card']
+        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        
+        summary.other_sales = payments.exclude(
+            payment_method__method_type__in=['cash', 'credit_card', 'debit_card']
+        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        
+        # ============ TURNOS ============
+        from apps.pos.models import Shift
+        shifts = Shift.objects.filter(opened_at__date=date)
+        summary.total_shifts = shifts.count()
+        summary.closed_shifts = shifts.filter(status='closed').count()
+
         # ============ CALCULAR PROMEDIOS ============
         if summary.total_orders > 0:
             summary.average_order_value = summary.total_sales / summary.total_orders
