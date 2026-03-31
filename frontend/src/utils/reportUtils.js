@@ -162,22 +162,88 @@ export const generateDetailedPDF = (report, reportType, dateRangeStr) => {
         margin: { left: MARGIN, right: MARGIN },
     });
 
-    y = doc.lastAutoTable.finalY + 20;
+    y = doc.lastAutoTable.finalY + 15;
 
-    // --- 4. Total Final ---
+    // --- 4. Desglose de Pagos ---
+    const cashSales    = report.summary?.cash_sales     ?? report.cash_sales     ?? 0;
+    const cashCount    = report.summary?.cash_count     ?? report.cash_count     ?? 0;
+    const transferSales= report.summary?.transfer_sales ?? report.transfer_sales ?? 0;
+    const transferCount= report.summary?.transfer_count ?? report.transfer_count ?? 0;
+    const cardSales    = report.summary?.card_sales     ?? report.card_sales     ?? 0;
+    const copSales     = report.summary?.cop_sales      ?? report.cop_sales      ?? 0;
+    const copCount     = report.summary?.cop_count      ?? report.cop_count      ?? 0;
+    const otherSales   = report.summary?.other_sales    ?? report.other_sales    ?? 0;
+
+    const hasPaymentData = cashSales || transferSales || cardSales || copSales || otherSales;
+
+    if (hasPaymentData) {
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('Desglose de Pagos', MARGIN, y);
+        y += 5;
+
+        const paymentRows = [];
+        if (cashSales > 0 || cashCount > 0)
+            paymentRows.push(['Efectivo (USD)', `${cashCount} pago(s)`, `$${parseFloat(cashSales).toFixed(2)}`]);
+        if (transferSales > 0 || transferCount > 0)
+            paymentRows.push(['Transferencia', `${transferCount} pago(s)`, `$${parseFloat(transferSales).toFixed(2)}`]);
+        if (cardSales > 0)
+            paymentRows.push(['Tarjetas (TDD/TDC)', '—', `$${parseFloat(cardSales).toFixed(2)}`]);
+        if (copSales > 0 || copCount > 0)
+            paymentRows.push(['Pesos (COP)', `${copCount} pago(s)`, `$${Math.round(parseFloat(copSales)).toLocaleString('es-CO')} COP`]);
+        if (otherSales > 0)
+            paymentRows.push(['Otros métodos', '—', `$${parseFloat(otherSales).toFixed(2)}`]);
+
+        if (paymentRows.length === 0)
+            paymentRows.push(['Sin pagos registrados', '—', '—']);
+
+        doc.autoTable({
+            startY: y,
+            head: [['Método de Pago', 'Transacciones', 'Monto']],
+            body: paymentRows,
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: { bottom: 0.1 } },
+            headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: { bottom: 1 }, lineColor: [0, 0, 0] },
+            columnStyles: {
+                0: { cellWidth: 'auto' },
+                1: { cellWidth: 40, halign: 'center' },
+                2: { cellWidth: 45, halign: 'right' }
+            },
+            margin: { left: MARGIN, right: MARGIN },
+        });
+
+        y = doc.lastAutoTable.finalY + 15;
+    }
+
+    // --- 5. Total Final ---
     doc.setFontSize(16);
     doc.setFont(undefined, 'bold');
 
-    // Fix: total_sales puede estar en 'summary' (shift report) o en raíz (daily report)
-    const totalSalesVal = report.summary?.total_sales !== undefined
-        ? report.summary.total_sales
-        : (report.total_sales || 0);
+    // Total USD = suma de pagos NO-COP (efectivo + transferencia + tarjeta + otros)
+    const totalUSD = parseFloat(cashSales || 0) + parseFloat(transferSales || 0) +
+                     parseFloat(cardSales || 0) + parseFloat(otherSales || 0);
 
-    const totalText = `Total: ${formatCurrency(totalSalesVal).replace('$', '')}`; // Quitar símbolo si la imagen no lo tiene, o dejarlo. Imagen: "Total: 1.620,20" (formato europeo/latino).
-    // Nuestra formatCurrency usa $ y formato inglés/EC (.,). Ajustamos si es necesario.
-    // El usuario pidió "como en la foto".
+    // Total COP en pesos
+    const totalCOPVal = parseFloat(copSales || 0);
 
-    doc.text(totalText, MARGIN + 10, y);
+    // Fallback: si no hay pagos registrados, usar el total de las ordenes
+    const fallbackTotal = parseFloat(
+        report.summary?.total_sales ?? report.total_sales ?? 0
+    );
+    const displayTotalUSD = (totalUSD === 0 && totalCOPVal === 0 && fallbackTotal > 0)
+        ? fallbackTotal
+        : totalUSD;
+
+    if (totalCOPVal > 0) {
+        // Mostrar dos totales separados
+        doc.text(`Total USD: $${displayTotalUSD.toFixed(2)}`, MARGIN + 10, y);
+        y += 8;
+        doc.setFontSize(13);
+        doc.text(`Total COP: $${Math.round(totalCOPVal).toLocaleString('es-CO')} COP  (aprox. $${(totalCOPVal / 4000).toFixed(2)} USD)`, MARGIN + 10, y);
+    } else {
+        // Solo USD (o fallback de ordenes si no hay pagos)
+        doc.text(`Total: $${displayTotalUSD.toFixed(2)}`, MARGIN + 10, y);
+    }
 
     const reportFileName = report.is_shift_report && report.shift_info
         ? `Reporte_Turno_${report.shift_info.number}.pdf`

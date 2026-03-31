@@ -988,6 +988,70 @@ const Reportes = () => {
         );
     };
 
+    // Renderizar métricas de pago (NUEVA FUNCIÓN)
+    const renderPaymentMetrics = () => {
+        if (!currentReport) return null;
+
+        const metrics = [
+            {
+                title: 'Efectivo',
+                value: formatCurrency(currentReport.cash_sales || 0),
+                color: '#10b981', // Verde
+                icon: 'payments',
+                description: currentReport.cash_count ? `${currentReport.cash_count} pagos recibidos` : 'Transacciones en efectivo'
+            },
+            {
+                title: 'Transferencia',
+                value: formatCurrency(currentReport.transfer_sales || 0),
+                color: '#3b82f6', // Azul
+                icon: 'account_balance',
+                description: currentReport.transfer_count ? `${currentReport.transfer_count} pagos recibidos` : 'Transacciones bancarias'
+            },
+            {
+                title: 'Tarjetas (TDD/TDC)',
+                value: formatCurrency(currentReport.card_sales || 0),
+                color: '#f59e0b', // Amarillo
+                icon: 'credit_card',
+                description: 'Pagos con terminal'
+            },
+            {
+                title: 'Pesos (COP)',
+                value: `$${(currentReport.cop_sales || 0).toLocaleString('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0})} COP`,
+                color: '#8b5cf6', // Morado
+                icon: 'public',
+                description: currentReport.cop_count ? `${currentReport.cop_count} pagos recibidos` : 'Pagos moneda extranjera'
+            },
+            {
+                title: 'Otras Formas',
+                value: formatCurrency(currentReport.other_sales || 0),
+                color: '#6b7280', // Gris
+                icon: 'more_horiz',
+                description: 'Otros métodos de pago'
+            }
+        ];
+
+        return (
+            <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                {metrics.map((metric, index) => (
+                    <div key={`pay-${index}`} className="metric-card">
+                        <div className="metric-header">
+                            <span className="material-icons" style={{ color: metric.color }}>{metric.icon}</span>
+                            <p className="metric-title" style={{ fontSize: '0.9rem' }}>{metric.title}</p>
+                        </div>
+                        <h3 className="metric-value" style={{ color: metric.color, fontSize: '1.25rem' }}>
+                            {metric.value}
+                        </h3>
+                        {metric.description && (
+                            <p className="metric-description">
+                                {metric.description}
+                            </p>
+                        )}
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     // Renderizar gráfico de ventas por hora
     const renderSalesByHourChart = () => {
         if (!currentReport?.sales_by_hour || !Array.isArray(currentReport.sales_by_hour) || currentReport.sales_by_hour.length === 0) {
@@ -1466,6 +1530,10 @@ const Reportes = () => {
                             <h3 className="section-title">Métricas de Rendimiento</h3>
                             {renderMetrics()}
 
+                            {/* Métricas de Pago (NUEVO) */}
+                            <h3 className="section-title" style={{ marginTop: '30px' }}>Desglose de Pagos</h3>
+                            {renderPaymentMetrics()}
+
                             {/* ELIMINADO: Detalle de Órdenes (Web) */}
 
                             {/* Gráficos Restantes (Ventas por Hora y Top Productos) */}
@@ -1570,6 +1638,12 @@ const Reportes = () => {
                                         ) : (
                                             <p style={{ color: '#666', fontStyle: 'italic' }}>No hay turnos registrados para este día.</p>
                                         )}
+                                    </div>
+
+                                    {/* Desglose de Pagos Modal */}
+                                    <div style={{ marginTop: '20px' }}>
+                                        <h4 className="section-title detail-section">Desglose de Pagos</h4>
+                                        {renderPaymentMetrics()}
                                     </div>
 
                                     <div style={{ marginTop: '20px' }}>

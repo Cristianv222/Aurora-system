@@ -73,18 +73,24 @@ class ShiftSerializer(serializers.ModelSerializer):
         if obj.status == 'closed':
             return obj.total_sales
         
-        # Si está abierto, calculamos al vuelo
+        # Si está abierto, calculamos al vuelo basado en PAGOS (para que cuadre con el desglose)
         from django.utils import timezone
         from django.db.models import Sum
-        from apps.orders.models import Order
+        from apps.payments.models import Payment
         
-        # Calcular ventas desde la apertura hasta ahora, usando Órdenes como el reporte diario
-        total = Order.objects.filter(
+        payments = Payment.objects.filter(
             created_at__gte=obj.opened_at,
-            status__in=['delivered', 'completed']
-        ).aggregate(sum=Sum('total'))['sum'] or 0
+            status='completed'
+        )
         
-        return total
+        # Sumar USD y convertir COP a USD (4000)
+        usd_payments = payments.exclude(currency__code='COP').aggregate(sum=Sum('amount'))['sum'] or 0
+        cop_payments = payments.filter(currency__code='COP').aggregate(sum=Sum('amount'))['sum'] or 0
+        
+        # COP_RATE a 4000 para consistencia con el frontend y DailySummary
+        total = float(usd_payments) + (float(cop_payments) / 4000.0)
+        
+        return round(total, 2)
 
     def get_duration_hours(self, obj):
         """Duración del turno en horas"""
@@ -465,6 +471,13 @@ class DailySummarySerializer(serializers.ModelSerializer):
     average_order_value = serializers.FloatField(read_only=True)
     average_items_per_order = serializers.FloatField(read_only=True)
     
+    # Nuevos campos de métricas de pago
+    cash_count = serializers.IntegerField(read_only=True)
+    transfer_sales = serializers.FloatField(read_only=True)
+    transfer_count = serializers.IntegerField(read_only=True)
+    cop_sales = serializers.FloatField(read_only=True)
+    cop_count = serializers.IntegerField(read_only=True)
+    
     # Campo temporal para adjuntar la lista de órdenes detalladas para el reporte
     orders_detail = serializers.ListField(
         child=serializers.DictField(), 
@@ -490,8 +503,13 @@ class DailySummarySerializer(serializers.ModelSerializer):
             'total_customers',
             'total_items_sold',
             'cash_sales',
+            'cash_count',
             'card_sales',
+            'transfer_sales',
+            'transfer_count',
             'other_sales',
+            'cop_sales',
+            'cop_count',
             'cash_percentage',
             'card_percentage',
             'dine_in_sales',

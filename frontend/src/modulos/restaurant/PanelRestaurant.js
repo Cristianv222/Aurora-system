@@ -341,27 +341,7 @@ const PanelRestaurant = () => {
                     </button>
                 ))}
 
-                {/* Separador antes del botón verde */}
-                {!isMobile && (
-                    <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.2)', margin: '2px 0' }}></div>
-                )}
 
-                {/* Caja Libre (verde) */}
-                <button
-                    className={isCompact ? 'nav-icon-btn' : ''}
-                    data-tooltip="Caja Libre / Llevar"
-                    style={{
-                        ...floatingBtnStyle,
-                        backgroundColor: 'rgba(16, 185, 129, 0.9)',
-                        border: '1px solid rgba(16, 185, 129, 1)'
-                    }}
-                    onClick={() => navigate('/restaurant/pos')}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(5, 150, 105, 1)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.9)'}
-                >
-                    <i className="bi bi-shop" style={{ fontSize: isCompact ? '1.25rem' : isMobile ? '1rem' : '1.1rem' }}></i>
-                    {!isCompact && (isMobile ? 'Caja / Llevar' : 'Caja Libre / Llevar')}
-                </button>
             </div>
 
             {/* Modal de resumen de mesa ocupada - TODAS LAS ORDENES DEL DIA */}

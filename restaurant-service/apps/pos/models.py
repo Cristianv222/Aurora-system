@@ -215,31 +215,41 @@ class Shift(models.Model):
             status__in=['delivered', 'completed']
         )
         
-        total_calculated = orders.aggregate(sum=Sum('total'))['sum'] or 0
-        self.total_sales = total_calculated
+        COP_RATE = Decimal('4000')
         
-        # Para compatibilidad, si se necesita desglose cash/card, se puede mantener la consulta de payments
-        # pero para el total general, usamos Order para consistencia.     
         payments = Payment.objects.filter(
             created_at__gte=self.opened_at,
             created_at__lte=close_time,
             status='completed'
         )
 
-        self.total_cash_sales = payments.filter(
-            payment_method__method_type='cash'
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        # Totales por método (excluyendo COP del efectivo regular)
+        cash_payments = payments.filter(payment_method__method_type='cash').exclude(currency__code='COP')
+        self.total_cash_sales = cash_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         
         self.total_card_sales = payments.filter(
             payment_method__method_type__in=['credit_card', 'debit_card']
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        transfer_payments = payments.filter(payment_method__method_type__icontains='transfer')
+        total_transfer_sales = transfer_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         
         self.total_other_sales = payments.exclude(
-            payment_method__method_type__in=['cash', 'credit_card', 'debit_card']
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
-        
-        # self.total_sales = self.total_cash_sales + self.total_card_sales + self.total_other_sales
-        # MANTENER el total calculado por Órdenes
+            payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        cop_payments = payments.filter(currency__code='COP')
+        total_cop_sales = cop_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        # Total final en USD (incluyendo transferencia y conversión COP)
+        total_from_payments = (
+            self.total_cash_sales + 
+            self.total_card_sales + 
+            total_transfer_sales + 
+            self.total_other_sales + 
+            (total_cop_sales / COP_RATE)
+        )
+        self.total_sales = total_from_payments.quantize(Decimal('0.01'))
         
         self.total_transactions = orders.count()
         
@@ -845,8 +855,13 @@ class DailySummary(models.Model):
     
     # ============ POR MÉTODO DE PAGO ============
     cash_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas en Efectivo')
+    cash_count = models.PositiveIntegerField(default=0, verbose_name='Pagos en Efectivo')
     card_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas con Tarjeta')
+    transfer_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas por Transferencia')
+    transfer_count = models.PositiveIntegerField(default=0, verbose_name='Pagos por Transferencia')
     other_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Otras Formas de Pago')
+    cop_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas en COP')
+    cop_count = models.PositiveIntegerField(default=0, verbose_name='Pagos en COP')
     
     # ============ POR TIPO DE ORDEN ============
     dine_in_sales = models.DecimalField(max_digits=12, decimal_places=2, default=0, verbose_name='Ventas Dine-In')
@@ -903,6 +918,10 @@ class DailySummary(models.Model):
             defaults={'generated_by': generated_by}
         )
         
+        # EARLY EXIT: Evitar golpear la BD y sobrecargar RAM si este día ya fue cerrado matemáticamente.
+        if summary.is_closed and not created:
+            return summary
+        
         # ============ CONSULTAR ÓRDENES DEL DÍA ============
         orders = Order.objects.filter(
             created_at__date=date,
@@ -912,14 +931,13 @@ class DailySummary(models.Model):
         summary.total_orders = orders.count()
         summary.total_customers = orders.values('customer').distinct().count()
         summary.total_sales = orders.aggregate(
-            total=models.Sum('total')
+            total=Sum('total')
         )['total'] or Decimal('0')
         
-        # Calcular total de productos vendidos
-        total_items = 0
-        for order in orders:
-            # Corregido: Sumar la cantidad de items en lugar de contarlos
-            total_items += sum(item.quantity for item in order.items.all()) 
+        # Calcular total de productos vendidos directo en base de datos (evita RAM blowout)
+        total_items = OrderItem.objects.filter(
+            order__in=orders
+        ).aggregate(total=Sum('quantity'))['total'] or 0
         summary.total_items_sold = total_items
         
         # ============ POR TIPO DE ORDEN ============
@@ -950,17 +968,40 @@ class DailySummary(models.Model):
             status='completed'
         )
         
-        summary.cash_sales = payments.filter(
-            payment_method__method_type='cash'
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        # Efectivo en USD únicamente (excluir COP que tiene su propia casilla)
+        cash_payments = payments.filter(payment_method__method_type='cash').exclude(currency__code='COP')
+        summary.cash_sales = cash_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        summary.cash_count = cash_payments.count()
         
         summary.card_sales = payments.filter(
             payment_method__method_type__in=['credit_card', 'debit_card']
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        transfer_payments = payments.filter(payment_method__method_type__icontains='transfer')
+        summary.transfer_sales = transfer_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        summary.transfer_count = transfer_payments.count()
         
         summary.other_sales = payments.exclude(
-            payment_method__method_type__in=['cash', 'credit_card', 'debit_card']
-        ).aggregate(total=models.Sum('amount'))['total'] or Decimal('0')
+            payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        cop_payments = payments.filter(currency__code='COP')
+        summary.cop_sales = cop_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        summary.cop_count = cop_payments.count()
+
+        # Recalcular total_sales desde los pagos para que siempre cuadre con el desglose
+        # COP se convierte a USD al tipo de cambio 4000
+        COP_RATE = Decimal('4000')
+        total_from_payments = (
+            summary.cash_sales +
+            summary.transfer_sales +
+            summary.card_sales +
+            summary.other_sales +
+            (summary.cop_sales / COP_RATE)
+        )
+        # Solo sobreescribir si hay pagos registrados (si no, mantener el total de órdenes)
+        if payments.exists():
+            summary.total_sales = total_from_payments.quantize(Decimal('0.01'))
         
         # ============ TURNOS ============
         from apps.pos.models import Shift
@@ -1037,9 +1078,9 @@ class DailySummary(models.Model):
     @staticmethod
     def _get_sales_by_hour(date):
         """
-        Obtiene ventas agrupadas por hora del día. (CÓDIGO FALTANTE)
+        Obtiene ventas agrupadas por hora del día.
         """
-        from apps.orders.models import Order
+        from apps.orders.models import Order, OrderItem
         from django.db.models import Sum, Count # Aseguramos estas importaciones
         
         sales_by_hour = []
@@ -1061,9 +1102,10 @@ class DailySummary(models.Model):
             
             total_orders = orders_in_hour.count()
             
-            total_items = 0
-            for order in orders_in_hour:
-                total_items += sum(item.quantity for item in order.items.all())
+            total_items_agg = OrderItem.objects.filter(
+                order__in=orders_in_hour
+            ).aggregate(total=Sum('quantity'))['total'] or 0
+            total_items = total_items_agg
             
             average_order_value = float(total_sales / total_orders) if total_orders > 0 else 0
             

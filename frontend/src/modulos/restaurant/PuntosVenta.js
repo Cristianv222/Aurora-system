@@ -545,7 +545,8 @@ const PuntosVenta = () => {
     // =====================================
 
     // 📋 FUNCIÓN PARA GUARDAR EN MESA (DRAFT)
-    const handleSaveToTable = async () => {
+    const handleSaveToTable = async (redirectParam) => {
+        const shouldRedirect = typeof redirectParam === 'boolean' ? redirectParam : true;
         if (cart.length === 0) return;
         if (!selectedTable || selectedTable === 'takeout' || selectedTable === 'Seleccionar mesa...') {
             alert('Debe seleccionar una mesa válida para guardar la orden.');
@@ -638,8 +639,10 @@ const PuntosVenta = () => {
                 });
             }
 
-            alert('✅ Productos guardados en la mesa.');
-            window.location.href = '/restaurant';
+            if (shouldRedirect) {
+                alert('✅ Productos guardados en la mesa.');
+                window.location.href = '/restaurant';
+            }
         } catch (err) {
             console.error('❌ Error al guardar en mesa:', err.response?.data || err.message || err);
             alert('❌ Error al guardar en la mesa: ' + (err.response?.data ? JSON.stringify(err.response.data) : err.message));
@@ -696,6 +699,7 @@ const PuntosVenta = () => {
             payment_method_id: selectedPaymentMethod,
             currency_code: selectedCurrency,
             amount_paid: cashGiven || calculateTotalInCurrency,
+            total_in_currency: selectedCurrency === 'COP' ? calculateTotalInCurrency : calculateTotal,
             items: cart.map(item => ({
                 product_id: item.product_id,
                 quantity: item.quantity,
@@ -710,7 +714,7 @@ const PuntosVenta = () => {
             if (currentOrder) {
                 // Sincronizar y luego cobrar orden existente
                 await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/sync_draft/`, orderPayload);
-                const orderResponse = await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/checkout/`);
+                const orderResponse = await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/checkout/`, orderPayload);
                 createdOrder = orderResponse.data;
             } else {
                 // 1. CREAR LA ORDEN DESDE CERO COMO COMPLETADA
@@ -801,6 +805,12 @@ const PuntosVenta = () => {
         if (cart.length === 0) {
             alert("No hay productos en la orden para imprimir.");
             return;
+        }
+
+        // 🔄 AUTO-GUARDADO: Guardamos la orden automáticamente en la base de datos antes de mandar el ticket a cocina
+        if (selectedTable && selectedTable !== 'takeout' && selectedTable !== 'Seleccionar mesa...') {
+            console.log("Auto-guardando orden en mesa antes de imprimir...");
+            await handleSaveToTable(false);
         }
 
         try {

@@ -109,12 +109,87 @@ class OrderViewSet(viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update']:
             return OrderUpdateSerializer
         return OrderDetailSerializer
+
+    def _create_payment_for_order(self, order, request_data):
+        """Auxiliar para crear un pago vinculado a la orden."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Aceptamos 'payment_method_id' o 'payment_method' como key alternativa
+        payment_method_id = request_data.get('payment_method_id') or request_data.get('payment_method')
+        currency_code = request_data.get('currency_code', 'USD')
+        
+        logger.warning(f"[PAYMENT_DEBUG] order={order.order_number} payment_method_id={payment_method_id} currency={currency_code} keys={list(request_data.keys())}")
+        
+        if not payment_method_id:
+            logger.warning(f"[PAYMENT_DEBUG] No payment_method_id — skipping payment creation")
+            return
+            
+        try:
+            from apps.payments.models import Payment, PaymentMethod, Currency
+            from decimal import Decimal
+            import uuid
+            
+            # Obtener moneda
+            currency, _ = Currency.objects.get_or_create(
+                code=currency_code,
+                defaults={'name': currency_code, 'symbol': '$', 'is_active': True}
+            )
+            
+            usd_currency, _ = Currency.objects.get_or_create(
+                code='USD',
+                defaults={'name': 'Dólares', 'symbol': '$', 'is_active': True}
+            )
+            
+            payment_method = PaymentMethod.objects.get(id=payment_method_id)
+            
+            # Evitar duplicados
+            if Payment.objects.filter(order=order, payment_method=payment_method).exists():
+                logger.warning(f"[PAYMENT_DEBUG] Payment already exists for order {order.order_number}")
+                return
+                
+            # Prioridad: total_in_currency > amount_paid > order.total (en USD)
+            # PuntosVenta envía total_in_currency (monto en la moneda seleccionada)
+            # PanelRestaurant envía amount_paid (que es el monto en la moneda seleccionada)
+            amount_paid_raw = request_data.get('amount_paid')
+            total_in_currency = (
+                request_data.get('total_in_currency')
+                or (amount_paid_raw if amount_paid_raw else None)
+                or order.total
+            )
+            amount_received = amount_paid_raw or total_in_currency
+            change = Decimal(str(amount_received)) - Decimal(str(total_in_currency))
+            if change < 0: change = Decimal('0')
+            
+            logger.warning(f"[PAYMENT_DEBUG] total_in_currency={total_in_currency} amount_received={amount_received} currency={currency_code}")
+                
+            payment = Payment.objects.create(
+                payment_number=f"PAY-{uuid.uuid4().hex[:8].upper()}",
+                order=order,
+                payment_method=payment_method,
+                currency=currency,
+                amount=Decimal(str(total_in_currency)),
+                amount_received=Decimal(str(amount_received)),
+                change_amount=change,
+                original_amount=order.total,
+                original_currency=usd_currency,
+                status='completed'
+            )
+            logger.warning(f"[PAYMENT_DEBUG] ✅ Payment created: {payment.payment_number} for order {order.order_number}")
+        except Exception as e:
+            import traceback
+            logger.error(f"[PAYMENT_DEBUG] ❌ Error creando pago para orden {order.order_number}: {str(e)}")
+            logger.error(traceback.format_exc())
     
     def create(self, request, *args, **kwargs):
         """Crea una nueva orden"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         order = serializer.save()
+        
+        # Crear pago si es necesario
+        if order.payment_status == 'paid':
+            self._create_payment_for_order(order, request.data)
         
         # Retornar con el serializer de detalle
         detail_serializer = OrderDetailSerializer(order)
@@ -203,6 +278,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         order.ready_at = timezone.now()
         order.delivered_at = timezone.now()
         order.save()
+        
+        # Crear pago desde los datos del frontend (si vienen en checkout)
+        self._create_payment_for_order(order, request.data)
         
         # Liberar la mesa si tenía alguna
         from apps.pos.models import Table

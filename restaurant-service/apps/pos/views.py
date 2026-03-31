@@ -206,6 +206,36 @@ class ShiftViewSet(viewsets.ModelViewSet):
             total_amount=Sum('line_total')
         ).order_by('product__name')
         
+        # Calcular desglose de pagos por turno (igual que DailySummary)
+        from decimal import Decimal
+        COP_RATE = Decimal('4000')
+
+        cash_payments = payments.filter(payment_method__method_type='cash').exclude(currency__code='COP')
+        cash_sales = cash_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        cash_count = cash_payments.count()
+
+        transfer_payments = payments.filter(payment_method__method_type__icontains='transfer')
+        transfer_sales = transfer_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        transfer_count = transfer_payments.count()
+
+        card_sales = payments.filter(
+            payment_method__method_type__in=['credit_card', 'debit_card']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        other_sales = payments.exclude(
+            payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        cop_payments = payments.filter(currency__code='COP')
+        cop_sales = cop_payments.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+        cop_count = cop_payments.count()
+
+        # Total recalculado desde pagos (para que cuadre con el desglose)
+        if payments.exists():
+            total_sales = float(
+                cash_sales + transfer_sales + card_sales + other_sales + (cop_sales / COP_RATE)
+            )
+
         report_data = {
             'shift_info': {
                 'number': shift.shift_number,
@@ -219,6 +249,15 @@ class ShiftViewSet(viewsets.ModelViewSet):
                 'total_sales': total_sales,
                 'total_orders': total_orders,
                 'average_ticket': total_sales / total_orders if total_orders > 0 else 0,
+                # Desglose de pagos por turno
+                'cash_sales': float(cash_sales),
+                'cash_count': cash_count,
+                'transfer_sales': float(transfer_sales),
+                'transfer_count': transfer_count,
+                'card_sales': float(card_sales),
+                'cop_sales': float(cop_sales),
+                'cop_count': cop_count,
+                'other_sales': float(other_sales),
             },
             'payment_methods': list(payment_methods),
             'top_products': list(top_products),
@@ -685,31 +724,55 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
-        today = timezone.now().date()
+        # Usar hora local para que 'today' coincida con el negocio (America/Guayaquil -5)
+        now_local = timezone.localtime(timezone.now())
+        today = now_local.date()
         yesterday = today - timedelta(days=1)
         
         from apps.orders.models import Order
+        from apps.payments.models import Payment
         from .models import Shift 
+        from decimal import Decimal
+        COP_RATE = Decimal('4000')
         
-        orders_today = Order.objects.filter(
+        # --- Cálculo para HOY basado en PAGOS ---
+        payments_today = Payment.objects.filter(
+            created_at__date=today,
+            status='completed'
+        )
+        
+        cash_today = payments_today.filter(payment_method__method_type='cash').exclude(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        card_today = payments_today.filter(payment_method__method_type__in=['credit_card', 'debit_card']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        transfer_today = payments_today.filter(payment_method__method_type__icontains='transfer').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        other_today = payments_today.exclude(payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        cop_today = payments_today.filter(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        
+        sales_today = cash_today + card_today + transfer_today + other_today + (cop_today / COP_RATE)
+        
+        # --- Cálculo para AYER basado en PAGOS ---
+        payments_yesterday = Payment.objects.filter(
+            created_at__date=yesterday,
+            status='completed'
+        )
+        cash_yest = payments_yesterday.filter(payment_method__method_type='cash').exclude(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        card_yest = payments_yesterday.filter(payment_method__method_type__in=['credit_card', 'debit_card']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        transfer_yest = payments_yesterday.filter(payment_method__method_type__icontains='transfer').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        other_yest = payments_yesterday.exclude(payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        cop_yest = payments_yesterday.filter(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        
+        sales_yesterday = cash_yest + card_yest + transfer_yest + other_yest + (cop_yest / COP_RATE)
+        
+        orders_today_count = Order.objects.filter(
             created_at__date=today,
             status__in=['delivered', 'completed']
-        )
+        ).count()
         
-        orders_yesterday = Order.objects.filter(
+        orders_yesterday_count = Order.objects.filter(
             created_at__date=yesterday,
             status__in=['delivered', 'completed']
-        )
+        ).count()
         
         active_shifts = Shift.objects.filter(status='open').count()
-        
-        sales_today = orders_today.aggregate(
-            total=Sum('total')
-        )['total'] or Decimal('0')
-        
-        sales_yesterday = orders_yesterday.aggregate(
-            total=Sum('total')
-        )['total'] or Decimal('0')
         
         if sales_yesterday > 0:
             change_percentage = ((sales_today - sales_yesterday) / sales_yesterday) * 100
@@ -720,20 +783,25 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
         for i in range(7):
             day = today - timedelta(days=i)
             
-            orders = Order.objects.filter(
+            day_p = Payment.objects.filter(
                 created_at__date=day,
-                status__in=['delivered', 'completed']
+                status='completed'
             )
             
-            total_sales = orders.aggregate(
-                total=Sum('total')
-            )['total'] or Decimal('0')
+            day_usd = day_p.exclude(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+            day_cop = day_p.filter(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+            day_total = day_usd + (day_cop / COP_RATE)
+            
+            orders_count = Order.objects.filter(
+                created_at__date=day,
+                status__in=['delivered', 'completed']
+            ).count()
             
             sales_last_7_days.insert(0, {
                 'date': day.strftime('%Y-%m-%d'),
                 'day_name': day.strftime('%a'),
-                'total_sales': float(total_sales),
-                'total_orders': orders.count(),
+                'total_sales': float(day_total),
+                'total_orders': orders_count,
             })
         
         return Response({
@@ -745,8 +813,8 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 'trend': 'up' if change_percentage > 0 else 'down' if change_percentage < 0 else 'stable'
             },
             'orders': {
-                'today': orders_today.count(),
-                'yesterday': orders_yesterday.count(),
+                'today': orders_today_count,
+                'yesterday': orders_yesterday_count,
             },
             'shifts': {
                 'active': active_shifts,
