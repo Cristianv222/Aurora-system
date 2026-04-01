@@ -141,76 +141,76 @@ const PuntosVenta = () => {
         let isMounted = true;
 
         const fetchData = async () => {
-            try {
-                const productsRes = await api.get('/api/restaurant/menu/products/');
-
-                if (!isMounted) return;
-
-                const loadedProducts = productsRes.data.results || productsRes.data || [];
-                setProducts(loadedProducts);
-
-            } catch (err) {
-                console.error('Error cargando productos:', err);
-            }
-
-            try {
-                const categoriesRes = await api.get('/api/restaurant/menu/categories/');
-
-                if (!isMounted) return;
-
-                const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
-                setCategories(loadedCategories);
-
-            } catch (err) {
-                console.error('Error cargando categorías:', err);
-            }
-
-            try {
-                const tablesRes = await api.get('/api/restaurant/pos/tables/');
-
-                if (!isMounted) return;
-                setTables(tablesRes.data.results || tablesRes.data || []);
-
-            } catch (err) {
-                console.warn('Mesas no disponibles');
-                if (isMounted) {
-                    setTables([]);
+            const fetchProducts = async () => {
+                const cached = localStorage.getItem('restaurant_products');
+                if (cached) {
+                    if (isMounted) setProducts(JSON.parse(cached));
+                    return;
                 }
-            }
+                const res = await api.get('/api/restaurant/menu/products/');
+                const data = res.data.results || res.data || [];
+                localStorage.setItem('restaurant_products', JSON.stringify(data));
+                if (isMounted) setProducts(data);
+            };
 
-            // Cargar métodos de pago activos
-            try {
+            const fetchCategories = async () => {
+                const cached = localStorage.getItem('restaurant_categories');
+                if (cached) {
+                    if (isMounted) setCategories(JSON.parse(cached));
+                    return;
+                }
+                const res = await api.get('/api/restaurant/menu/categories/');
+                const data = res.data.results || res.data || [];
+                localStorage.setItem('restaurant_categories', JSON.stringify(data));
+                if (isMounted) setCategories(data);
+            };
+
+            const fetchTables = async () => {
+                const tablesRes = await api.get('/api/restaurant/pos/tables/');
+                if (isMounted) setTables(tablesRes.data.results || tablesRes.data || []);
+            };
+
+            const fetchPayments = async () => {
                 const paymentsRes = await api.get('/api/restaurant/payments/payment-methods/active/');
                 if (!isMounted) return;
                 const methods = paymentsRes.data.results || paymentsRes.data || [];
                 setPaymentMethods(methods);
                 if (methods.length > 0) {
-                    // Seleccionar efectivo ('cash') por defecto si existe, o el primero
                     const cashMethod = methods.find(m => m.method_type === 'cash');
                     setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
                 }
-            } catch (err) {
-                console.warn('Métodos de pago no disponibles', err);
-            }
+            };
 
-            // Cargar tasa de cambio activa
-            try {
-                setLoadingRate(true);
-                const ratesRes = await api.get('/api/restaurant/payments/exchange-rates/active/');
-                if (!isMounted) return;
-                const rates = ratesRes.data.results || ratesRes.data || [];
-                const usdCopRate = rates.find(r => r.from_currency === 'USD' && r.to_currency === 'COP');
-                if (usdCopRate) {
-                    setExchangeRate(usdCopRate.rate);
-                } else {
-                    setExchangeRate('4000'); // Fallback manual
+            const fetchRates = async () => {
+                if (isMounted) setLoadingRate(true);
+                try {
+                    const ratesRes = await api.get('/api/restaurant/payments/exchange-rates/active/');
+                    if (!isMounted) return;
+                    const rates = ratesRes.data.results || ratesRes.data || [];
+                    const usdCopRate = rates.find(r => r.from_currency === 'USD' && r.to_currency === 'COP');
+                    if (usdCopRate) {
+                        setExchangeRate(usdCopRate.rate);
+                    } else {
+                        setExchangeRate('4000'); // Fallback manual
+                    }
+                } catch (err) {
+                    console.warn('Tasas de cambio no disponibles', err);
+                    if (isMounted) setExchangeRate('4000'); // Fallback manual
+                } finally {
+                    if (isMounted) setLoadingRate(false);
                 }
-            } catch (err) {
-                console.warn('Tasas de cambio no disponibles', err);
-                if (isMounted) setExchangeRate('4000'); // Fallback manual
-            } finally {
-                if (isMounted) setLoadingRate(false);
-            }
+            };
+
+            await Promise.all([
+                fetchProducts().catch(err => console.error('Error cargando productos:', err)),
+                fetchCategories().catch(err => console.error('Error cargando categorías:', err)),
+                fetchTables().catch(err => {
+                    console.warn('Mesas no disponibles', err);
+                    if (isMounted) setTables([]);
+                }),
+                fetchPayments().catch(err => console.warn('Métodos de pago no disponibles', err)),
+                fetchRates()
+            ]);
 
             if (isMounted) {
                 setLoading(false);
