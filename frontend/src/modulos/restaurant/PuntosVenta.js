@@ -1706,19 +1706,41 @@ const PuntosVenta = () => {
                 zIndex: 10,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
+                justifyContent: 'space-between'
             }}>
+                <button
+                    onClick={() => navigate('/restaurant')}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        padding: '0.5rem',
+                        marginLeft: '-0.25rem'
+                    }}
+                >
+                    <i className="bi bi-arrow-left"></i> Mesas
+                </button>
                 <h1 style={{
-                    fontSize: screenWidth <= 768 ? '1.2rem' : '1.35rem',
+                    fontSize: screenWidth <= 768 ? '1.1rem' : '1.25rem',
                     fontWeight: '800',
                     color: '#f8fafc',
                     margin: 0,
                     textTransform: 'uppercase',
-                    letterSpacing: '-0.025em'
+                    letterSpacing: '-0.025em',
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)'
                 }}>
-                    <i className="bi bi-cart4" style={{ marginRight: '8px', color: '#38bdf8' }}></i>
-                    Punto de Venta
+                    <i className="bi bi-cart4" style={{ marginRight: '6px', color: '#38bdf8' }}></i>
+                    POS
                 </h1>
+                <div style={{ width: '60px' }}></div> {/* Spacer for symmetry */}
             </div>
 
             {/* Contenido principal - Alterna entre productos y orden */}
@@ -2309,17 +2331,40 @@ const PuntosVenta = () => {
                 alignItems: 'center',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
             }}>
-                <h1 style={{
-                    fontSize: '1.5rem',
-                    fontWeight: '800',
-                    color: '#f8fafc',
-                    margin: 0,
-                    letterSpacing: '-0.025em',
-                    textTransform: 'uppercase'
-                }}>
-                    <i className="bi bi-cart4" style={{ marginRight: '8px', color: '#38bdf8' }}></i>
-                    Punto de Venta
-                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <button
+                        onClick={() => navigate('/restaurant')}
+                        style={{
+                            background: '#334155',
+                            border: '1px solid #475569',
+                            color: '#e2e8f0',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            fontSize: '0.95rem',
+                            fontWeight: '600',
+                            padding: '0.5rem 1rem',
+                            transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#475569'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#334155'; }}
+                    >
+                        <i className="bi bi-arrow-left"></i> Volver a Mesas
+                    </button>
+                    <h1 style={{
+                        fontSize: '1.5rem',
+                        fontWeight: '800',
+                        color: '#f8fafc',
+                        margin: 0,
+                        letterSpacing: '-0.025em',
+                        textTransform: 'uppercase'
+                    }}>
+                        <i className="bi bi-cart4" style={{ marginRight: '8px', color: '#38bdf8' }}></i>
+                        Punto de Venta
+                    </h1>
+                </div>
             </div>
 
             <div style={{
