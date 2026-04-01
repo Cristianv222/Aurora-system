@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
 import printerServiceRestaurant from '../../services/printerServiceRestaurant';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import TableCroquis from './TableCroquis';
 
 // ====================================================================
@@ -66,6 +66,7 @@ const PuntosVenta = () => {
     
     // Obtener parámetros de la URL
     const location = useLocation();
+    const navigate = useNavigate();
 
     // 2. ESTADO DEL PUNTO DE VENTA
     const [cart, setCart] = useState([]);
