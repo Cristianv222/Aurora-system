@@ -298,6 +298,8 @@ class OrderViewSet(viewsets.ModelViewSet):
             except Table.DoesNotExist:
                 pass
                 
+        # ✅ Limpieza defensiva: liberar mesas trabadas sin orden activa
+        Table.objects.filter(status='occupied', current_order=None).update(status='available')
         detail_serializer = OrderDetailSerializer(order)
         return Response(detail_serializer.data)
         
