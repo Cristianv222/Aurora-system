@@ -1034,6 +1034,34 @@ def _generate_pos_ticket(printer, order_data):
     lines.append(f"{'TOTAL:':<30} ${total:>10.2f}")
     lines.append("=" * chars)
 
+    # ── Métodos de pago ───────────────────────────────────────────────────────
+    payments_list = order_data.get('payments_list', [])
+    if payments_list:
+        lines.append(" FORMAS DE PAGO ".center(chars, "-"))
+        total_change = 0
+        for pago in payments_list:
+            method  = pago.get('method_name', 'Pago')
+            currency = pago.get('currency_code', 'USD')
+            applied  = float(pago.get('amount_applied', 0))
+            received = float(pago.get('amount_received', 0))
+            change   = float(pago.get('change_amount', 0))
+
+            label = f"{method} ({currency}):"
+            if currency == 'USD':
+                lines.append(f"  {label:<26} ${applied:>10.2f}")
+                if received > applied and change >= 0.01:
+                    lines.append(f"  {'  Entregado:':<26} ${received:>10.2f}")
+                    lines.append(f"  {'  Cambio:':<26} ${change:>10.2f}")
+            else:
+                lines.append(f"  {label:<26} ${applied:>10.2f} USD")
+                if received > 0:
+                    lines.append(f"  {'  Entregado:':<26} {received:>10.0f} {currency}")
+                if change >= 0.01:
+                    lines.append(f"  {'  Cambio:':<26} {change:>10.0f} {currency}")
+            total_change += change
+
+        lines.append("-" * chars)
+
     # Nota adicional (cambio, observaciones, etc.)
     notes = order_data.get('notes', '').strip()
     if notes:

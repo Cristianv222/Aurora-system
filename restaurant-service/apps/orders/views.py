@@ -111,75 +111,75 @@ class OrderViewSet(viewsets.ModelViewSet):
         return OrderDetailSerializer
 
     def _create_payment_for_order(self, order, request_data):
-        """Auxiliar para crear un pago vinculado a la orden."""
+        """Auxiliar para crear un pago o múltiples vinculados a la orden."""
         import logging
         logger = logging.getLogger(__name__)
+        from apps.payments.models import Payment, PaymentMethod, Currency
+        from decimal import Decimal
+        import uuid
         
-        # Aceptamos 'payment_method_id' o 'payment_method' como key alternativa
-        payment_method_id = request_data.get('payment_method_id') or request_data.get('payment_method')
-        currency_code = request_data.get('currency_code', 'USD')
-        
-        logger.warning(f"[PAYMENT_DEBUG] order={order.order_number} payment_method_id={payment_method_id} currency={currency_code} keys={list(request_data.keys())}")
-        
-        if not payment_method_id:
-            logger.warning(f"[PAYMENT_DEBUG] No payment_method_id — skipping payment creation")
+        payments_from_request = []
+        if 'payments_list' in request_data and isinstance(request_data['payments_list'], list) and len(request_data['payments_list']) > 0:
+            payments_from_request = request_data.get('payments_list')
+        else:
+            # Fallback legacy para 1 solo pago
+            payment_method_id = request_data.get('payment_method_id') or request_data.get('payment_method')
+            if payment_method_id:
+                amount_paid_raw = request_data.get('amount_paid')
+                total_in_currency = (
+                    request_data.get('total_in_currency')
+                    or (amount_paid_raw if amount_paid_raw else None)
+                    or order.total
+                )
+                amount_received = request_data.get('amount_received') or amount_paid_raw or total_in_currency
+                payments_from_request.append({
+                    'payment_method_id': payment_method_id,
+                    'amount_applied': total_in_currency,
+                    'amount_received': amount_received,
+                    'currency_code': request_data.get('currency_code', 'USD')
+                })
+
+        if not payments_from_request:
+            logger.warning(f"[PAYMENT_DEBUG] No payment instructions provided for order {order.order_number} — skipping payment creation")
             return
             
-        try:
-            from apps.payments.models import Payment, PaymentMethod, Currency
-            from decimal import Decimal
-            import uuid
-            
-            # Obtener moneda
-            currency, _ = Currency.objects.get_or_create(
-                code=currency_code,
-                defaults={'name': currency_code, 'symbol': '$', 'is_active': True}
-            )
-            
-            usd_currency, _ = Currency.objects.get_or_create(
-                code='USD',
-                defaults={'name': 'Dólares', 'symbol': '$', 'is_active': True}
-            )
-            
-            payment_method = PaymentMethod.objects.get(id=payment_method_id)
-            
-            # Evitar duplicados
-            if Payment.objects.filter(order=order, payment_method=payment_method).exists():
-                logger.warning(f"[PAYMENT_DEBUG] Payment already exists for order {order.order_number}")
-                return
+        usd_currency, _ = Currency.objects.get_or_create(
+            code='USD',
+            defaults={'name': 'Dólares', 'symbol': '$', 'is_active': True}
+        )
+
+        for p_data in payments_from_request:
+            try:
+                currency_code = p_data.get('currency_code', 'USD')
+                currency, _ = Currency.objects.get_or_create(
+                    code=currency_code,
+                    defaults={'name': currency_code, 'symbol': '$', 'is_active': True}
+                )
                 
-            # Prioridad: total_in_currency > amount_paid > order.total (en USD)
-            # PuntosVenta envía total_in_currency (monto en la moneda seleccionada)
-            # PanelRestaurant envía amount_paid (que es el monto en la moneda seleccionada)
-            amount_paid_raw = request_data.get('amount_paid')
-            total_in_currency = (
-                request_data.get('total_in_currency')
-                or (amount_paid_raw if amount_paid_raw else None)
-                or order.total
-            )
-            amount_received = amount_paid_raw or total_in_currency
-            change = Decimal(str(amount_received)) - Decimal(str(total_in_currency))
-            if change < 0: change = Decimal('0')
-            
-            logger.warning(f"[PAYMENT_DEBUG] total_in_currency={total_in_currency} amount_received={amount_received} currency={currency_code}")
+                payment_method = PaymentMethod.objects.get(id=p_data['payment_method_id'])
                 
-            payment = Payment.objects.create(
-                payment_number=f"PAY-{uuid.uuid4().hex[:8].upper()}",
-                order=order,
-                payment_method=payment_method,
-                currency=currency,
-                amount=Decimal(str(total_in_currency)),
-                amount_received=Decimal(str(amount_received)),
-                change_amount=change,
-                original_amount=order.total,
-                original_currency=usd_currency,
-                status='completed'
-            )
-            logger.warning(f"[PAYMENT_DEBUG] ✅ Payment created: {payment.payment_number} for order {order.order_number}")
-        except Exception as e:
-            import traceback
-            logger.error(f"[PAYMENT_DEBUG] ❌ Error creando pago para orden {order.order_number}: {str(e)}")
-            logger.error(traceback.format_exc())
+                amount_applied = Decimal(str(p_data.get('amount_applied', 0)))
+                amount_received = Decimal(str(p_data.get('amount_received', amount_applied)))
+                change = amount_received - amount_applied
+                if change < 0: change = Decimal('0')
+                
+                payment = Payment.objects.create(
+                    payment_number=f"PAY-{uuid.uuid4().hex[:8].upper()}",
+                    order=order,
+                    payment_method=payment_method,
+                    currency=currency,
+                    amount=amount_applied,
+                    amount_received=amount_received,
+                    change_amount=change,
+                    original_amount=amount_applied,
+                    original_currency=usd_currency,
+                    status='completed'
+                )
+                logger.info(f"[PAYMENT_DEBUG] ✅ Payment created: {payment.payment_number} for order {order.order_number}")
+            except Exception as e:
+                import traceback
+                logger.error(f"[PAYMENT_DEBUG] ❌ Error creando pago parcial para orden {order.order_number}: {str(e)}")
+                logger.error(traceback.format_exc())
     
     def create(self, request, *args, **kwargs):
         """Crea una nueva orden"""
@@ -222,12 +222,15 @@ class OrderViewSet(viewsets.ModelViewSet):
             if 'discount_amount' in request.data:
                 order.discount_amount = request.data.get('discount_amount', 0)
                 
-            # Borrar items viejos
-            order.items.all().delete()
+            # Borrar items viejos (EXCEPTO los que ya han sido pagados previamente)
+            order.items.filter(is_paid=False).delete()
             
             # Crear los nuevos items
             items_data = request.data.get('items', [])
             for item_data in items_data:
+                if item_data.get('is_paid', False):
+                    continue # Ignorar ítems que ya vienen como pagados desde el front (ya están en DB)
+
                 product = Product.objects.get(id=item_data['product_id'])
                 size = None
                 if item_data.get('size_id'):
@@ -319,7 +322,17 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        amount_to_pay = Decimal(str(request.data.get('amount', 0)))
+        # Legacy fallback o list de payments
+        amount_to_pay = Decimal('0')
+        if 'payments_list' in request.data and isinstance(request.data['payments_list'], list):
+            for p in request.data['payments_list']:
+                amount_to_pay += Decimal(str(p.get('amount_applied', 0)))
+        else:
+            amount_to_pay = Decimal(str(request.data.get('amount', 0)))
+            # También soportar amount_paid como fallback si no se especifican payments_list ni amount
+            if amount_to_pay == 0 and request.data.get('amount_paid'):
+                amount_to_pay = Decimal(str(request.data.get('amount_paid', 0)))
+
         if amount_to_pay <= 0:
             return Response(
                 {'error': 'El monto a pagar debe ser mayor a 0'},
@@ -327,6 +340,9 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
             
         order.amount_paid += amount_to_pay
+        
+        # Registrar el pago formalmente
+        self._create_payment_for_order(order, request.data)
         
         # Verificar si ya se cubrió el total
         pending_balance = order.total - order.amount_paid
@@ -424,6 +440,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                     qty_to_split -= extract_qty
 
             order.calculate_totals()
+            
+            # Aggregate the paid amount
+            from decimal import Decimal
+            split_subtotal = sum(i['line_total'] for i in split_items_for_response)
+            order.amount_paid += Decimal(str(split_subtotal))
+            
             if not order.items.filter(is_paid=False).exists():
                 order.status = 'completed'
                 order.payment_status = 'paid'
@@ -435,6 +457,12 @@ class OrderViewSet(viewsets.ModelViewSet):
                     except Table.DoesNotExist:
                         pass
             order.save()
+            
+            # Registrar pago
+            req_data = request.data.copy()
+            if 'amount_paid' not in req_data and 'amount' not in req_data and 'payments_list' not in req_data:
+                 req_data['amount_paid'] = split_subtotal
+            self._create_payment_for_order(order, req_data)
 
         split_subtotal = sum(i['line_total'] for i in split_items_for_response)
         return Response({

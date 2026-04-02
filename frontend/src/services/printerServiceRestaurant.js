@@ -110,6 +110,12 @@ class PrinterServiceRestaurant {
       notes:         orderData.notes || '',
       printed_at:    new Date().toISOString(),
     };
+
+    // Incluir métodos de pago si existen
+    if (orderData.payments_list && orderData.payments_list.length > 0) {
+      payload.payments_list = orderData.payments_list;
+    }
+
     if (printerId) payload.printer_id = printerId;
     return payload;
   }

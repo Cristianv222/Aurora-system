@@ -272,7 +272,8 @@ const PuntosVenta = () => {
                                 name: item.product_details ? item.product_details.name : 'Producto',
                                 price: parseFloat(item.unit_price),
                                 quantity: item.quantity,
-                                note: item.notes || ''
+                                note: item.notes || '',
+                                is_paid: item.is_paid || false
                             })));
                         }
                     }
@@ -325,7 +326,7 @@ const PuntosVenta = () => {
     // =====================================
     const addToCart = useCallback((product) => {
         setCart(prevCart => {
-            const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id);
+            const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id && !item.is_paid);
             if (existingItemIndex >= 0) {
                 const newCart = [...prevCart];
                 newCart[existingItemIndex] = {
@@ -347,13 +348,16 @@ const PuntosVenta = () => {
     }, []);
 
     const removeFromCart = useCallback((productId) => {
-        setCart(prevCart => prevCart.filter(item => item.product_id !== productId));
+        setCart(prevCart => prevCart.filter(item => {
+            if (item.is_paid) return true; // Bloquea borrado de items pagados
+            return item.product_id !== productId;
+        }));
     }, []);
 
     const updateQuantity = useCallback((productId, delta) => {
         setCart(prevCart => {
             return prevCart.map(item => {
-                if (item.product_id === productId) {
+                if (item.product_id === productId && !item.is_paid) {
                     const newQuantity = Math.max(1, item.quantity + delta);
                     return { ...item, quantity: newQuantity };
                 }
@@ -2651,17 +2655,20 @@ const PuntosVenta = () => {
                                                 <h4 style={{
                                                     fontSize: '0.95rem',
                                                     fontWeight: '600',
-                                                    color: '#334155',
+                                                    color: item.is_paid ? '#94a3b8' : '#334155',
                                                     marginBottom: '0.25rem',
-                                                    lineHeight: '1.3'
+                                                    lineHeight: '1.3',
+                                                    textDecoration: item.is_paid ? 'line-through' : 'none'
                                                 }}>
                                                     {item.name}
+                                                    {item.is_paid && <span style={{ marginLeft: '6px', color: '#10b981', fontSize: '0.75rem', fontWeight: 'bold' }}>(COBRADO)</span>}
                                                 </h4>
                                                 <p style={{
                                                     fontSize: '0.85rem',
-                                                    color: '#64748b',
+                                                    color: item.is_paid ? '#cbd5e1' : '#64748b',
                                                     margin: 0,
-                                                    fontWeight: '500'
+                                                    fontWeight: '500',
+                                                    textDecoration: item.is_paid ? 'line-through' : 'none'
                                                 }}>
                                                     {formatCurrency(item.price)} c/u
                                                 </p>
@@ -2670,7 +2677,9 @@ const PuntosVenta = () => {
                                             <div style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '0.5rem'
+                                                gap: '0.5rem',
+                                                opacity: item.is_paid ? 0.5 : 1,
+                                                pointerEvents: item.is_paid ? 'none' : 'auto'
                                             }}>
                                                 <div style={{
                                                     display: 'flex',
@@ -2687,7 +2696,7 @@ const PuntosVenta = () => {
                                                             fontSize: '1.2rem', fontWeight: '600', cursor: 'pointer',
                                                             display: 'flex', alignItems: 'center', justifyContent: 'center'
                                                         }}
-                                                        onClick={() => updateQuantity(item.product_id, -1)}
+                                                        onClick={() => !item.is_paid && updateQuantity(item.product_id, -1)}
                                                     >−</button>
                                                     <span style={{
                                                         width: '32px', textAlign: 'center', fontSize: '0.9rem',
@@ -2700,7 +2709,7 @@ const PuntosVenta = () => {
                                                             fontSize: '1.2rem', fontWeight: '600', cursor: 'pointer',
                                                             display: 'flex', alignItems: 'center', justifyContent: 'center'
                                                         }}
-                                                        onClick={() => updateQuantity(item.product_id, 1)}
+                                                        onClick={() => !item.is_paid && updateQuantity(item.product_id, 1)}
                                                     >+</button>
                                                 </div>
 
@@ -2711,8 +2720,9 @@ const PuntosVenta = () => {
                                                         fontSize: '1.2rem', fontWeight: '600', cursor: 'pointer',
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                                                     }}
-                                                    onClick={() => removeFromCart(item.product_id)}
-                                                    title="Eliminar producto"
+                                                    onClick={() => !item.is_paid && removeFromCart(item.product_id)}
+                                                    title={item.is_paid ? "No se puede eliminar un producto cobrado" : "Eliminar producto"}
+                                                    disabled={item.is_paid}
                                                 >×</button>
                                             </div>
                                         </div>

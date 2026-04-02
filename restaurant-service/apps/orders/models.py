@@ -192,21 +192,25 @@ class Order(models.Model):
         return f'ORD-{timestamp}-{random_suffix}'
     
     def calculate_totals(self):
-        """Calcula los totales de la orden"""
-        # Calcular subtotal de items
-        items_total = sum(item.line_total for item in self.items.filter(is_paid=False))
+        """Calcula los totales de la orden.
+        El `total` siempre incluye TODOS los items (pagados o no) para
+        preservar el historial financiero correcto.
+        El saldo pendiente se determina restando `amount_paid`.
+        """
+        # Subtotal = TODOS los items (incluyendo los ya cobrados en separar cuenta)
+        items_total = sum(item.line_total for item in self.items.all())
         self.subtotal = items_total
-        
-        # Calcular impuestos (ejemplo: 12%)
+
+        # Calcular impuestos (0% por ahora)
         tax_rate = Decimal('0.00')
         self.tax_amount = self.subtotal * tax_rate
-        
-        # Calcular total
+
+        # Total historico completo de la orden
         self.total = (
-            self.subtotal + 
-            self.tax_amount + 
-            self.delivery_fee + 
-            self.tip_amount - 
+            self.subtotal +
+            self.tax_amount +
+            self.delivery_fee +
+            self.tip_amount -
             self.discount_amount
         )
     

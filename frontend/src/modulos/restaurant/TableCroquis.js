@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 // Configuración de mesas con dimensiones base para un ancho de referencia de 1600px
 const REFERENCE_WIDTH = 1600;
@@ -112,10 +112,26 @@ const TABLE_CONFIGS = {
     },
 
     // ───── BARRA ─────
-    'Barra A': {
+    'Barra 1': {
         top: '87%',
         left: '36%',
-        tableWidth: 518,
+        tableWidth: 170,
+        tableHeight: 83,
+        type: 'bar',
+        chairs: []
+    },
+    'Barra 2': {
+        top: '87%',
+        left: '46.9%',
+        tableWidth: 170,
+        tableHeight: 83,
+        type: 'bar',
+        chairs: []
+    },
+    'Barra 3': {
+        top: '87%',
+        left: '57.8%',
+        tableWidth: 170,
         tableHeight: 83,
         type: 'bar',
         chairs: []

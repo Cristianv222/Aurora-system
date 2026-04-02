@@ -166,6 +166,16 @@ class PrintOrderItemSerializer(serializers.Serializer):
     product_id = serializers.CharField(required=False, allow_blank=True, default='')
 
 
+class PaymentSplitSerializer(serializers.Serializer):
+    """Entrada de pago individual (split payment)"""
+    payment_method_id = serializers.CharField(required=False, allow_blank=True, default='')
+    method_name       = serializers.CharField(required=False, allow_blank=True, default='Pago')
+    amount_applied    = serializers.FloatField(min_value=0)
+    amount_received   = serializers.FloatField(required=False, default=0, min_value=0)
+    currency_code     = serializers.CharField(required=False, default='USD')
+    change_amount     = serializers.FloatField(required=False, default=0, min_value=0)
+
+
 class PrintOrderSerializer(serializers.Serializer):
     """
     Serializer para los 3 endpoints manuales de impresión:
@@ -217,3 +227,6 @@ class PrintOrderSerializer(serializers.Serializer):
 
     # Opcional: forzar una impresora específica por su UUID
     printer_id = serializers.UUIDField(required=False, allow_null=True, default=None)
+
+    # Pagos múltiples (split payment) — opcional
+    payments_list = PaymentSplitSerializer(many=True, required=False, default=list)

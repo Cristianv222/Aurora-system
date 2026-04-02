@@ -50,6 +50,15 @@ const PanelRestaurant = () => {
     const [inputCash, setInputCash] = useState('');
     const [cashGiven, setCashGiven] = useState(null);
 
+    const [paymentSplits, setPaymentSplits] = useState([]);
+
+    // Estado independiente para el widget de pagos en "Separar Cuenta"
+    const [splitPaymentSplits, setSplitPaymentSplits] = useState([]);
+    const [splitInputCash, setSplitInputCash] = useState('');
+    const [splitCashGiven, setSplitCashGiven] = useState(null);
+    const [splitPaymentMethod, setSplitPaymentMethod] = useState('');
+    const [splitCurrency, setSplitCurrency] = useState('USD');
+
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 600);
     const [isCompact, setIsCompact] = useState(window.innerWidth > 600 && window.innerWidth <= 1024);
 
@@ -73,22 +82,29 @@ const PanelRestaurant = () => {
     const fetchStatic = async () => {
         // Métodos de pago
         const cachedPay = readCache(CACHE_KEY_PAYMENTS);
-        if (cachedPay && Date.now() - cachedPay.ts < CACHE_TTL_STATIC) {
-            const methods = cachedPay.data;
+        // Solo usar caché si tiene datos Y no ha expirado el TTL
+        const cachedMethods = cachedPay?.data || [];
+        if (cachedPay && Date.now() - cachedPay.ts < CACHE_TTL_STATIC && cachedMethods.length > 0) {
+            const methods = cachedMethods;
             setPaymentMethods(methods);
             if (methods.length > 0) {
                 const cashMethod = methods.find(m => m.method_type === 'cash');
-                setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
+                const defaultId = cashMethod ? cashMethod.id : methods[0].id;
+                setSelectedPaymentMethod(defaultId);
+                setSplitPaymentMethod(defaultId);
             }
         } else {
+            // Caché vacío, expirado, o sin métodos → siempre ir a la API
             try {
                 const paymentsRes = await api.get('/api/restaurant/payments/payment-methods/active/');
                 const methods = paymentsRes.data.results || paymentsRes.data || [];
                 setPaymentMethods(methods);
-                writeCache(CACHE_KEY_PAYMENTS, methods);
                 if (methods.length > 0) {
+                    writeCache(CACHE_KEY_PAYMENTS, methods); // Solo cachear si hay datos
                     const cashMethod = methods.find(m => m.method_type === 'cash');
-                    setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
+                    const defaultId = cashMethod ? cashMethod.id : methods[0].id;
+                    setSelectedPaymentMethod(defaultId);
+                    setSplitPaymentMethod(defaultId);
                 }
             } catch (err) {
                 console.warn('Métodos de pago no disponibles', err);
@@ -142,6 +158,13 @@ const PanelRestaurant = () => {
         await fetchTables();
     };
 
+    // ── Forzar recarga de datos estáticos (borra caché local) ──────────────────
+    const clearStaticCache = async () => {
+        try { localStorage.removeItem(CACHE_KEY_PAYMENTS); } catch { }
+        try { localStorage.removeItem(CACHE_KEY_RATES); } catch { }
+        await fetchStatic();
+    };
+
     // ── Cerrar modal y limpiar estado ──────────────────────────────────────────
     const closeModal = () => {
         setSelectedOrderModal(null);
@@ -152,6 +175,12 @@ const PanelRestaurant = () => {
         setSplitItemsSelection({});
         setCashGiven(null);
         setInputCash('');
+        setPaymentSplits([]);
+        // Reset estados del widget de Separar Cuenta
+        setSplitPaymentSplits([]);
+        setSplitInputCash('');
+        setSplitCashGiven(null);
+        setSplitCurrency('USD');
     };
 
     const handleTableSelect = async (table) => {
@@ -162,7 +191,7 @@ const PanelRestaurant = () => {
                 if (table.current_order_number) {
                     // ✅ Fetch directo — el detalle siempre trae los items completos
                     const res = await api.get(`/api/restaurant/orders/orders/${table.current_order_number}/`);
-                    items = (res.data.items || []).filter(i => !i.is_paid);
+                    items = (res.data.items || []); // Mantenemos todos los items para impresión completa
                 } else {
                     // Fallback: buscar por número de mesa
                     const today = new Date().toISOString().split('T')[0];
@@ -280,14 +309,18 @@ const PanelRestaurant = () => {
     };
 
     // === AGRUPAR ITEMS PARA EL MODAL ===
-    const getGroupedItems = () => {
+    const getGroupedItems = (excludePaid = false) => {
         if (!tableOrders || tableOrders.length === 0) return [];
-        const allItems = tableOrders.flatMap(o => (o.items || []).filter(i => !i.is_paid));
+        let allItems = tableOrders.flatMap(o => o.items || []);
+        if (excludePaid) {
+            allItems = allItems.filter(i => !i.is_paid);
+        }
 
         const grouped = allItems.reduce((acc, item) => {
             const name = item.product_details?.name || item.product_name || 'Producto';
             const notes = item.notes || '';
-            const key = `${name}|${notes}`;
+            const isPaid = item.is_paid || false;
+            const key = `${name}|${notes}|${isPaid}`;
 
             if (!acc[key]) {
                 acc[key] = {
@@ -295,10 +328,11 @@ const PanelRestaurant = () => {
                     notes,
                     quantity: 0,
                     line_total: 0,
-                    product_id: item.product_id || item.product?.id || item.id
+                    product_id: item.product_details?.id || item.product_id || item.product || item.id,
+                    is_paid: isPaid
                 };
             }
-            acc[key].quantity += item.quantity;
+            acc[key].quantity += parseInt(item.quantity || 1, 10);
             acc[key].line_total += parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity));
             return acc;
         }, {});
@@ -306,7 +340,8 @@ const PanelRestaurant = () => {
         return Object.values(grouped);
     };
 
-    const groupedItemsForModal = getGroupedItems();
+    const groupedItemsForModal = getGroupedItems(false);
+    const groupedItemsForSplit = getGroupedItems(true);
 
     return (
         <div style={{
@@ -399,10 +434,23 @@ const PanelRestaurant = () => {
                         onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(30, 41, 59, 0.85)'}
                     >
                         <i className={`bi bi-${icon}`} style={{ fontSize: isCompact ? '1.25rem' : isMobile ? '1rem' : '1.1rem' }}></i>
-                        {/* Desktop: label completo | Tablet(compact): nada | Mobile: label corto */}
                         {!isCompact && (isMobile ? mLabel : label)}
                     </button>
                 ))}
+
+                {/* Botón sincronizar — solo visible si no hay métodos de pago */}
+                {paymentMethods.length === 0 && (
+                    <button
+                        className={isCompact ? 'nav-icon-btn' : ''}
+                        data-tooltip="Sincronizar Métodos de Pago"
+                        style={{ ...floatingBtnStyle, backgroundColor: 'rgba(245, 158, 11, 0.85)', border: '1px solid #f59e0b' }}
+                        onClick={clearStaticCache}
+                        title="Sincronizar Métodos de Pago"
+                    >
+                        <i className="bi bi-arrow-clockwise" style={{ fontSize: isCompact ? '1.25rem' : '1.1rem' }}></i>
+                        {!isCompact && (isMobile ? 'Sync' : 'Sincronizar Pagos')}
+                    </button>
+                )}
 
             </div>
 
@@ -482,10 +530,11 @@ const PanelRestaurant = () => {
                                         padding: '0.65rem 1.25rem',
                                         borderBottom: '1px solid #1e293b',
                                         backgroundColor: idx % 2 === 0 ? 'transparent' : '#ffffff06',
+                                        opacity: item.is_paid ? 0.4 : 1,
                                     }}>
                                         <div>
-                                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#f1f5f9' }}>
-                                                {item.name}
+                                            <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#f1f5f9', textDecoration: item.is_paid ? 'line-through' : 'none' }}>
+                                                {item.name} {item.is_paid && <span style={{ marginLeft: '4px', color: '#10b981', fontSize: '0.7rem' }}>(COBRADO)</span>}
                                             </div>
                                             {item.notes && (
                                                 <div style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>{item.notes}</div>
@@ -494,7 +543,7 @@ const PanelRestaurant = () => {
                                         <span style={{ textAlign: 'center', paddingRight: '1.2rem', fontWeight: 700, color: '#94a3b8', fontSize: '0.85rem' }}>
                                             x{item.quantity}
                                         </span>
-                                        <span style={{ textAlign: 'right', fontWeight: 700, color: '#34d399', fontSize: '0.85rem' }}>
+                                        <span style={{ textAlign: 'right', fontWeight: 700, color: '#34d399', fontSize: '0.85rem', textDecoration: item.is_paid ? 'line-through' : 'none' }}>
                                             ${item.line_total.toFixed(2)}
                                         </span>
                                     </div>
@@ -552,112 +601,41 @@ const PanelRestaurant = () => {
                                     </span>
                                 </div>
 
-                                {/* SECCIÓN: MÉTODO DE PAGO */}
-                                <div style={{ marginBottom: '1rem' }}>
-                                    <label style={{
-                                        display: 'block',
-                                        marginBottom: '0.5rem',
-                                        fontSize: '0.9rem',
-                                        fontWeight: '600',
-                                        color: '#cbd5e1'
-                                    }}>
-                                        💳 Método de Pago
-                                    </label>
-                                    <select
-                                        value={selectedPaymentMethod}
-                                        onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                                        style={{
-                                            width: '100%',
-                                            padding: '0.75rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid #334155',
-                                            fontSize: '0.9rem',
-                                            backgroundColor: '#1e293b',
-                                            color: '#f8fafc',
-                                            appearance: 'none',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        {paymentMethods.map(method => (
-                                            <option key={method.id} value={method.id}>
-                                                {method.name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <label style={{
-                                    display: 'block',
-                                    marginBottom: '0.5rem',
-                                    fontSize: '0.9rem',
-                                    fontWeight: '600',
-                                    color: '#cbd5e1'
-                                }}>
-                                    💰 Tasa de Cambio
-                                </label>
-                                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedCurrency('USD');
-                                            setCashGiven(null);
-                                            setInputCash('');
-                                        }}
-                                        style={{
-                                            flex: 1, padding: '0.75rem',
-                                            backgroundColor: selectedCurrency === 'USD' ? '#3b82f6' : '#1e293b',
-                                            color: selectedCurrency === 'USD' ? '#ffffff' : '#94a3b8',
-                                            border: `1px solid ${selectedCurrency === 'USD' ? '#3b82f6' : '#334155'} `,
-                                            borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
-                                        }}
-                                    >
-                                        💵 Dólares (USD)
-                                    </button>
-
-                                    <button
-                                        onClick={() => {
-                                            setSelectedCurrency('COP');
-                                            setCashGiven(null);
-                                            setInputCash('');
-                                        }}
-                                        style={{
-                                            flex: 1, padding: '0.75rem',
-                                            backgroundColor: selectedCurrency === 'COP' ? '#10b981' : '#1e293b',
-                                            color: selectedCurrency === 'COP' ? '#ffffff' : '#94a3b8',
-                                            border: `1px solid ${selectedCurrency === 'COP' ? '#10b981' : '#334155'} `,
-                                            borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer',
-                                        }}
-                                    >
-                                        🇨🇴 Pesos (COP)
-                                    </button>
-                                </div>
-
-                                {selectedCurrency === 'COP' && (
-                                    <div style={{
-                                        padding: '0.75rem', marginBottom: '1rem',
-                                        backgroundColor: '#0f172a', borderRadius: '6px', border: '1px solid #10b981'
-                                    }}>
-                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', color: '#10b981' }}>
-                                            Tasa de Cambio Actual (1 USD = ? COP)
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={loadingRate ? 'Cargando...' : (exchangeRate ? `${parseFloat(exchangeRate).toLocaleString('es-CO')} COP` : '')}
-                                            readOnly
-                                            style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #10b981', fontSize: '0.9rem', color: '#34d399', backgroundColor: '#1e293b', cursor: 'not-allowed' }}
-                                        />
-                                        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
-                                            Pendiente en COP: <strong style={{ color: '#34d399' }}>{formatCurrency(calculateTotalInCurrency(), 'COP')}</strong>
-                                        </p>
+                                {/* SECCIÓN: PAGOS MÚLTIPLES */}
+                                <div style={{ marginBottom: '1rem', backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1rem' }}>
+                                    <h4 style={{ margin: '0 0 1rem 0', color: '#e2e8f0', fontSize: '0.95rem', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
+                                        💳 Agregar Pago
+                                    </h4>
+                                    
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.25rem' }}>Método</label>
+                                            <select
+                                                value={selectedPaymentMethod}
+                                                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#f8fafc' }}
+                                            >
+                                                {paymentMethods.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                            <label style={{ display: 'block', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.25rem' }}>Moneda</label>
+                                            <select
+                                                value={selectedCurrency}
+                                                onChange={(e) => setSelectedCurrency(e.target.value)}
+                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#f8fafc' }}
+                                            >
+                                                <option value="USD">USD ($)</option>
+                                                <option value="COP">COP ($)</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                )}
 
-                                {/* SECCIÓN: CALCULADORA DE VUELTO */}
-                                <div style={{
-                                    marginBottom: '1.5rem', padding: '1rem',
-                                    backgroundColor: '#1e293b', borderRadius: '8px', border: '1px solid #334155'
-                                }}>
-                                    <h4 style={{ margin: '0 0 0.5rem 0', color: '#e2e8f0', fontSize: '0.95rem' }}>🧮 Calculadora de Vuelto</h4>
+                                    {/* Ingreso de monto sugerido */}
                                     <div style={{ marginBottom: '1rem' }}>
+                                        <label style={{ display: 'block', fontSize: '0.8rem', color: '#cbd5e1', marginBottom: '0.25rem' }}>Monto Entregado ({selectedCurrency})</label>
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                             <input
                                                 type="number" value={inputCash}
@@ -666,16 +644,59 @@ const PanelRestaurant = () => {
                                                     setInputCash(val);
                                                     setCashGiven(val ? parseFloat(val) : null);
                                                 }}
-                                                placeholder="Ingreso manual..."
-                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#fff', fontSize: '0.9rem' }}
+                                                placeholder={`Monto en ${selectedCurrency}`}
+                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#fff' }}
                                             />
-                                            <button onClick={() => { setCashGiven(null); setInputCash(''); }}
-                                                style={{ padding: '0.5rem 1rem', backgroundColor: '#7f1d1d', color: '#fca5a5', border: '1px solid #ef4444', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
-                                                Borrar
+                                            <button
+                                                onClick={() => {
+                                                    if (!cashGiven || cashGiven <= 0) return alert('Ingreso de monto inválido');
+                                                    
+                                                    // Determinar monto en USD real
+                                                    let appliedUSD = 0;
+                                                    if (selectedCurrency === 'COP') {
+                                                        appliedUSD = cashGiven / parseFloat(exchangeRate || '4000');
+                                                    } else {
+                                                        appliedUSD = cashGiven;
+                                                    }
+
+                                                    // Calcular límite pendiente
+                                                    const totalPendiente = calculateTotalToPay() - paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0);
+                                                    
+                                                    let finalAppliedUSD = appliedUSD;
+                                                    let methodChange = 0;
+                                                    
+                                                    if (appliedUSD > totalPendiente) {
+                                                        finalAppliedUSD = totalPendiente;
+                                                        // if it was COP:
+                                                        if (selectedCurrency === 'COP') {
+                                                            methodChange = cashGiven - (totalPendiente * parseFloat(exchangeRate || '4000'));
+                                                        } else {
+                                                            methodChange = cashGiven - totalPendiente;
+                                                        }
+                                                    }
+
+                                                    const methodObj = paymentMethods.find(m => m.id === parseInt(selectedPaymentMethod) || m.id === selectedPaymentMethod);
+                                                    
+                                                    setPaymentSplits([...paymentSplits, {
+                                                        payment_method_id: selectedPaymentMethod,
+                                                        method_name: methodObj ? methodObj.name : 'Unknown',
+                                                        amount_applied: finalAppliedUSD, // always USD equivalent
+                                                        amount_received: cashGiven, // Raw in currency
+                                                        currency_code: selectedCurrency,
+                                                        change_amount: methodChange
+                                                    }]);
+                                                    
+                                                    setCashGiven(null);
+                                                    setInputCash('');
+                                                }}
+                                                style={{ padding: '0.5rem 1rem', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
+                                            >
+                                                Añadir Pago
                                             </button>
                                         </div>
                                     </div>
-
+                                    
+                                    {/* Atajos de billetes si no hay monto ingresado */}
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
                                         {(selectedCurrency === 'COP' ? [2000, 5000, 10000, 20000, 50000, 100000] : [1, 5, 10, 20, 50, 100]).map(bill => (
                                             <button key={bill}
@@ -684,28 +705,42 @@ const PanelRestaurant = () => {
                                                     setCashGiven(newVal);
                                                     setInputCash(newVal.toString());
                                                 }}
-                                                style={{ padding: '0.5rem', backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid #475569', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', minHeight: TOUCH_MIN_SIZE }}>
-                                                + {selectedCurrency === 'COP' ? formatCurrency(bill, 'COP') : `$${bill}`}
+                                                style={{ padding: '0.5rem', backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer' }}>
+                                                + {bill}
                                             </button>
                                         ))}
                                     </div>
 
-                                    {cashGiven !== null && (
-                                        <div style={{ padding: '0.75rem', backgroundColor: '#0f172a', borderRadius: '6px', border: '1px solid #475569', textAlign: 'center' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                                                <span style={{ color: '#94a3b8' }}>Recibido:</span>
-                                                <span style={{ fontWeight: 'bold', color: '#818cf8' }}>{formatCurrency(cashGiven, selectedCurrency)}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed #475569', fontSize: '1.2rem', fontWeight: '800' }}>
-                                                <span style={{ color: '#cbd5e1' }}>VUELTO:</span>
-                                                <div style={{ textAlign: 'right' }}>
-                                                    <div style={{ color: (cashGiven - calculateTotalInCurrency()) < 0 ? '#ef4444' : '#10b981' }}>
-                                                        {formatCurrency(cashGiven - calculateTotalInCurrency(), selectedCurrency)}
+                                </div>
+
+                                {/* RESUMEN DE PAGOS */}
+                                <div style={{ marginBottom: '1.5rem', backgroundColor: '#0f172a', borderRadius: '8px', padding: '1rem', border: '1px solid #1e293b' }}>
+                                    <h4 style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Pagos Registrados</h4>
+                                    {paymentSplits.length === 0 ? (
+                                        <div style={{ color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic' }}>Sin pagos añadidos aún...</div>
+                                    ) : (
+                                        <div style={{ marginBottom: '1rem' }}>
+                                            {paymentSplits.map((p, idx) => (
+                                                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #334155', padding: '0.4rem 0', fontSize: '0.85rem' }}>
+                                                    <span style={{ color: '#cbd5e1' }}>{p.method_name} ({p.currency_code})</span>
+                                                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                        <span style={{ color: '#10b981' }}>+ {formatCurrency(p.amount_applied, 'USD')}</span>
+                                                        <button onClick={() => setPaymentSplits(paymentSplits.filter((_, i) => i !== idx))}
+                                                            style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>
+                                                            ×
+                                                        </button>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            ))}
                                         </div>
                                     )}
+                                    
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '0.5rem', borderTop: '2px solid #334155' }}>
+                                        <span style={{ color: '#e2e8f0', fontWeight: 'bold' }}>SALDO PENDIENTE:</span>
+                                        <span style={{ color: (calculateTotalToPay() - paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0)) <= 0.01 ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '1.2rem' }}>
+                                            {formatCurrency(Math.max(0, calculateTotalToPay() - paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0)), 'USD')}
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
@@ -725,7 +760,7 @@ const PanelRestaurant = () => {
                                     <button
                                         onClick={() => {
                                             const initialSel = {};
-                                            groupedItemsForModal.forEach(item => {
+                                            groupedItemsForSplit.forEach(item => {
                                                 if (item.product_id) initialSel[item.product_id] = 0;
                                             });
                                             setSplitItemsSelection(initialSel);
@@ -748,15 +783,31 @@ const PanelRestaurant = () => {
                                                 const lastOrder = tableOrders[tableOrders.length - 1];
                                                 if (!lastOrder) return;
 
+                                                const sumApplied = paymentSplits.reduce((a, b) => a + b.amount_applied, 0);
+                                                const amountPending = calculateTotalToPay();
+                                                
+                                                if (paymentSplits.length === 0) {
+                                                    // Fallback si no añadió a la lista, lo asume
+                                                    paymentSplits.push({
+                                                        payment_method_id: selectedPaymentMethod,
+                                                        amount_applied: amountPending,
+                                                        amount_received: cashGiven || amountPending,
+                                                        currency_code: selectedCurrency
+                                                    });
+                                                } else if (sumApplied < amountPending - 0.01) {
+                                                    return alert(`El monto pagado ($${sumApplied.toFixed(2)}) no cubre el total de la orden ($${amountPending.toFixed(2)}).`);
+                                                }
+
                                                 // 1. Cobrar la cuenta utilizando el método seleccionado
                                                 await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/checkout/`, {
-                                                    payment_method: selectedPaymentMethod,
-                                                    amount_paid: cashGiven ? cashGiven : calculateTotalInCurrency(),
-                                                    currency_code: selectedCurrency
+                                                    payments_list: paymentSplits
                                                 });
 
-                                                // 2. Imprimir
-                                                await printerServiceRestaurant.printReceipt(lastOrder);
+                                                // 2. Imprimir — incluir métodos de pago en el ticket
+                                                await printerServiceRestaurant.printReceipt({
+                                                    ...lastOrder,
+                                                    payments_list: paymentSplits
+                                                });
 
                                                 // 3. Cerrar modal y refrescar mesas SIN recargar página
                                                 closeModal();
@@ -865,25 +916,26 @@ const PanelRestaurant = () => {
                         </div>
                     )}
 
-                    {/* Sub-modal Separar Cuenta */}
                     {showSplitItems && (
                         <div style={{
                             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
                             backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: '1rem'
                         }}>
                             <div style={{
-                                backgroundColor: '#1e293b', borderRadius: '12px', width: '100%', maxWidth: '400px',
-                                display: 'flex', flexDirection: 'column', maxHeight: '100%'
+                                backgroundColor: '#1e293b', borderRadius: '12px', width: '100%', maxWidth: '480px',
+                                display: 'flex', flexDirection: 'column', maxHeight: '95vh', overflowY: 'auto'
                             }}>
+                                {/* Header */}
                                 <div style={{ padding: '1.25rem', borderBottom: '1px solid #334155' }}>
-                                    <h4 style={{ color: '#fff', margin: 0, fontWeight: 700 }}>Separar Cuenta</h4>
+                                    <h4 style={{ color: '#fff', margin: 0, fontWeight: 700 }}>✂️ Separar Cuenta</h4>
                                     <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '4px' }}>
-                                        Elige qué productos vas a cobrar.
+                                        Selecciona los productos a cobrar en esta separación.
                                     </div>
                                 </div>
 
+                                {/* Lista de productos */}
                                 <div style={{ overflowY: 'auto', flex: 1, padding: '0.5rem 0' }}>
-                                    {groupedItemsForModal.map(item => {
+                                    {groupedItemsForSplit.map(item => {
                                         if (!item.product_id) return null;
                                         const totalQty = item.quantity;
                                         const selQty = splitItemsSelection[item.product_id] || 0;
@@ -892,7 +944,10 @@ const PanelRestaurant = () => {
                                             <div key={item.product_id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1.25rem', borderBottom: '1px solid #ffffff06' }}>
                                                 <div>
                                                     <div style={{ color: '#f1f5f9', fontWeight: 600, fontSize: '0.9rem' }}>{item.name}</div>
-                                                    <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Disp: {totalQty}</div>
+                                                    <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>
+                                                        Disp: {totalQty} &nbsp;·&nbsp;
+                                                        <span style={{ color: '#34d399' }}>${((item.line_total || 0) / (item.quantity || 1)).toFixed(2)} c/u</span>
+                                                    </div>
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#0f172a', padding: '4px', borderRadius: '8px' }}>
                                                     <button onClick={() => setSplitItemsSelection(p => ({ ...p, [item.product_id]: Math.max(0, selQty - 1) }))} style={{ width: '28px', height: '28px', border: 'none', borderRadius: '6px', backgroundColor: '#334155', color: '#fff', cursor: 'pointer' }}>-</button>
@@ -904,76 +959,254 @@ const PanelRestaurant = () => {
                                     })}
                                 </div>
 
-                                <div style={{ padding: '1.25rem', borderTop: '1px solid #334155', display: 'flex', gap: '10px', backgroundColor: '#0f172a', borderBottomLeftRadius: '12px', borderBottomRightRadius: '12px' }}>
-                                    <button onClick={() => setShowSplitItems(false)} style={{ flex: 1, padding: '0.75rem', backgroundColor: 'transparent', border: '1px solid #475569', color: '#cbd5e1', borderRadius: '8px', cursor: 'pointer' }}>
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            const itemsToSplit = Object.entries(splitItemsSelection)
-                                                .filter(([_, qty]) => qty > 0)
-                                                .map(([prodId, qty]) => ({ product_id: prodId, quantity: qty }));
+                                {/* ── Total de esta separación ── */}
+                                {(() => {
+                                    const splitTotal = Object.entries(splitItemsSelection).reduce((acc, [prodId, qty]) => {
+                                        const item = groupedItemsForSplit.find(i => i.product_id === prodId);
+                                        if (!item || qty <= 0) return acc;
+                                        const unitPrice = (item.line_total || 0) / (item.quantity || 1);
+                                        return acc + unitPrice * qty;
+                                    }, 0);
+                                    const splitPaid = splitPaymentSplits.reduce((a, b) => a + b.amount_applied, 0);
+                                    const splitPending = Math.max(0, splitTotal - splitPaid);
 
-                                            if (itemsToSplit.length === 0) return alert('Debes seleccionar al menos un producto para cobrar');
+                                    return (
+                                        <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid #334155', backgroundColor: '#0f172a' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                                                <span style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Subtotal selección:</span>
+                                                <span style={{ color: '#f59e0b', fontWeight: 700 }}>{formatCurrency(splitTotal, 'USD')}</span>
+                                            </div>
 
-                                            try {
-                                                const lastOrder = tableOrders[tableOrders.length - 1];
-                                                const res = await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/split_checkout/`, {
-                                                    items: itemsToSplit
-                                                });
+                                            {/* Widget de pagos múltiples dentro de Separar Cuenta */}
+                                            <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+                                                <h4 style={{ margin: '0 0 0.75rem 0', color: '#e2e8f0', fontSize: '0.9rem', borderBottom: '1px solid #334155', paddingBottom: '0.4rem' }}>
+                                                    💳 Forma de Pago
+                                                </h4>
 
-                                                // Construir payload desde items seleccionados
-                                                const splitPrintItems = itemsToSplit.map(si => {
-                                                    const found = groupedItemsForModal.find(g => g.product_id === si.product_id);
-                                                    const unitPrice = found ? parseFloat(found.line_total || 0) / (found.quantity || 1) : 0;
-                                                    return {
-                                                        name: found ? found.name : si.product_id,
-                                                        quantity: si.quantity,
-                                                        price: unitPrice,
-                                                        total: unitPrice * si.quantity,
-                                                        note: found ? (found.notes || '') : ''
-                                                    };
-                                                });
-                                                const splitSubtotal = splitPrintItems.reduce((s, i) => s + i.total, 0);
-                                                const splitPayload = {
-                                                    order_number: res.data.order_number || '',
-                                                    table_number: lastOrder.table_number || 'N/A',
-                                                    customer_name: 'CONSUMIDOR FINAL',
-                                                    items: splitPrintItems,
-                                                    subtotal: splitSubtotal,
-                                                    discount: 0,
-                                                    total: splitSubtotal,
-                                                    notes: res.data.notes || '',
-                                                    printed_at: new Date().toISOString()
-                                                };
-                                                await api.post('/api/restaurant/hardware/print/order/pos/', splitPayload);
-                                                // Refrescar la orden madre desde la API
-                                                const lastOrderNumber = lastOrder.order_number || lastOrder.id;
-                                                try {
-                                                    const refreshed = await api.get(`/api/restaurant/orders/orders/${lastOrderNumber}/`);
-                                                    const unpaidItems = (refreshed.data.items || []).filter(i => !i.is_paid);
-                                                    if (unpaidItems.length > 0) {
-                                                        setTableOrders([{ items: unpaidItems, order_number: lastOrderNumber }]);
-                                                    } else {
-                                                        // Si no quedan items, cerrar modal y refrescar mesas SIN recargar página
-                                                        closeModal();
-                                                        await refreshTables();
-                                                    }
-                                                } catch (_) {
-                                                    closeModal();
-                                                    await refreshTables();
-                                                }
-                                                setShowSplitItems(false);
-                                                setSplitItemsSelection({});
-                                            } catch (e) {
-                                                alert('Error al separar cuenta: ' + (e.response?.data?.error || e.message || e));
-                                            }
-                                        }}
-                                        style={{ flex: 1, padding: '0.75rem', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-                                    >
-                                        Separar y Cobrar
-                                    </button>
-                                </div>
+                                                {/* Método + Moneda */}
+                                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.2rem' }}>Método</label>
+                                                        <select
+                                                            value={splitPaymentMethod}
+                                                            onChange={(e) => setSplitPaymentMethod(e.target.value)}
+                                                            style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#f8fafc', fontSize: '0.85rem' }}
+                                                        >
+                                                            {paymentMethods.map(m => (
+                                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <label style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8', marginBottom: '0.2rem' }}>Moneda</label>
+                                                        <select
+                                                            value={splitCurrency}
+                                                            onChange={(e) => setSplitCurrency(e.target.value)}
+                                                            style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#f8fafc', fontSize: '0.85rem' }}
+                                                        >
+                                                            <option value="USD">USD ($)</option>
+                                                            <option value="COP">COP ($)</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* Monto + Botón Añadir */}
+                                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                                    <input
+                                                        type="number"
+                                                        value={splitInputCash}
+                                                        onChange={(e) => {
+                                                            setSplitInputCash(e.target.value);
+                                                            setSplitCashGiven(e.target.value ? parseFloat(e.target.value) : null);
+                                                        }}
+                                                        placeholder={`Monto en ${splitCurrency}`}
+                                                        style={{ flex: 1, padding: '0.45rem', borderRadius: '6px', border: '1px solid #334155', backgroundColor: '#0f172a', color: '#fff', fontSize: '0.9rem' }}
+                                                    />
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!splitCashGiven || splitCashGiven <= 0) return alert('Ingresa un monto válido');
+
+                                                            let appliedUSD = splitCurrency === 'COP'
+                                                                ? splitCashGiven / parseFloat(exchangeRate || '4000')
+                                                                : splitCashGiven;
+
+                                                            const pendiente = Math.max(0, splitTotal - splitPaymentSplits.reduce((a, b) => a + b.amount_applied, 0));
+                                                            let finalApplied = appliedUSD;
+                                                            let change = 0;
+                                                            if (appliedUSD > pendiente) {
+                                                                finalApplied = pendiente;
+                                                                change = splitCurrency === 'COP'
+                                                                    ? splitCashGiven - (pendiente * parseFloat(exchangeRate || '4000'))
+                                                                    : splitCashGiven - pendiente;
+                                                            }
+
+                                                            const methodObj = paymentMethods.find(m => m.id === parseInt(splitPaymentMethod) || m.id === splitPaymentMethod);
+                                                            setSplitPaymentSplits([...splitPaymentSplits, {
+                                                                payment_method_id: splitPaymentMethod,
+                                                                method_name: methodObj ? methodObj.name : 'Unknown',
+                                                                amount_applied: finalApplied,
+                                                                amount_received: splitCashGiven,
+                                                                currency_code: splitCurrency,
+                                                                change_amount: change
+                                                            }]);
+                                                            setSplitInputCash('');
+                                                            setSplitCashGiven(null);
+                                                        }}
+                                                        style={{ padding: '0.45rem 0.85rem', backgroundColor: '#10b981', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                                                    >
+                                                        + Añadir
+                                                    </button>
+                                                </div>
+
+                                                {/* Atajos de billetes */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.35rem', marginBottom: '0.75rem' }}>
+                                                    {(splitCurrency === 'COP' ? [2000, 5000, 10000, 20000, 50000, 100000] : [1, 5, 10, 20, 50, 100]).map(bill => (
+                                                        <button key={bill}
+                                                            onClick={() => {
+                                                                const newVal = (splitCashGiven || 0) + bill;
+                                                                setSplitCashGiven(newVal);
+                                                                setSplitInputCash(newVal.toString());
+                                                            }}
+                                                            style={{ padding: '0.35rem', backgroundColor: '#0f172a', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}>
+                                                            +{bill}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Lista de pagos añadidos */}
+                                                {splitPaymentSplits.length > 0 && (
+                                                    <div>
+                                                        {splitPaymentSplits.map((p, idx) => (
+                                                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed #334155', padding: '0.35rem 0', fontSize: '0.82rem' }}>
+                                                                <span style={{ color: '#cbd5e1' }}>{p.method_name} ({p.currency_code})</span>
+                                                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                                                    <span style={{ color: '#10b981' }}>+{formatCurrency(p.amount_applied, 'USD')}</span>
+                                                                    <button onClick={() => setSplitPaymentSplits(splitPaymentSplits.filter((_, i) => i !== idx))}
+                                                                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>×</button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Saldo pendiente de esta separación */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '2px solid #334155' }}>
+                                                    <span style={{ color: '#e2e8f0', fontWeight: 'bold', fontSize: '0.85rem' }}>SALDO PENDIENTE:</span>
+                                                    <span style={{ color: splitPending <= 0.01 ? '#10b981' : '#ef4444', fontWeight: 'bold', fontSize: '1rem' }}>
+                                                        {formatCurrency(splitPending, 'USD')}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Botones */}
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <button
+                                                    onClick={() => {
+                                                        setShowSplitItems(false);
+                                                        setSplitPaymentSplits([]);
+                                                        setSplitInputCash('');
+                                                        setSplitCashGiven(null);
+                                                        setSplitItemsSelection({});
+                                                    }}
+                                                    style={{ flex: 1, padding: '0.75rem', backgroundColor: 'transparent', border: '1px solid #475569', color: '#cbd5e1', borderRadius: '8px', cursor: 'pointer' }}
+                                                >
+                                                    Cancelar
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        const itemsToSplit = Object.entries(splitItemsSelection)
+                                                            .filter(([_, qty]) => qty > 0)
+                                                            .map(([prodId, qty]) => ({ product_id: prodId, quantity: qty }));
+
+                                                        if (itemsToSplit.length === 0) return alert('Debes seleccionar al menos un producto para cobrar');
+
+                                                        // Validar que el pago cubre el total de la selección
+                                                        if (splitTotal > 0.01) {
+                                                            const splitPaidNow = splitPaymentSplits.reduce((a, b) => a + b.amount_applied, 0);
+                                                            if (splitPaymentSplits.length === 0) {
+                                                                // Si no añadió ningún pago, usar el método seleccionado por defecto
+                                                                splitPaymentSplits.push({
+                                                                    payment_method_id: splitPaymentMethod,
+                                                                    amount_applied: splitTotal,
+                                                                    amount_received: splitTotal,
+                                                                    currency_code: splitCurrency
+                                                                });
+                                                            } else if (splitPaidNow < splitTotal - 0.01) {
+                                                                return alert(`El pago (${formatCurrency(splitPaidNow, 'USD')}) no cubre el subtotal (${formatCurrency(splitTotal, 'USD')}). Añade más pagos.`);
+                                                            }
+                                                        }
+
+                                                        try {
+                                                            const lastOrder = tableOrders[tableOrders.length - 1];
+                                                            const res = await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/split_checkout/`, {
+                                                                items: itemsToSplit,
+                                                                payments_list: splitPaymentSplits,
+                                                                // Fallback para compatibilidad
+                                                                payment_method: splitPaymentMethod,
+                                                                currency_code: splitCurrency
+                                                            });
+
+                                                            // Construir payload de impresión
+                                                            const splitPrintItems = itemsToSplit.map(si => {
+                                                                const found = groupedItemsForSplit.find(g => g.product_id === si.product_id);
+                                                                const unitPrice = found ? parseFloat(found.line_total || 0) / (found.quantity || 1) : 0;
+                                                                return {
+                                                                    name: found ? found.name : si.product_id,
+                                                                    quantity: si.quantity,
+                                                                    price: unitPrice,
+                                                                    total: unitPrice * si.quantity,
+                                                                    note: found ? (found.notes || '') : ''
+                                                                };
+                                                            });
+                                                            const splitSubtotal = splitPrintItems.reduce((s, i) => s + i.total, 0);
+                                                            const splitPayload = {
+                                                                order_number: res.data.order_number || '',
+                                                                table_number: lastOrder.table_number || 'N/A',
+                                                                customer_name: 'CONSUMIDOR FINAL',
+                                                                items: splitPrintItems,
+                                                                subtotal: splitSubtotal,
+                                                                discount: 0,
+                                                                total: splitSubtotal,
+                                                                notes: res.data.notes || '',
+                                                                printed_at: new Date().toISOString()
+                                                            };
+                                                            await api.post('/api/restaurant/hardware/print/order/pos/', splitPayload);
+
+                                                            // Limpiar estados del sub-modal de separación
+                                                            setSplitPaymentSplits([]);
+                                                            setSplitInputCash('');
+                                                            setSplitCashGiven(null);
+                                                            setShowSplitItems(false);
+                                                            setSplitItemsSelection({});
+
+                                                            // Refrescar la orden madre
+                                                            const lastOrderNumber = lastOrder.order_number || lastOrder.id;
+                                                            try {
+                                                                const refreshed = await api.get(`/api/restaurant/orders/orders/${lastOrderNumber}/`);
+                                                                const allItems = refreshed.data.items || [];
+                                                                const unpaidItems = allItems.filter(i => !i.is_paid);
+                                                                if (unpaidItems.length > 0) {
+                                                                    setTableOrders([{ items: allItems, order_number: lastOrderNumber }]);
+                                                                } else {
+                                                                    closeModal();
+                                                                    await refreshTables();
+                                                                }
+                                                            } catch (_) {
+                                                                closeModal();
+                                                                await refreshTables();
+                                                            }
+                                                        } catch (e) {
+                                                            alert('Error al separar cuenta: ' + (e.response?.data?.error || e.message || e));
+                                                        }
+                                                    }}
+                                                    style={{ flex: 2, padding: '0.75rem', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                                                >
+                                                    ✂️ Separar y Cobrar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </div>
                     )}
@@ -988,4 +1221,4 @@ const PanelRestaurant = () => {
     );
 };
 
-export default PanelRestaurant;
+export default PanelRestaurant;
