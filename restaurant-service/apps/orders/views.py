@@ -6,6 +6,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Count, Sum, Avg, Prefetch
 from django.utils import timezone
 from datetime import datetime, timedelta
+import uuid
+import logging
+from decimal import Decimal
+
+# Configurar logger
+logger = logging.getLogger(__name__)
 
 from core.permissions import require_authentication, require_staff
 from .models import Order, OrderItem, OrderItemExtra, DeliveryInfo, OrderStatusHistory
@@ -112,11 +118,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def _create_payment_for_order(self, order, request_data):
         """Auxiliar para crear un pago o múltiples vinculados a la orden."""
-        import logging
-        logger = logging.getLogger(__name__)
         from apps.payments.models import Payment, PaymentMethod, Currency
-        from decimal import Decimal
-        import uuid
         
         payments_from_request = []
         if 'payments_list' in request_data and isinstance(request_data['payments_list'], list) and len(request_data['payments_list']) > 0:
@@ -126,9 +128,11 @@ class OrderViewSet(viewsets.ModelViewSet):
             payment_method_id = request_data.get('payment_method_id') or request_data.get('payment_method')
             if payment_method_id:
                 amount_paid_raw = request_data.get('amount_paid')
+                # CRITICO: Priorizar 'amount' si viene de un pago parcial, sino usar lo demás
                 total_in_currency = (
                     request_data.get('total_in_currency')
-                    or (amount_paid_raw if amount_paid_raw else None)
+                    or amount_paid_raw
+                    or request_data.get('amount')
                     or order.total
                 )
                 amount_received = request_data.get('amount_received') or amount_paid_raw or total_in_currency
@@ -156,7 +160,26 @@ class OrderViewSet(viewsets.ModelViewSet):
                     defaults={'name': currency_code, 'symbol': '$', 'is_active': True}
                 )
                 
-                payment_method = PaymentMethod.objects.get(id=p_data['payment_method_id'])
+                # Robust payment method lookup (handle IDs and method_types)
+                pm_id = p_data.get('payment_method_id')
+                try:
+                    # Validar si es un UUID válido
+                    uuid.UUID(str(pm_id))
+                    payment_method = PaymentMethod.objects.get(id=pm_id)
+                except (ValueError, PaymentMethod.DoesNotExist, TypeError):
+                    # No es UUID o no existe por ID, probar por method_type (ej: 'cash')
+                    payment_method = PaymentMethod.objects.filter(
+                        method_type=pm_id, 
+                        is_active=True
+                    ).first()
+                    
+                    if not payment_method:
+                        # Fallback final: el primer método activo disponible
+                        payment_method = PaymentMethod.objects.filter(is_active=True).first()
+                        
+                if not payment_method:
+                    logger.error(f"[PAYMENT_ERROR] Could not find any valid payment method for {pm_id}")
+                    continue
                 
                 amount_applied = Decimal(str(p_data.get('amount_applied', 0)))
                 amount_received = Decimal(str(p_data.get('amount_received', amount_applied)))
@@ -313,7 +336,6 @@ class OrderViewSet(viewsets.ModelViewSet):
         POST /api/orders/{order_number}/partial_checkout/
         Body: {"amount": 25.00}
         """
-        from decimal import Decimal
         order = self.get_object()
         
         if order.status != 'pending':

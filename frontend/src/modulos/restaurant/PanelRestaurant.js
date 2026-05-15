@@ -191,7 +191,7 @@ const PanelRestaurant = () => {
                 if (table.current_order_number) {
                     // ✅ Fetch directo — el detalle siempre trae los items completos
                     const res = await api.get(`/api/restaurant/orders/orders/${table.current_order_number}/`);
-                    items = (res.data.items || []); // Mantenemos todos los items para impresión completa
+                    setTableOrders([res.data]);
                 } else {
                     // Fallback: buscar por número de mesa
                     const today = new Date().toISOString().split('T')[0];
@@ -199,11 +199,9 @@ const PanelRestaurant = () => {
                         `/api/restaurant/orders/orders/?table_number=${encodeURIComponent(table.number)}&date_from=${today}`
                     );
                     const orders = res.data.results || res.data || [];
-                    items = orders.flatMap(o => o.items || []);
+                    setTableOrders(orders);
                 }
 
-                // Guardamos como un "pseudo-order" para reutilizar la lógica del modal
-                setTableOrders([{ items, order_number: table.current_order_number }]);
                 setSelectedOrderModal(table);
             } catch (err) {
                 console.error('Error al cargar orden de la mesa:', err);
@@ -232,9 +230,9 @@ const PanelRestaurant = () => {
 
     const calculateTotalToPay = () => {
         return tableOrders.reduce((sum, o) => {
-            const itemsTotal = (o.items || []).filter(i => !i.is_paid).reduce((itemSum, item) => itemSum + parseFloat(item.line_total || (parseFloat(item.unit_price || 0) * item.quantity)), 0);
+            const total = parseFloat(o.total || 0);
             const paid = parseFloat(o.amount_paid || 0);
-            return sum + (itemsTotal - paid);
+            return sum + Math.max(0, total - paid);
         }, 0);
     };
 
@@ -896,7 +894,7 @@ const PanelRestaurant = () => {
                                                 const lastOrder = tableOrders[tableOrders.length - 1];
                                                 await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/partial_checkout/`, {
                                                     amount: parseFloat(partialAmount),
-                                                    payment_method: 'cash'
+                                                    payment_method_id: selectedPaymentMethod,
                                                 });
 
                                                 // Descargar ticket pre-cuenta modificado o comprobante
@@ -1186,7 +1184,7 @@ const PanelRestaurant = () => {
                                                                 const allItems = refreshed.data.items || [];
                                                                 const unpaidItems = allItems.filter(i => !i.is_paid);
                                                                 if (unpaidItems.length > 0) {
-                                                                    setTableOrders([{ items: allItems, order_number: lastOrderNumber }]);
+                                                                    setTableOrders([refreshed.data]);
                                                                 } else {
                                                                     closeModal();
                                                                     await refreshTables();
