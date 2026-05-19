@@ -141,8 +141,8 @@ services:
     networks:
       - aurora-network
     restart: unless-stopped
-    mem_limit: 512m
-    cpus: '0.5'
+    mem_limit: 1g
+    cpus: '1.0'
 
   frontend:
     build:

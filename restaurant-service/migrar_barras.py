@@ -1,16 +1,11 @@
 import os
 import django
-
-# Configuración del entorno de Django (necesario si se corre directamente con python sin manage.py shell)
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'restaurant_service.settings')
 django.setup()
-
-from django.db import models
 from apps.pos.models import Table
 
 def run():
     print("\n--- Iniciando Actualización de Mesas (Barras) ---")
-    
     # 1. Desactivar 'Barra A'
     old_barras = Table.objects.filter(number__iexact='Barra A')
     if old_barras.exists():
@@ -19,11 +14,12 @@ def run():
             b.save()
             print(f"[OK] Desactivada la mesa antigua: {b.number}")
     else:
-        print("[INFO] No se encontró 'Barra A', probablemente ya fue desactivada.")
+        print("[INFO] No se encontró 'Barra A', ya fue desactivada.")
 
     # 2. Crear o actualizar 'Barra 1', 'Barra 2', 'Barra 3'
     for i in range(1, 4):
         num = f'Barra {i}'
+        exists = Table.objects.filter(number=num).exists()
         t, created = Table.objects.update_or_create(
             number=num,
             defaults={
@@ -31,7 +27,7 @@ def run():
                 'capacity': 2,
                 'section': 'Barra',
                 'is_active': True,
-                'status': 'available' if created else models.F('status') # Mantiene el estatus si ya existía
+                **(({'status': 'available'}) if not exists else {})
             }
         )
         if created:
