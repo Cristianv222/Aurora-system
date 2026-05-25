@@ -1,4 +1,5 @@
-// modulos/restaurant/Reportes.js - VERSIÓN COMPLETA CORREGIDA CON FILTROS Y FECHA FIXED
+// @ts-nocheck
+// modulos/fast-food/Reportes.tsx - VERSIÓN COMPLETA CORREGIDA CON FILTROS Y FECHA FIXED
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../../services/api';
 import {
@@ -20,7 +21,7 @@ import { formatCurrency, formatDate, getValidDate, generateDetailedPDF } from '.
 const COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
 
 const getFastFoodBaseURL = () => {
-    return process.env.REACT_APP_RESTAURANT_SERVICE || 'http://localhost:8002';
+    return process.env.REACT_APP_FAST_FOOD_SERVICE || 'http://localhost:8002';
 };
 
 // Reemplaza la función isSameLocalDate con esta versión corregida:
@@ -104,7 +105,7 @@ const Reportes = () => {
     // Cargar estadísticas del dashboard
     const fetchDashboardStats = useCallback(async () => {
         try {
-            const response = await api.get('/api/restaurant/pos/daily-summaries/dashboard/', {
+            const response = await api.get('/api/pos/daily-summaries/dashboard/', {
                 baseURL: getFastFoodBaseURL(),
                 timeout: 20000
             });
@@ -120,7 +121,7 @@ const Reportes = () => {
     const fetchDayShifts = useCallback(async (dateStr) => {
         if (!dateStr) return;
         try {
-            const response = await api.get(`/api/restaurant/pos/shifts/by_date/?date=${dateStr}`, {
+            const response = await api.get(`/api/pos/shifts/by_date/?date=${dateStr}`, {
                 baseURL: getFastFoodBaseURL()
             });
             if (response.data && response.data.shifts) {
@@ -138,7 +139,7 @@ const Reportes = () => {
     const handlePrintShiftReport = async (shiftId) => {
         if (!shiftId) return;
         try {
-            const response = await api.get(`/api/restaurant/pos/shifts/${shiftId}/report/`, {
+            const response = await api.get(`/api/pos/shifts/${shiftId}/report/`, {
                 baseURL: getFastFoodBaseURL()
             });
             const reportData = response.data;
@@ -156,7 +157,7 @@ const Reportes = () => {
     // ========== GESTIÓN DE TURNOS ==========
     const checkCurrentShift = useCallback(async () => {
         try {
-            const response = await api.get('/api/restaurant/pos/shifts/current/', {
+            const response = await api.get('/api/pos/shifts/current/', {
                 baseURL: getFastFoodBaseURL()
             });
             // La respuesta es { shift: { ... } } o { message: "...", shift: null }
@@ -179,7 +180,7 @@ const Reportes = () => {
         setProcessingShift(true);
         try {
             // Enviamos solo el nombre del encargado. El backend se encarga de la caja.
-            await api.post('/api/restaurant/pos/shifts/', {
+            await api.post('/api/pos/shifts/', {
                 manager_name: managerName,
                 opening_cash: 0,
                 notes: shiftNotes || 'Apertura Simplificada'
@@ -209,14 +210,14 @@ const Reportes = () => {
 
         setProcessingShift(true);
         try {
-            await api.post(`/api/restaurant/pos/shifts/${currentShift.id}/close/`, {
+            await api.post(`/api/pos/shifts/${currentShift.id}/close/`, {
                 closing_cash: 0,
                 closing_notes: 'Cierre desde Reportes'
             }, { baseURL: getFastFoodBaseURL() });
 
             // Reporte y PDF
             try {
-                const reportResponse = await api.get(`/api/restaurant/pos/shifts/${currentShift.id}/report/`, {
+                const reportResponse = await api.get(`/api/pos/shifts/${currentShift.id}/report/`, {
                     baseURL: getFastFoodBaseURL()
                 });
 
@@ -258,7 +259,7 @@ const Reportes = () => {
             const today = new Date();
             console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'), today.toISOString());
 
-            const listResponse = await api.get('/api/restaurant/pos/daily-summaries/', {
+            const listResponse = await api.get('/api/pos/daily-summaries/', {
                 baseURL: getFastFoodBaseURL(),
                 params: { ordering: '-date', limit: 30 },
                 timeout: 10000
@@ -296,7 +297,7 @@ const Reportes = () => {
             if (!todayReport) {
                 console.log('No se encontró reporte de hoy en lista, intentando endpoint /today/');
                 try {
-                    const todayResponse = await api.get('/api/restaurant/pos/daily-summaries/today/', {
+                    const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
                         baseURL: getFastFoodBaseURL(),
                         timeout: 5000
                     });
@@ -352,7 +353,7 @@ const Reportes = () => {
 
             let response;
             if (isShift) {
-                response = await api.get(`/api/restaurant/pos/shifts/${reportId}/report/`, {
+                response = await api.get(`/api/pos/shifts/${reportId}/report/`, {
                     baseURL: getFastFoodBaseURL()
                 });
                 // Normalizar datos del turno para que coincidan con la estructura esperada por el UI y PDF
@@ -369,7 +370,7 @@ const Reportes = () => {
                 };
                 setCurrentReport(normalizedReport);
             } else {
-                response = await api.get(`/api/restaurant/pos/daily-summaries/${reportId}/detail_with_orders/`, {
+                response = await api.get(`/api/pos/daily-summaries/${reportId}/detail_with_orders/`, {
                     baseURL: getFastFoodBaseURL()
                 });
                 setCurrentReport(response.data);
@@ -430,7 +431,7 @@ const Reportes = () => {
 
             // SOLO generar nuevo reporte si se solicita explícitamente
             console.log("Generando nuevo reporte para:", dateStr);
-            const response = await api.post('/api/restaurant/pos/daily-summaries/generate/', {
+            const response = await api.post('/api/pos/daily-summaries/generate/', {
                 date: dateStr,
                 detailed: true,
                 include_orders_detail: true
@@ -530,7 +531,7 @@ const Reportes = () => {
                 payload.end_date = endDate;
             }
 
-            const response = await api.post('/api/restaurant/pos/daily-summaries/get_report/', payload, {
+            const response = await api.post('/api/pos/daily-summaries/get_report/', payload, {
                 baseURL: getFastFoodBaseURL(),
                 timeout: 15000
             });
@@ -626,7 +627,7 @@ const Reportes = () => {
             setError('');
             setDebugInfo('');
 
-            await api.post('/api/restaurant/pos/daily-summaries/close_day/', {
+            await api.post('/api/pos/daily-summaries/close_day/', {
                 date: format(new Date(), 'yyyy-MM-dd'),
                 closing_notes: 'Cierre manual del día'
             }, {
@@ -722,7 +723,7 @@ const Reportes = () => {
             const dateStr = format(date, 'yyyy-MM-dd');
             console.log('Buscando turnos para:', dateStr);
 
-            const response = await api.get('/api/restaurant/pos/shifts/by_date/', {
+            const response = await api.get('/api/pos/shifts/by_date/', {
                 baseURL: getFastFoodBaseURL(),
                 params: { date: dateStr }
             });
@@ -758,7 +759,7 @@ const Reportes = () => {
         try {
             // 1. Si es REPORTE DE TURNO
             if (currentReport.is_shift_report && currentReport.shift_info?.id) {
-                const response = await api.get(`/api/restaurant/pos/shifts/${currentReport.shift_info.id}/report/`, {
+                const response = await api.get(`/api/pos/shifts/${currentReport.shift_info.id}/report/`, {
                     baseURL: getFastFoodBaseURL()
                 });
                 const shiftData = response.data;
@@ -778,7 +779,7 @@ const Reportes = () => {
             else if (currentReport.date && !currentReport.start_date) {
                 const dateStr = currentReport.date;
                 // Re-generar reporte detallado sin loading
-                const response = await api.post('/api/restaurant/pos/daily-summaries/generate/', {
+                const response = await api.post('/api/pos/daily-summaries/generate/', {
                     date: dateStr,
                     detailed: true,
                     include_orders_detail: true
@@ -975,70 +976,6 @@ const Reportes = () => {
                             <p className="metric-title">{metric.title}</p>
                         </div>
                         <h3 className="metric-value" style={{ color: metric.color }}>
-                            {metric.value}
-                        </h3>
-                        {metric.description && (
-                            <p className="metric-description">
-                                {metric.description}
-                            </p>
-                        )}
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    // Renderizar métricas de pago (NUEVA FUNCIÓN)
-    const renderPaymentMetrics = () => {
-        if (!currentReport) return null;
-
-        const metrics = [
-            {
-                title: 'Efectivo',
-                value: formatCurrency(currentReport.cash_sales || 0),
-                color: '#10b981', // Verde
-                icon: 'payments',
-                description: currentReport.cash_count ? `${currentReport.cash_count} pagos recibidos` : 'Transacciones en efectivo'
-            },
-            {
-                title: 'Transferencia',
-                value: formatCurrency(currentReport.transfer_sales || 0),
-                color: '#3b82f6', // Azul
-                icon: 'account_balance',
-                description: currentReport.transfer_count ? `${currentReport.transfer_count} pagos recibidos` : 'Transacciones bancarias'
-            },
-            {
-                title: 'Tarjetas (TDD/TDC)',
-                value: formatCurrency(currentReport.card_sales || 0),
-                color: '#f59e0b', // Amarillo
-                icon: 'credit_card',
-                description: 'Pagos con terminal'
-            },
-            {
-                title: 'Pesos (COP)',
-                value: `$${(currentReport.cop_sales || 0).toLocaleString('es-CO', {minimumFractionDigits: 0, maximumFractionDigits: 0})} COP`,
-                color: '#8b5cf6', // Morado
-                icon: 'public',
-                description: currentReport.cop_count ? `${currentReport.cop_count} pagos recibidos` : 'Pagos moneda extranjera'
-            },
-            {
-                title: 'Otras Formas',
-                value: formatCurrency(currentReport.other_sales || 0),
-                color: '#6b7280', // Gris
-                icon: 'more_horiz',
-                description: 'Otros métodos de pago'
-            }
-        ];
-
-        return (
-            <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-                {metrics.map((metric, index) => (
-                    <div key={`pay-${index}`} className="metric-card">
-                        <div className="metric-header">
-                            <span className="material-icons" style={{ color: metric.color }}>{metric.icon}</span>
-                            <p className="metric-title" style={{ fontSize: '0.9rem' }}>{metric.title}</p>
-                        </div>
-                        <h3 className="metric-value" style={{ color: metric.color, fontSize: '1.25rem' }}>
                             {metric.value}
                         </h3>
                         {metric.description && (
@@ -1530,10 +1467,6 @@ const Reportes = () => {
                             <h3 className="section-title">Métricas de Rendimiento</h3>
                             {renderMetrics()}
 
-                            {/* Métricas de Pago (NUEVO) */}
-                            <h3 className="section-title" style={{ marginTop: '30px' }}>Desglose de Pagos</h3>
-                            {renderPaymentMetrics()}
-
                             {/* ELIMINADO: Detalle de Órdenes (Web) */}
 
                             {/* Gráficos Restantes (Ventas por Hora y Top Productos) */}
@@ -1638,12 +1571,6 @@ const Reportes = () => {
                                         ) : (
                                             <p style={{ color: '#666', fontStyle: 'italic' }}>No hay turnos registrados para este día.</p>
                                         )}
-                                    </div>
-
-                                    {/* Desglose de Pagos Modal */}
-                                    <div style={{ marginTop: '20px' }}>
-                                        <h4 className="section-title detail-section">Desglose de Pagos</h4>
-                                        {renderPaymentMetrics()}
                                     </div>
 
                                     <div style={{ marginTop: '20px' }}>

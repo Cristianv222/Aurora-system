@@ -1,29 +1,18 @@
+// @ts-nocheck
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
-import printerServiceRestaurant from '../../services/printerServiceRestaurant';
-import { useLocation, useNavigate } from 'react-router-dom';
-import TableCroquis from './TableCroquis';
+import printerService from '../../services/printerService';
 
 // ====================================================================
 // 1. Funciones de Ayuda (Definiciones de formato)
 // ====================================================================
 
-const formatCurrency = (amount, currency = 'USD') => {
-    if (amount === undefined || amount === null) return currency === 'COP' ? '$0' : '$0.00';
+const formatCurrency = (amount) => {
+    if (amount === undefined || amount === null) return '$0.00';
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-
-    if (currency === 'COP') {
-        return new Intl.NumberFormat('es-CO', {
-            style: 'currency',
-            currency: 'COP',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(num || 0);
-    }
-
-    return new Intl.NumberFormat('es-US', {
+    return new Intl.NumberFormat('es-MX', {
         style: 'currency',
-        currency: 'USD',
+        currency: 'MXN',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(num || 0);
@@ -63,35 +52,20 @@ const PuntosVenta = () => {
     const [showOrderDetails, setShowOrderDetails] = useState(false);
     const [editingNoteForItem, setEditingNoteForItem] = useState(null);
     const [noteText, setNoteText] = useState('');
-    
-    // Obtener parámetros de la URL
-    const location = useLocation();
-    const navigate = useNavigate();
 
     // 2. ESTADO DEL PUNTO DE VENTA
     const [cart, setCart] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedTable, setSelectedTable] = useState(null);  // Cambiar a objeto completo
-    const [showTableSelector, setShowTableSelector] = useState(false);  // Modal del croquis
+    const [selectedTable, setSelectedTable] = useState('');
     const [discountCode, setDiscountCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState(null);
 
     const [showReviewModal, setShowReviewModal] = useState(false);
 
-    // 3.5 ESTADO DE CALCULADORA DE VUELTO, MONEDA Y MÉTODOS DE PAGO
-    const [paymentMethods, setPaymentMethods] = useState([]);
-    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+    // 3.5 ESTADO DE CALCULADORA DE VUELTO
     const [cashGiven, setCashGiven] = useState(null);
     const [inputCash, setInputCash] = useState('');
-    const [selectedCurrency, setSelectedCurrency] = useState('USD');
-    const [exchangeRate, setExchangeRate] = useState(null); // Tasa desde backend
-    const [loadingRate, setLoadingRate] = useState(false);
-
-    // 3.6 ESTADO ORDEN PENDIENTE EN MESA
-    const [currentOrder, setCurrentOrder] = useState(null);
-    // Historial de items ya enviados a cocina/fortaleza en esta sesión
-    const [sentItems, setSentItems] = useState([]);
 
     // 3. ESTADO DE CLIENTES
     const [customers, setCustomers] = useState([]);
@@ -142,85 +116,52 @@ const PuntosVenta = () => {
         let isMounted = true;
 
         const fetchData = async () => {
-            const fetchProducts = async () => {
-                const cached = localStorage.getItem('restaurant_products');
-                if (cached) {
-                    if (isMounted) setProducts(JSON.parse(cached));
-                    return;
-                }
-                const res = await api.get('/api/restaurant/menu/products/');
-                const data = res.data.results || res.data || [];
-                localStorage.setItem('restaurant_products', JSON.stringify(data));
-                if (isMounted) setProducts(data);
-            };
+            try {
+                const productsRes = await api.get('/api/menu/products/', {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
 
-            const fetchCategories = async () => {
-                const cached = localStorage.getItem('restaurant_categories');
-                if (cached) {
-                    if (isMounted) setCategories(JSON.parse(cached));
-                    return;
-                }
-                const res = await api.get('/api/restaurant/menu/categories/');
-                const data = res.data.results || res.data || [];
-                localStorage.setItem('restaurant_categories', JSON.stringify(data));
-                if (isMounted) setCategories(data);
-            };
-
-            const fetchTables = async () => {
-                const tablesRes = await api.get('/api/restaurant/pos/tables/');
-                if (isMounted) setTables(tablesRes.data.results || tablesRes.data || []);
-            };
-
-            const fetchPayments = async () => {
-                const paymentsRes = await api.get('/api/restaurant/payments/payment-methods/active/');
                 if (!isMounted) return;
-                const methods = paymentsRes.data.results || paymentsRes.data || [];
-                setPaymentMethods(methods);
-                if (methods.length > 0) {
-                    const cashMethod = methods.find(m => m.method_type === 'cash');
-                    setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
+
+                const loadedProducts = productsRes.data.results || productsRes.data || [];
+                setProducts(loadedProducts);
+
+            } catch (err) {
+                console.error('Error cargando productos:', err);
+            }
+
+            try {
+                const categoriesRes = await api.get('/api/menu/categories/', {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+
+                if (!isMounted) return;
+
+                const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
+                setCategories(loadedCategories);
+
+            } catch (err) {
+                console.error('Error cargando categorías:', err);
+            }
+
+            try {
+                const tablesRes = await api.get('/api/pos/tables/', {
+                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                });
+
+                if (!isMounted) return;
+                setTables(tablesRes.data.results || tablesRes.data || []);
+
+            } catch (err) {
+                console.warn('Mesas no disponibles');
+                if (isMounted) {
+                    setTables([]);
                 }
-            };
-
-            const fetchRates = async () => {
-                if (isMounted) setLoadingRate(true);
-                try {
-                    const ratesRes = await api.get('/api/restaurant/payments/exchange-rates/active/');
-                    if (!isMounted) return;
-                    const rates = ratesRes.data.results || ratesRes.data || [];
-                    const usdCopRate = rates.find(r => r.from_currency === 'USD' && r.to_currency === 'COP');
-                    if (usdCopRate) {
-                        setExchangeRate(usdCopRate.rate);
-                    } else {
-                        setExchangeRate('4000'); // Fallback manual
-                    }
-                } catch (err) {
-                    console.warn('Tasas de cambio no disponibles', err);
-                    if (isMounted) setExchangeRate('4000'); // Fallback manual
-                } finally {
-                    if (isMounted) setLoadingRate(false);
-                }
-            };
-
-            const pReady = fetchProducts().catch(err => console.error('Error cargando productos:', err));
-            const cReady = fetchCategories().catch(err => console.error('Error cargando categorías:', err));
-
-            // Wait ONLY for UI-critical elements before removing loading spinner
-            await Promise.all([pReady, cReady]);
+            }
 
             if (isMounted) {
                 setLoading(false);
             }
-
-            // Load secondary data in background without blocking POS
-            Promise.all([
-                fetchTables().catch(err => {
-                    console.warn('Mesas no disponibles', err);
-                    if (isMounted) setTables([]);
-                }),
-                fetchPayments().catch(err => console.warn('Métodos de pago no disponibles', err)),
-                fetchRates()
-            ]).catch(err => console.error('Error global background fetch:', err));
         };
 
         fetchData();
@@ -229,58 +170,6 @@ const PuntosVenta = () => {
             isMounted = false;
         };
     }, []);
-
-    // ── URL params ──────────────────────────────────────────────────────────────
-    // restaurantMode=1 → viene del croquis de mesas; ocultar botones de cocina/pago
-    const queryParams = new URLSearchParams(location.search);
-    const restaurantMode = queryParams.get('restaurantMode') === '1';
-
-    // Efecto para leer la mesa de la URL si existe y aplicarla automáticamente y buscar orden pendiente
-    useEffect(() => {
-        const queryParams = new URLSearchParams(location.search);
-        const urlTable = queryParams.get('table');
-        const newOrder = queryParams.get('newOrder') === '1';
-        
-        if (urlTable) {
-            setSelectedTable(urlTable);
-            setSentItems([]); // siempre limpiar historial al entrar
-
-            // Si es una NUEVA orden, no cargar la orden existente — empezar carrito limpio
-            if (newOrder) {
-                setCart([]);
-                setCurrentOrder(null);
-                return;
-            }
-            
-            // Si no es nueva orden, intentar cargar la existente
-            api.get('/api/restaurant/pos/tables/')
-                .then(res => {
-                    const allTables = res.data.results || res.data || [];
-                    const tInfo = allTables.find(t => t.number === urlTable);
-                    if (tInfo && tInfo.status === 'occupied' && tInfo.current_order_number) {
-                        return api.get(`/api/restaurant/orders/orders/${tInfo.current_order_number}/`);
-                    }
-                    return null;
-                })
-                .then(res => {
-                    if (res) {
-                        const order = res.data;
-                        setCurrentOrder(order);
-                        if (order.items) {
-                            setCart(order.items.map(item => ({
-                                product_id: item.product_details ? item.product_details.id : item.product,
-                                name: item.product_details ? item.product_details.name : 'Producto',
-                                price: parseFloat(item.unit_price),
-                                quantity: item.quantity,
-                                note: item.notes || '',
-                                is_paid: item.is_paid || false
-                            })));
-                        }
-                    }
-                })
-                .catch(err => console.error("Error al cargar orden de la mesa", err));
-        }
-    }, [location.search]);
 
     // Detectar tamaño de pantalla
     useEffect(() => {
@@ -294,39 +183,14 @@ const PuntosVenta = () => {
         return () => {
             window.removeEventListener('resize', handleResize);
         };
-    }, [])
-
-    // =====================================
-    // 4.5 EFECTO PARA CARGAR TASA DE CAMBIO DESDE BACKEND
-    // =====================================
-    useEffect(() => {
-        const fetchExchangeRate = async () => {
-            if (selectedCurrency === 'COP') {
-                setLoadingRate(true);
-                try {
-                    const response = await api.get(
-                        '/api/restaurant/payments/exchange-rates/get_rate/?from=USD&to=COP'
-                    );
-                    setExchangeRate(response.data.rate);
-                } catch (err) {
-                    console.error('Error loading exchange rate:', err);
-                    // Si falla, usar tasa por defecto
-                    setExchangeRate(4000);
-                } finally {
-                    setLoadingRate(false);
-                }
-            }
-        };
-
-        fetchExchangeRate();
-    }, [selectedCurrency]);
+    }, []);
 
     // =====================================
     // 5. LÓGICA DEL CARRITO
     // =====================================
     const addToCart = useCallback((product) => {
         setCart(prevCart => {
-            const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id && !item.is_paid);
+            const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id);
             if (existingItemIndex >= 0) {
                 const newCart = [...prevCart];
                 newCart[existingItemIndex] = {
@@ -348,16 +212,13 @@ const PuntosVenta = () => {
     }, []);
 
     const removeFromCart = useCallback((productId) => {
-        setCart(prevCart => prevCart.filter(item => {
-            if (item.is_paid) return true; // Bloquea borrado de items pagados
-            return item.product_id !== productId;
-        }));
+        setCart(prevCart => prevCart.filter(item => item.product_id !== productId));
     }, []);
 
     const updateQuantity = useCallback((productId, delta) => {
         setCart(prevCart => {
             return prevCart.map(item => {
-                if (item.product_id === productId && !item.is_paid) {
+                if (item.product_id === productId) {
                     const newQuantity = Math.max(1, item.quantity + delta);
                     return { ...item, quantity: newQuantity };
                 }
@@ -418,23 +279,15 @@ const PuntosVenta = () => {
         return (subtotal - discount);
     }, [calculateSubtotal, calculateDiscountAmount]);
 
-    // Calcular total en la moneda seleccionada
-    const calculateTotalInCurrency = useMemo(() => {
-        const total = calculateTotal;
-        if (selectedCurrency === 'COP') {
-            const rate = parseFloat(exchangeRate) || 4000;
-            return total * rate;
-        }
-        return total;
-    }, [calculateTotal, selectedCurrency, exchangeRate]);
-
     // =====================================
     // 7. LÓGICA DE DESCUENTOS
     // =====================================
     const handleApplyDiscount = async () => {
         if (!discountCode) return;
         try {
-            const response = await api.post('/api/restaurant/pos/discounts/validate/', { code: discountCode });
+            const response = await api.post('/api/pos/discounts/validate/', { code: discountCode }, {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
             if (response.data.valid) {
                 setAppliedDiscount(response.data.discount);
                 alert('Descuento aplicado correctamente');
@@ -459,7 +312,9 @@ const PuntosVenta = () => {
             return;
         }
         try {
-            const response = await api.post('/api/restaurant/customers/admin/search/', { query });
+            const response = await api.post('/api/customers/admin/search/', { query }, {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
             setCustomers(response.data.data.customers || []);
         } catch (err) {
             console.error('Error searching customers:', err);
@@ -474,11 +329,13 @@ const PuntosVenta = () => {
                 cedula: newCustomer.cedula || null
             };
 
-            const response = await api.post('/api/restaurant/customers/register/', customerData);
+            const response = await api.post('/api/customers/register/', customerData, {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
             alert('Cliente creado exitosamente');
             setShowCustomerModal(false);
             setSelectedCustomer(response.data.data.customer);
-            setCustomerSearch(`${response.data.data.customer.first_name} ${response.data.data.customer.last_name} `);
+            setCustomerSearch(`${response.data.data.customer.first_name} ${response.data.data.customer.last_name}`);
             setCustomers([]);
             setNewCustomer({
                 email: '',
@@ -498,7 +355,7 @@ const PuntosVenta = () => {
 
             if (errorData?.errors) {
                 errorMessage += ':\n' + Object.entries(errorData.errors)
-                    .map(([key, val]) => `- ${key}: ${val} `)
+                    .map(([key, val]) => `- ${key}: ${val}`)
                     .join('\n');
             } else if (errorData?.message) {
                 errorMessage += ': ' + errorData.message;
@@ -532,136 +389,6 @@ const PuntosVenta = () => {
         });
     }, [products, selectedCategory, searchTerm]);
 
-    // =====================================
-    // 9.5 FUNCIÓN PARA ACTUALIZAR TASA DE CAMBIO EN BACKEND
-    // =====================================
-    const updateExchangeRateInBackend = async (newRate) => {
-        try {
-            await api.post('/api/restaurant/payments/exchange-rates/update_rate/', {
-                from_currency_code: 'USD',
-                to_currency_code: 'COP',
-                rate: parseFloat(newRate),
-                source: 'Manual - POS',
-                updated_by: 'Cajero'
-            });
-            console.log('✅ Tasa de cambio actualizada en backend:', newRate);
-        } catch (err) {
-            console.error('Error updating exchange rate:', err);
-        }
-    };
-
-    // =====================================
-    // 10. FUNCIÓN PRINCIPAL DE PROCESAMIENTO
-    // =====================================
-
-    // 📋 FUNCIÓN PARA GUARDAR EN MESA (DRAFT)
-    const handleSaveToTable = async (redirectParam) => {
-        const shouldRedirect = typeof redirectParam === 'boolean' ? redirectParam : true;
-        if (cart.length === 0) return;
-        if (!selectedTable || selectedTable === 'takeout' || selectedTable === 'Seleccionar mesa...') {
-            alert('Debe seleccionar una mesa válida para guardar la orden.');
-            return;
-        }
-
-        setProcessingOrder(true);
-        try {
-            // -- Siempre buscar si ya existe una orden activa en la mesa --
-            let activeOrderNumber = currentOrder?.order_number || null;
-
-            if (!activeOrderNumber) {
-                // Consultar el estado actual de la mesa en backend
-                const tablesRes = await api.get('/api/restaurant/pos/tables/');
-                const allTables = tablesRes.data.results || tablesRes.data || [];
-                const tInfo = allTables.find(t => t.number === selectedTable);
-                if (tInfo && tInfo.status === 'occupied' && tInfo.current_order_number) {
-                    activeOrderNumber = tInfo.current_order_number;
-                }
-            }
-
-            const newItems = cart.map(item => ({
-                product_id: item.product_id,
-                quantity: item.quantity,
-                notes: item.note || ''
-            }));
-
-            let orderObj;
-            let orderId;
-
-            if (activeOrderNumber) {
-                // ✅ Ya hay una orden 
-                let mergedItems = newItems;
-                let existingResData = null;
-
-                try {
-                    const existingRes = await api.get(`/api/restaurant/orders/orders/${activeOrderNumber}/`);
-                    existingResData = existingRes.data;
-                    
-                    // Solo anexamos al historial existente si abrimos el POS en modo "Nuevos Productos Limpios" 
-                    // (es decir, NO cargamos la orden al estado principal del POS).
-                    if (!currentOrder) {
-                        const existingItems = (existingRes.data.items || []).map(i => ({
-                            product_id: i.product_details ? i.product_details.id : i.product,
-                            size_id: i.size_details ? i.size_details.id : null,
-                            quantity: i.quantity,
-                            notes: i.notes || ''
-                        }));
-                        mergedItems = [...existingItems, ...newItems];
-                    }
-                } catch (e) {
-                    console.error("Error obteniendo orden existente, se pisará con los del carrito", e);
-                }
-
-                const res = await api.post(
-                    `/api/restaurant/orders/orders/${activeOrderNumber}/sync_draft/`,
-                    {
-                        order_type: 'dine_in',
-                        table_number: selectedTable,
-                        items: mergedItems,
-                        status: 'pending',
-                        payment_status: 'pending'
-                    }
-                );
-                orderObj = res.data;
-                orderId = orderObj.id || (existingResData ? existingResData.id : null);
-                console.log('✅ Items guardados en orden existente:', activeOrderNumber);
-            } else {
-                // 🆕 Mesa libre — crear orden nueva
-                const res = await api.post('/api/restaurant/orders/orders/', {
-                    order_type: 'dine_in',
-                    table_number: selectedTable,
-                    items: newItems,
-                    status: 'pending',
-                    payment_status: 'pending'
-                });
-                orderObj = res.data;
-                orderId = orderObj.id;
-                console.log('✅ Orden nueva creada:', orderId);
-            }
-
-            // Marcar la mesa como ocupada con esta orden
-            const tablesRes2 = await api.get('/api/restaurant/pos/tables/');
-            const allTables2 = tablesRes2.data.results || tablesRes2.data || [];
-            const tInfo2 = allTables2.find(t => t.number === selectedTable);
-            if (tInfo2) {
-                await api.post(`/api/restaurant/pos/tables/${tInfo2.id}/occupy/`, {
-                    order_id: orderId,
-                    waiter_name: 'Cajero POS'
-                });
-            }
-
-            if (shouldRedirect) {
-                alert('✅ Productos guardados en la mesa.');
-                window.location.href = '/restaurant';
-            }
-        } catch (err) {
-            console.error('❌ Error al guardar en mesa:', err.response?.data || err.message || err);
-            alert('❌ Error al guardar en la mesa: ' + (err.response?.data ? JSON.stringify(err.response.data) : err.message));
-        } finally {
-            setProcessingOrder(false);
-        }
-    };
-
-
     // 🖨️ FUNCIÓN PRINCIPAL CON IMPRESIÓN
     const finalPlaceOrder = async () => {
         if (cart.length === 0) return;
@@ -687,29 +414,15 @@ const PuntosVenta = () => {
         // Preparar notas con información de pago
         let orderNotes = '';
         if (cashGiven) {
-            const totalInCurrency = selectedCurrency === 'COP' ? calculateTotalInCurrency : calculateTotal;
-            const change = cashGiven - totalInCurrency;
-
-            if (selectedCurrency === 'COP') {
-                const rate = parseFloat(exchangeRate) || 4000;
-                orderNotes = `Pago con: ${formatCurrency(cashGiven, 'COP')} - Cambio: ${formatCurrency(change, 'COP')} (Tasa: 1 USD = ${rate} COP, Equivalente USD: ${formatCurrency(calculateTotal, 'USD')})`;
-            } else {
-                orderNotes = `Pago con: ${formatCurrency(cashGiven, 'USD')} - Cambio: ${formatCurrency(change, 'USD')} `;
-            }
-        } else if (selectedCurrency === 'COP') {
-            const rate = parseFloat(exchangeRate) || 4000;
-            orderNotes = `Moneda: Pesos Colombianos(Tasa: 1 USD = ${rate} COP, Total COP: ${formatCurrency(calculateTotalInCurrency, 'COP')}, Equivalente USD: ${formatCurrency(calculateTotal, 'USD')})`;
+            const change = cashGiven - calculateTotal;
+            orderNotes = `Pago con: ${formatCurrency(cashGiven)} - Cambio: ${formatCurrency(change)}`;
         }
 
-        // Modificado para incluir notas en los items y detalles del pago
+        // Modificado para incluir notas en los items
         const orderPayload = {
             order_type: orderType,
             table_number: tableNumber,
             notes: orderNotes, // Nueva nota general
-            payment_method_id: selectedPaymentMethod,
-            currency_code: selectedCurrency,
-            amount_paid: cashGiven || calculateTotalInCurrency,
-            total_in_currency: selectedCurrency === 'COP' ? calculateTotalInCurrency : calculateTotal,
             items: cart.map(item => ({
                 product_id: item.product_id,
                 quantity: item.quantity,
@@ -720,49 +433,43 @@ const PuntosVenta = () => {
         };
 
         try {
-            let createdOrder;
-            if (currentOrder) {
-                // Sincronizar y luego cobrar orden existente
-                await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/sync_draft/`, orderPayload);
-                const orderResponse = await api.post(`/api/restaurant/orders/orders/${currentOrder.order_number}/checkout/`, orderPayload);
-                createdOrder = orderResponse.data;
-            } else {
-                // 1. CREAR LA ORDEN DESDE CERO COMO COMPLETADA
-                orderPayload.status = 'completed';
-                orderPayload.payment_status = 'paid';
-                const orderResponse = await api.post('/api/restaurant/orders/orders/', orderPayload);
-                createdOrder = orderResponse.data;
-            }
+            // 1. CREAR LA ORDEN
+            const orderResponse = await api.post('/api/orders/orders/', orderPayload, {
+                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+            });
+
+            const createdOrder = orderResponse.data;
 
             // 2. PREPARAR DATOS PARA EL TICKET (incluyendo notas)
-            console.log("DEBUG createdOrder:", JSON.stringify(createdOrder));
             const receiptData = {
                 order_number: createdOrder.order_number || createdOrder.id,
-                customer_name: createdOrder.customer_name || (selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'CONSUMIDOR FINAL'),
-                table_number: createdOrder.table_number || (selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA')),
-                items: (createdOrder.items || cart).map(item => ({
-                    name: item.product_details?.name || item.product_name || item.name || 'Producto',
+                customer_name: selectedCustomer
+                    ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}`
+                    : 'CONSUMIDOR FINAL',
+                table_number: selectedTable === 'takeout' ? 'PARA LLEVAR' : (selectedTable || 'MESA GENÉRICA'),
+                items: cart.map(item => ({
+                    name: item.name,
                     quantity: item.quantity,
-                    price: parseFloat(item.unit_price || item.price || 0),
-                    total: parseFloat(item.line_total || item.subtotal || (item.price * item.quantity) || 0),
-                    note: item.notes || item.note || ''
+                    price: parseFloat(item.price),
+                    total: parseFloat(item.price * item.quantity),
+                    note: item.note || '' // Incluir nota en los datos del ticket
                 })),
-                subtotal: parseFloat(createdOrder.subtotal || cart.reduce((s, i) => s + (i.price * i.quantity), 0)),
-                discount: parseFloat(createdOrder.discount_amount || 0),
-                tax: parseFloat(createdOrder.tax_amount || 0),
-                total: parseFloat(createdOrder.total || cart.reduce((s, i) => s + (i.price * i.quantity), 0)),
-                printed_at: new Date().toISOString()
+                subtotal: parseFloat(calculateSubtotal),
+                discount: parseFloat(calculateDiscountAmount),
+                tax: parseFloat(calculateSubtotal * 0.12), // IVA 12%
+                total: parseFloat(calculateTotal),
+                printed_at: new Date().toISOString() // Hora del cliente para el ticket
             };
 
             // 3. ENVIAR A IMPRIMIR (esto abre la caja automáticamente)
             try {
-                const printResult = await printerServiceRestaurant.printReceipt(receiptData);
+                const printResult = await printerService.printReceipt(receiptData);
                 console.log('✅ Ticket enviado a impresión:', printResult);
 
                 alert(
                     `✅ ¡Orden creada exitosamente!\n\n` +
-                    `Orden: ${createdOrder.order_number || createdOrder.id} \n` +
-                    `Ticket: ${printResult.job_number} \n\n` +
+                    `Orden: ${createdOrder.order_number || createdOrder.id}\n` +
+                    `Ticket: ${printResult.job_number}\n\n` +
                     `🖨️ El ticket se está imprimiendo...\n` +
                     `🔓 La caja se abrirá automáticamente.`
                 );
@@ -771,8 +478,8 @@ const PuntosVenta = () => {
 
                 alert(
                     `⚠️ Orden creada pero no se pudo imprimir\n\n` +
-                    `Orden: ${createdOrder.order_number || createdOrder.id} \n\n` +
-                    `Error: ${printError.response?.data?.error || 'Error de conexión con la impresora'} \n\n` +
+                    `Orden: ${createdOrder.order_number || createdOrder.id}\n\n` +
+                    `Error: ${printError.response?.data?.error || 'Error de conexión con la impresora'}\n\n` +
                     `Verifica que el agente de Windows esté ejecutándose.`
                 );
             }
@@ -786,15 +493,13 @@ const PuntosVenta = () => {
             setCustomerSearch('');
             setCashGiven(null); // Resetear calculadora
             setInputCash('');
-            setSelectedCurrency('USD'); // Resetear moneda
-            setExchangeRate('4000');
 
         } catch (err) {
             console.error('❌ Error al procesar la orden:', err);
             const errorMsg = err.response?.data
                 ? JSON.stringify(err.response.data)
                 : 'Error al procesar la orden';
-            alert(`❌ Error: ${errorMsg} `);
+            alert(`❌ Error: ${errorMsg}`);
         } finally {
             setProcessingOrder(false);
         }
@@ -803,63 +508,10 @@ const PuntosVenta = () => {
     // 🔓 FUNCIÓN PARA ABRIR CAJA MANUALMENTE
     const handleOpenCashDrawer = async () => {
         try {
-            await printerServiceRestaurant.openCashDrawer();
+            await printerService.openCashDrawer();
             alert('✅ Caja abierta');
         } catch (error) {
             alert('❌ Error al abrir caja. Verifica que el agente esté ejecutándose.');
-        }
-    };
-    
-    // 🖨️ FUNCIÓN PARA IMPRIMIR COMANDAS (COCINA / FORTALEZA)
-    const handlePrintOrder = async (destination) => {
-        if (cart.length === 0) {
-            alert("No hay productos en la orden para imprimir.");
-            return;
-        }
-
-        // 🔄 AUTO-GUARDADO: Guardamos la orden automáticamente en la base de datos antes de mandar el ticket a cocina
-        if (selectedTable && selectedTable !== 'takeout' && selectedTable !== 'Seleccionar mesa...') {
-            console.log("Auto-guardando orden en mesa antes de imprimir...");
-            await handleSaveToTable(false);
-        }
-
-        try {
-            let tableNumber = selectedTable;
-            if (selectedTable === 'takeout') {
-                tableNumber = 'PARA LLEVAR';
-            } else if (!selectedTable || selectedTable === 'Seleccionar mesa...') {
-                tableNumber = 'MESA GENÉRICA';
-            }
-
-            const orderData = {
-                table_number: tableNumber,
-                customer_name: selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'Mesa General',
-                items: cart.map(item => ({
-                    name: item.name,
-                    quantity: item.quantity,
-                    note: item.note || ''
-                })),
-                destination: destination,
-                order_number: `COMANDA-${Date.now()}`,
-                subtotal: cart.reduce((s, i) => s + ((i.price || 0) * (i.quantity || 1)), 0),
-                total: cart.reduce((s, i) => s + ((i.price || 0) * (i.quantity || 1)), 0)
-            };
-
-            await printerServiceRestaurant.printKitchenOrder(orderData, destination.toLowerCase());
-            alert(`✅ Comanda enviada a ${destination}`);
-
-            // ↓↓ Acumular en historial y limpiar carrito para la siguiente ronda
-            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            setSentItems(prev => [...prev, {
-                destination,
-                timestamp,
-                items: cart.map(i => ({ ...i }))
-            }]);
-            setCart([]);  // limpiar para la siguiente ronda
-
-        } catch (err) {
-            console.error(`Error imprimiendo comanda a ${destination}:`, err);
-            alert(`❌ Error al imprimir comanda en ${destination}. El servicio de hardware podría estar configurándose.`);
         }
     };
 
@@ -939,7 +591,7 @@ const PuntosVenta = () => {
                                             }}
                                             onClick={() => {
                                                 setSelectedCustomer(c);
-                                                setCustomerSearch(`${c.first_name} ${c.last_name} `);
+                                                setCustomerSearch(`${c.first_name} ${c.last_name}`);
                                                 setCustomers([]);
                                             }}
                                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -1003,66 +655,34 @@ const PuntosVenta = () => {
                     }}>
                         Mesa / Tipo de Orden
                     </label>
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <button
-                            onClick={() => setShowTableSelector(true)}
-                            style={{
-                                flex: 1,
-                                minWidth: '200px',
-                                padding: screenWidth <= 1366 ? '0.5rem 1rem' : '0.75rem 1rem',
-                                backgroundColor: selectedTable && selectedTable !== 'takeout' ? '#10b981' : '#3b82f6',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: '8px',
-                                fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                minHeight: TOUCH_MIN_SIZE
-                            }}
-                        >
-                            {selectedTable && selectedTable !== 'takeout'
-                                ? `🍽️ Mesa ${selectedTable}`
-                                : '+ Seleccionar Mesa'}
-                        </button>
-                        <button
-                            onClick={() => setSelectedTable('takeout')}
-                            style={{
-                                flex: 1,
-                                minWidth: '150px',
-                                padding: screenWidth <= 1366 ? '0.5rem 1rem' : '0.75rem 1rem',
-                                backgroundColor: selectedTable === 'takeout' ? '#f59e0b' : '#ffffff',
-                                color: selectedTable === 'takeout' ? '#ffffff' : '#374151',
-                                border: `2px solid ${selectedTable === 'takeout' ? '#f59e0b' : '#d1d5db'}`,
-                                borderRadius: '8px',
-                                fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
-                                fontWeight: '600',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                minHeight: TOUCH_MIN_SIZE
-                            }}
-                        >
-                            📦 Para Llevar
-                        </button>
-                        {selectedTable && selectedTable !== 'takeout' && (
-                            <button
-                                onClick={() => setSelectedTable('')}
-                                style={{
-                                    padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
-                                    backgroundColor: '#ef4444',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    fontSize: '0.875rem',
-                                    fontWeight: '600',
-                                    cursor: 'pointer',
-                                    minHeight: TOUCH_MIN_SIZE
-                                }}
+                    <select
+                        style={{
+                            width: '100%',
+                            padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
+                            border: '2px solid #d1d5db',
+                            borderRadius: '8px',
+                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
+                            color: '#1f2937',
+                            backgroundColor: '#ffffff',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            minHeight: TOUCH_MIN_SIZE
+                        }}
+                        value={selectedTable}
+                        onChange={(e) => setSelectedTable(e.target.value)}
+                    >
+                        <option value="">Seleccionar mesa...</option>
+                        <option value="takeout">Para Llevar (Takeout)</option>
+                        {tables.map(table => (
+                            <option
+                                key={table.id}
+                                value={table.number}
+                                disabled={table.status !== 'available'}
                             >
-                                ✕
-                            </button>
-                        )}
-                    </div>
+                                Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
+                            </option>
+                        ))}
+                    </select>
                 </div>
 
                 {/* Código de Descuento */}
@@ -1132,46 +752,11 @@ const PuntosVenta = () => {
             {/* Resumen de productos */}
             <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '10px' }}>
                 <p style={{ fontSize: screenWidth <= 1366 ? '0.875rem' : '1rem', fontWeight: 'bold', color: '#1f2937' }}>
-                    Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name} ` : 'CONSUMIDOR FINAL'}
+                    Cliente: {selectedCustomer ? `${selectedCustomer.first_name} ${selectedCustomer.last_name}` : 'CONSUMIDOR FINAL'}
                 </p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    <span style={{ fontSize: screenWidth <= 1366 ? '0.75rem' : '0.9rem', color: '#4b5563' }}>
-                        Mesa:
-                    </span>
-                    <button
-                        onClick={() => setShowTableSelector(true)}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            backgroundColor: selectedTable ? '#10b981' : '#3b82f6',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            minHeight: TOUCH_MIN_SIZE
-                        }}
-                    >
-                        {selectedTable ? `🍽️ ${selectedTable.number} ` : '+ Seleccionar Mesa'}
-                    </button>
-                    {selectedTable && (
-                        <button
-                            onClick={() => setSelectedTable(null)}
-                            style={{
-                                padding: '0.5rem',
-                                backgroundColor: '#ef4444',
-                                color: '#ffffff',
-                                border: 'none',
-                                borderRadius: '6px',
-                                fontSize: '0.875rem',
-                                cursor: 'pointer',
-                                minHeight: TOUCH_MIN_SIZE
-                            }}
-                        >
-                            ✕
-                        </button>
-                    )}
-                </div>
+                <p style={{ fontSize: screenWidth <= 1366 ? '0.75rem' : '0.9rem', color: '#4b5563' }}>
+                    Mesa/Tipo: {selectedTable === 'takeout' ? 'Para Llevar' : selectedTable || 'Mesa Genérica (DINE-IN)'}
+                </p>
             </div>
 
             <div style={{
@@ -1245,157 +830,6 @@ const PuntosVenta = () => {
                 </table>
             </div>
 
-            {/* SECCIÓN: SELECTOR DE MONEDA */}
-            <div style={{
-                marginTop: '1rem',
-                padding: '1rem',
-                backgroundColor: '#f0fdf4',
-                borderRadius: '8px',
-                border: '2px solid #86efac'
-            }}>
-                {/* SECCIÓN: MÉTODO DE PAGO */}
-                <div style={{ marginBottom: '1.5rem' }}>
-                    <label style={{
-                        display: 'block',
-                        marginBottom: '0.5rem',
-                        fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem',
-                        fontWeight: '600',
-                        color: '#374151'
-                    }}>
-                        💳 Método de Pago
-                    </label>
-                    <select
-                        value={selectedPaymentMethod}
-                        onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                        style={{
-                            width: '100%',
-                            padding: '0.75rem',
-                            borderRadius: '8px',
-                            border: '2px solid #d1d5db',
-                            fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem',
-                            backgroundColor: '#f9fafb',
-                            appearance: 'none',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        {paymentMethods.map(method => (
-                            <option key={method.id} value={method.id}>
-                                {method.name} 
-                            </option>
-                        ))}
-                    </select>
-                </div>
-
-                <h4 style={{
-                    margin: '0 0 0.75rem 0',
-                    color: '#166534',
-                    fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem',
-                    fontWeight: '600'
-                }}>
-                    💰 Seleccionar Moneda de Pago
-                </h4>
-
-                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
-                    <button
-                        onClick={() => {
-                            setSelectedCurrency('USD');
-                            setCashGiven(null);
-                            setInputCash('');
-                        }}
-                        style={{
-                            flex: 1,
-                            padding: '0.75rem',
-                            backgroundColor: selectedCurrency === 'USD' ? '#3b82f6' : '#ffffff',
-                            color: selectedCurrency === 'USD' ? '#ffffff' : '#1f2937',
-                            border: `2px solid ${selectedCurrency === 'USD' ? '#3b82f6' : '#d1d5db'} `,
-                            borderRadius: '8px',
-                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            minHeight: TOUCH_MIN_SIZE,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem'
-                        }}
-                    >
-                        <span style={{ fontSize: '1.2rem' }}>💵</span>
-                        <span>Dólares (USD)</span>
-                    </button>
-
-                    <button
-                        onClick={() => {
-                            setSelectedCurrency('COP');
-                            setCashGiven(null);
-                            setInputCash('');
-                        }}
-                        style={{
-                            flex: 1,
-                            padding: '0.75rem',
-                            backgroundColor: selectedCurrency === 'COP' ? '#10b981' : '#ffffff',
-                            color: selectedCurrency === 'COP' ? '#ffffff' : '#1f2937',
-                            border: `2px solid ${selectedCurrency === 'COP' ? '#10b981' : '#d1d5db'} `,
-                            borderRadius: '8px',
-                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            minHeight: TOUCH_MIN_SIZE,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.5rem'
-                        }}
-                    >
-                        <span style={{ fontSize: '1.2rem' }}>🇨🇴</span>
-                        <span>Pesos Colombianos (COP)</span>
-                    </button>
-                </div>
-
-                {selectedCurrency === 'COP' && (
-                    <div style={{
-                        padding: '0.75rem',
-                        backgroundColor: '#ffffff',
-                        borderRadius: '6px',
-                        border: '1px solid #86efac'
-                    }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '0.5rem',
-                            fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9rem',
-                            fontWeight: '600',
-                            color: '#166534'
-                        }}>
-                            Tasa de Cambio Actual (1 USD = ? COP)
-                        </label>
-                        <input
-                            type="text"
-                            value={loadingRate ? 'Cargando...' : (exchangeRate ? `${parseFloat(exchangeRate).toLocaleString('es-CO')} COP` : '')}
-                            readOnly
-                            style={{
-                                width: '100%',
-                                padding: '0.5rem',
-                                borderRadius: '6px',
-                                border: '2px solid #86efac',
-                                fontSize: '1rem',
-                                fontWeight: '600',
-                                color: '#166534',
-                                backgroundColor: '#f9fafb',
-                                cursor: 'not-allowed'
-                            }}
-                        />
-                        <p style={{
-                            margin: '0.5rem 0 0 0',
-                            fontSize: '0.75rem',
-                            color: '#6b7280'
-                        }}>
-                            Total en COP: <strong style={{ color: '#166534' }}>{formatCurrency(calculateTotalInCurrency, 'COP')}</strong>
-                        </p>
-                    </div>
-                )}
-            </div>
-
             {/* SECCIÓN: CALCULADORA DE VUELTO */}
             <div style={{
                 marginTop: '1rem',
@@ -1455,10 +889,7 @@ const PuntosVenta = () => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
-                    {(selectedCurrency === 'COP'
-                        ? [1000, 2000, 5000, 10000, 20000, 50000, 100000]
-                        : [1, 2, 5, 10, 20, 50, 100]
-                    ).map(bill => (
+                    {[1, 2, 5, 10, 20, 50, 100].map(bill => (
                         <button
                             key={bill}
                             onClick={() => {
@@ -1478,7 +909,7 @@ const PuntosVenta = () => {
                                 minHeight: TOUCH_MIN_SIZE
                             }}
                         >
-                            + {selectedCurrency === 'COP' ? formatCurrency(bill, 'COP') : `$${bill} `}
+                            + ${bill}
                         </button>
                     ))}
                 </div>
@@ -1493,11 +924,11 @@ const PuntosVenta = () => {
                     }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                             <span style={{ color: '#6b7280' }}>Total a Pagar:</span>
-                            <span style={{ fontWeight: 'bold' }}>{formatCurrency(calculateTotalInCurrency, selectedCurrency)}</span>
+                            <span style={{ fontWeight: 'bold' }}>{formatCurrency(calculateTotal)}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
                             <span style={{ color: '#6b7280' }}>Efectivo Recibido:</span>
-                            <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>{formatCurrency(cashGiven, selectedCurrency)}</span>
+                            <span style={{ fontWeight: 'bold', color: '#4f46e5' }}>{formatCurrency(cashGiven)}</span>
                         </div>
                         <div style={{
                             display: 'flex',
@@ -1509,23 +940,11 @@ const PuntosVenta = () => {
                             fontWeight: '800'
                         }}>
                             <span style={{ color: '#3730a3' }}>VUELTO:</span>
-                            <div style={{ textAlign: 'right' }}>
-                                <div style={{ color: (cashGiven - calculateTotalInCurrency) < 0 ? '#ef4444' : '#059669' }}>
-                                    {formatCurrency(cashGiven - calculateTotalInCurrency, selectedCurrency)}
-                                </div>
-                                {selectedCurrency === 'COP' && exchangeRate && (
-                                    <div style={{
-                                        fontSize: '0.75rem',
-                                        color: '#6b7280',
-                                        fontWeight: '500',
-                                        marginTop: '0.25rem'
-                                    }}>
-                                        ≈ {formatCurrency((cashGiven - calculateTotalInCurrency) / parseFloat(exchangeRate), 'USD')}
-                                    </div>
-                                )}
-                            </div>
+                            <span style={{ color: (cashGiven - calculateTotal) < 0 ? '#ef4444' : '#059669' }}>
+                                {formatCurrency(cashGiven - calculateTotal)}
+                            </span>
                         </div>
-                        {(cashGiven - calculateTotalInCurrency) < 0 && (
+                        {(cashGiven - calculateTotal) < 0 && (
                             <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: '0.5rem 0 0 0' }}>
                                 ⚠️ Monto insuficiente
                             </p>
@@ -1685,66 +1104,38 @@ const PuntosVenta = () => {
     );
 
     // Renderizar vista con botones abajo (para pantallas <= 1366px - menos de 16 pulgadas)
-    // Renderizar vista con botones abajo (para pantallas <= 1366px - menos de 16 pulgadas)
     const renderCompactView = () => (
         <div style={{
             height: '100dvh', // Usar dvh para móviles/tablets
             maxHeight: '-webkit-fill-available', // Fallback iOS
             display: 'flex',
             flexDirection: 'column',
-            backgroundColor: '#f1f5f9', // slate-100
+            backgroundColor: '#f9fafb',
             overflow: 'hidden',
             position: 'fixed', // Fijar viewport
             top: 0,
             left: 0,
             right: 0,
-            bottom: 0,
-            fontFamily: "'Inter', system-ui, sans-serif"
+            bottom: 0
         }}>
-            {/* Header Moderno Móvil */}
+            {/* Header */}
             <div style={{
-                backgroundColor: '#1e293b', // Header oscuro premium
-                padding: '1rem',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                backgroundColor: '#ffffff',
+                borderBottom: '2px solid #e5e7eb',
+                padding: '0.75rem',
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
                 flexShrink: 0,
-                zIndex: 10,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
+                zIndex: 10
             }}>
-                <button
-                    onClick={() => navigate('/restaurant')}
-                    style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#94a3b8',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        fontSize: '0.9rem',
-                        fontWeight: '600',
-                        padding: '0.5rem',
-                        marginLeft: '-0.25rem'
-                    }}
-                >
-                    <i className="bi bi-arrow-left"></i> Mesas
-                </button>
                 <h1 style={{
-                    fontSize: screenWidth <= 768 ? '1.1rem' : '1.25rem',
-                    fontWeight: '800',
-                    color: '#f8fafc',
+                    fontSize: screenWidth <= 768 ? '1.25rem' : '1.5rem',
+                    fontWeight: '700',
+                    color: '#111827',
                     margin: 0,
-                    textTransform: 'uppercase',
-                    letterSpacing: '-0.025em',
-                    position: 'absolute',
-                    left: '50%',
-                    transform: 'translateX(-50%)'
+                    textAlign: 'center'
                 }}>
-                    <i className="bi bi-cart4" style={{ marginRight: '6px', color: '#38bdf8' }}></i>
-                    POS
+                    Punto de Venta
                 </h1>
-                <div style={{ width: '60px' }}></div> {/* Spacer for symmetry */}
             </div>
 
             {/* Contenido principal - Alterna entre productos y orden */}
@@ -1759,32 +1150,29 @@ const PuntosVenta = () => {
                 }}>
                     {/* Filtros */}
                     <div style={{
-                        padding: '1rem',
-                        borderBottom: '1px solid #e2e8f0',
-                        backgroundColor: '#ffffff',
+                        padding: '0.75rem',
+                        borderBottom: '1px solid #e5e7eb',
+                        backgroundColor: '#fafafa',
                         flexShrink: 0
                     }}>
                         <div style={{
                             display: 'flex',
                             overflowX: 'auto',
                             gap: '0.5rem',
-                            paddingBottom: '0.5rem',
-                            scrollbarWidth: 'none', // Ocultar scrollbar visual en móviles
-                            msOverflowStyle: 'none'
+                            paddingBottom: '0.25rem'
                         }}>
                             <button
                                 style={{
                                     padding: '0.5rem 1rem',
-                                    borderRadius: '9999px',
-                                    backgroundColor: selectedCategory === 'all' ? '#1e293b' : '#f1f5f9',
-                                    color: selectedCategory === 'all' ? '#ffffff' : '#475569',
+                                    borderRadius: '6px',
+                                    border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
+                                    backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
+                                    color: selectedCategory === 'all' ? '#ffffff' : '#374151',
                                     fontWeight: '600',
-                                    fontSize: '0.85rem',
-                                    border: 'none',
+                                    fontSize: '0.875rem',
                                     cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
+                                    transition: 'all 0.2s',
                                     whiteSpace: 'nowrap',
-                                    boxShadow: selectedCategory === 'all' ? '0 4px 6px -1px rgba(30, 41, 59, 0.2)' : 'none',
                                     minHeight: TOUCH_MIN_SIZE
                                 }}
                                 onClick={() => setSelectedCategory('all')}
@@ -1796,16 +1184,15 @@ const PuntosVenta = () => {
                                     key={cat.id}
                                     style={{
                                         padding: '0.5rem 1rem',
-                                        borderRadius: '9999px',
-                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#f1f5f9',
-                                        color: selectedCategory === cat.id ? '#ffffff' : '#475569',
+                                        borderRadius: '6px',
+                                        border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
+                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
+                                        color: selectedCategory === cat.id ? '#ffffff' : '#374151',
                                         fontWeight: '600',
-                                        fontSize: '0.85rem',
-                                        border: 'none',
+                                        fontSize: '0.875rem',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
+                                        transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
-                                        boxShadow: selectedCategory === cat.id ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={() => setSelectedCategory(cat.id)}
@@ -1820,101 +1207,88 @@ const PuntosVenta = () => {
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
-                        padding: '1rem',
-                        backgroundColor: '#f8fafc'
+                        padding: '0.75rem',
+                        backgroundColor: '#f9fafb'
                     }}>
                         <div style={{
                             display: 'grid',
                             gridTemplateColumns: screenWidth <= 768 ?
-                                'repeat(auto-fill, minmax(150px, 1fr))' :
-                                'repeat(auto-fill, minmax(180px, 1fr))',
-                            gap: '1rem' // Mas espacio
+                                'repeat(auto-fill, minmax(140px, 1fr))' :
+                                'repeat(auto-fill, minmax(160px, 1fr))',
+                            gap: '0.75rem'
                         }}>
                             {filteredProducts.map(product => (
                                 <div
                                     key={product.id}
                                     style={{
                                         backgroundColor: '#ffffff',
-                                        borderRadius: '12px',
+                                        borderRadius: '8px',
                                         overflow: 'hidden',
                                         cursor: 'pointer',
-                                        transition: 'transform 0.1s, box-shadow 0.1s',
-                                        border: '1px solid #e2e8f0',
-                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                                        display: 'flex',
-                                        flexDirection: 'column'
+                                        transition: 'all 0.2s',
+                                        border: '1px solid #e5e7eb',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                                     }}
                                     onClick={() => addToCart(product)}
-                                    onTouchStart={(e) => {
-                                        e.currentTarget.style.transform = 'scale(0.97)';
-                                        e.currentTarget.style.backgroundColor = '#f1f5f9';
-                                    }}
-                                    onTouchEnd={(e) => {
-                                        e.currentTarget.style.transform = 'scale(1)';
-                                        e.currentTarget.style.backgroundColor = '#ffffff';
-                                    }}
+                                    onMouseEnter={screenWidth > 768 ? (e) => {
+                                        e.currentTarget.style.transform = 'translateY(-4px)';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                                        e.currentTarget.style.borderColor = '#3b82f6';
+                                    } : undefined}
+                                    onMouseLeave={screenWidth > 768 ? (e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                                        e.currentTarget.style.borderColor = '#e5e7eb';
+                                    } : undefined}
                                 >
                                     <div style={{
-                                        height: screenWidth <= 768 ? '90px' : '120px',
-                                        backgroundColor: '#ffffff',
+                                        height: screenWidth <= 768 ? '80px' : '100px',
+                                        backgroundColor: '#f8fafc',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        padding: '0.75rem',
-                                        borderBottom: '1px solid #f1f5f9'
+                                        padding: '0.5rem'
                                     }}>
                                         {product.image ? (
                                             <img
-                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_RESTAURANT_SERVICE}${product.image}`}
+                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
                                                 alt={product.name}
                                                 style={{
                                                     maxWidth: '100%',
                                                     maxHeight: '100%',
-                                                    objectFit: 'contain',
-                                                    filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
+                                                    objectFit: 'contain'
                                                 }}
                                             />
                                         ) : (
-                                            <div style={{
-                                                width: '40px', height: '40px', borderRadius: '50%',
-                                                backgroundColor: '#e2e8f0', display: 'flex',
-                                                alignItems: 'center', justifyContent: 'center',
-                                                color: '#94a3b8', fontSize: '1.2rem'
+                                            <span style={{
+                                                color: '#94a3b8',
+                                                fontSize: '0.75rem',
+                                                textAlign: 'center'
                                             }}>
-                                                <i className="bi bi-image"></i>
-                                            </div>
+                                                Sin imagen
+                                            </span>
                                         )}
                                     </div>
-                                    <div style={{ padding: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                                    <div style={{ padding: '0.5rem' }}>
                                         <h3 style={{
-                                            fontSize: screenWidth <= 768 ? '0.85rem' : '0.9rem',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                             fontWeight: '600',
-                                            color: '#334155',
-                                            marginBottom: '0.4rem',
-                                            display: '-webkit-box',
-                                            WebkitLineClamp: 2,
-                                            WebkitBoxOrient: 'vertical',
+                                            color: '#1f2937',
+                                            marginBottom: '0.25rem',
                                             overflow: 'hidden',
-                                            lineHeight: '1.2'
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
                                         }}>
                                             {product.name}
                                         </h3>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <p style={{
-                                                fontSize: screenWidth <= 768 ? '1.05rem' : '1.15rem',
-                                                fontWeight: '800',
-                                                color: '#0ea5e9',
-                                                margin: 0
-                                            }}>
-                                                {formatCurrency(product.price)}
-                                            </p>
-                                            <div style={{
-                                                width: '26px', height: '26px', borderRadius: '50%',
-                                                backgroundColor: '#e0f2fe', color: '#0ea5e9',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontWeight: 'bold', fontSize: '1.1rem'
-                                            }}>+</div>
-                                        </div>
+                                        <p style={{
+                                            fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
+                                            fontWeight: '700',
+                                            color: '#059669',
+                                            margin: 0
+                                        }}>
+                                            ${product.price}
+                                        </p>
                                     </div>
                                 </div>
                             ))}
@@ -1923,45 +1297,40 @@ const PuntosVenta = () => {
                 </div>
             ) : (
                 // Vista de orden
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, backgroundColor: '#ffffff' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                     {/* Header de orden */}
                     <div style={{
-                        padding: '1rem',
-                        backgroundColor: '#f8fafc',
+                        padding: '0.75rem',
+                        backgroundColor: '#f3f4f6',
                         flexShrink: 0,
-                        borderBottom: '1px solid #e2e8f0',
+                        borderBottom: '1px solid #e5e7eb',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center'
                     }}>
                         <h3 style={{
-                            fontSize: screenWidth <= 768 ? '1.05rem' : '1.15rem',
+                            fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                             fontWeight: '700',
-                            color: '#1e293b',
-                            margin: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
+                            color: '#111827',
+                            margin: 0
                         }}>
-                            <i className="bi bi-receipt"></i>
                             Orden Actual ({cart.length})
                         </h3>
                         <button
                             style={{
                                 padding: '0.5rem 1rem',
-                                backgroundColor: '#e2e8f0',
+                                backgroundColor: '#3b82f6',
                                 border: 'none',
-                                borderRadius: '9999px',
-                                color: '#475569',
-                                fontSize: '0.85rem',
-                                fontWeight: '700',
+                                borderRadius: '6px',
+                                color: '#ffffff',
+                                fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                fontWeight: '600',
                                 cursor: 'pointer',
-                                minHeight: TOUCH_MIN_SIZE,
-                                display: 'flex', alignItems: 'center', gap: '0.4rem'
+                                minHeight: TOUCH_MIN_SIZE
                             }}
                             onClick={() => setShowOrderDetails(false)}
                         >
-                            <i className="bi bi-arrow-left"></i> Volver a Menu
+                            ← Productos
                         </button>
                     </div>
 
@@ -1969,65 +1338,56 @@ const PuntosVenta = () => {
                     <div style={{
                         flex: 1,
                         overflowY: 'auto',
-                        padding: '1rem',
+                        padding: '0.75rem',
                         display: 'flex',
-                        flexDirection: 'column',
-                        minHeight: 0,
-                        backgroundColor: '#ffffff'
+                        flexDirection: 'column'
                     }}>
-
                         {cart.length === 0 ? (
                             <div style={{
-                                flex: 1,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                color: '#94a3b8',
-                                padding: '2rem 1rem'
+                                textAlign: 'center',
+                                padding: '3rem 1rem',
+                                color: '#9ca3af',
+                                fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem'
                             }}>
-                                <i className="bi bi-cart-x" style={{ fontSize: '3rem', marginBottom: '1rem', color: '#cbd5e1' }}></i>
-                                <p style={{ margin: 0, fontSize: '1rem', fontWeight: '500' }}>No hay productos en el carrito</p>
+                                <p style={{ margin: 0 }}>No hay productos en el carrito</p>
                             </div>
                         ) : (
                             <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.75rem'
+                                gap: '0.5rem',
+                                flex: 1
                             }}>
                                 {cart.map((item, index) => (
                                     <div
                                         key={index}
                                         style={{
                                             backgroundColor: '#ffffff',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: '12px',
-                                            padding: '1rem',
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: '8px',
+                                            padding: '0.75rem',
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            gap: '0.75rem',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                            gap: '0.5rem'
                                         }}
                                     >
                                         {/* Información del producto */}
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
                                                 <h4 style={{
-                                                    fontSize: screenWidth <= 768 ? '0.9rem' : '0.95rem',
+                                                    fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                                     fontWeight: '600',
-                                                    color: '#334155',
+                                                    color: '#1f2937',
                                                     marginBottom: '0.25rem',
                                                     overflow: 'hidden',
-                                                    textOverflow: 'ellipsis',
-                                                    lineHeight: '1.3'
+                                                    textOverflow: 'ellipsis'
                                                 }}>
                                                     {item.name}
                                                 </h4>
                                                 <p style={{
-                                                    fontSize: screenWidth <= 768 ? '0.8rem' : '0.85rem',
-                                                    color: '#64748b',
-                                                    margin: 0,
-                                                    fontWeight: '500'
+                                                    fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
+                                                    color: '#6b7280',
+                                                    margin: 0
                                                 }}>
                                                     {formatCurrency(item.price)} c/u
                                                 </p>
@@ -2041,53 +1401,78 @@ const PuntosVenta = () => {
                                                 <div style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    border: '1px solid #cbd5e1',
-                                                    borderRadius: '8px',
+                                                    border: '2px solid #e5e7eb',
+                                                    borderRadius: '6px',
                                                     overflow: 'hidden',
-                                                    backgroundColor: '#f8fafc'
+                                                    backgroundColor: '#ffffff'
                                                 }}>
                                                     <button
                                                         style={{
-                                                            width: screenWidth <= 768 ? '32px' : '36px',
-                                                            height: screenWidth <= 768 ? '32px' : '36px',
-                                                            border: 'none', backgroundColor: 'transparent',
-                                                            color: '#475569', fontSize: screenWidth <= 768 ? '1.1rem' : '1.2rem',
-                                                            fontWeight: '600', cursor: 'pointer',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                            width: screenWidth <= 768 ? '36px' : '40px',
+                                                            height: screenWidth <= 768 ? '36px' : '40px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: screenWidth <= 768 ? '1rem' : '1.25rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
                                                         }}
                                                         onClick={() => updateQuantity(item.product_id, -1)}
-                                                    >−</button>
+                                                    >
+                                                        −
+                                                    </button>
                                                     <span style={{
-                                                        width: screenWidth <= 768 ? '28px' : '32px',
-                                                        textAlign: 'center', fontSize: screenWidth <= 768 ? '0.9rem' : '0.95rem',
-                                                        fontWeight: '700', color: '#1e293b'
-                                                    }}>{item.quantity}</span>
+                                                        width: screenWidth <= 768 ? '30px' : '34px',
+                                                        textAlign: 'center',
+                                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                                        fontWeight: '600',
+                                                        color: '#1f2937'
+                                                    }}>
+                                                        {item.quantity}
+                                                    </span>
                                                     <button
                                                         style={{
-                                                            width: screenWidth <= 768 ? '32px' : '36px',
-                                                            height: screenWidth <= 768 ? '32px' : '36px',
-                                                            border: 'none', backgroundColor: 'transparent',
-                                                            color: '#475569', fontSize: screenWidth <= 768 ? '1.1rem' : '1.2rem',
-                                                            fontWeight: '600', cursor: 'pointer',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                            width: screenWidth <= 768 ? '36px' : '40px',
+                                                            height: screenWidth <= 768 ? '36px' : '40px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: screenWidth <= 768 ? '1rem' : '1.25rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
                                                         }}
                                                         onClick={() => updateQuantity(item.product_id, 1)}
-                                                    >+</button>
+                                                    >
+                                                        +
+                                                    </button>
                                                 </div>
 
                                                 <button
                                                     style={{
-                                                        width: screenWidth <= 768 ? '32px' : '36px',
-                                                        height: screenWidth <= 768 ? '32px' : '36px',
-                                                        backgroundColor: '#fee2e2', border: '1px solid #fca5a5',
-                                                        borderRadius: '8px', color: '#ef4444',
-                                                        fontSize: screenWidth <= 768 ? '1.1rem' : '1.2rem',
-                                                        fontWeight: '600', cursor: 'pointer',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                        width: screenWidth <= 768 ? '36px' : '40px',
+                                                        height: screenWidth <= 768 ? '36px' : '40px',
+                                                        backgroundColor: '#fee2e2',
+                                                        border: '2px solid #fecaca',
+                                                        borderRadius: '6px',
+                                                        color: '#dc2626',
+                                                        fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
                                                     }}
                                                     onClick={() => removeFromCart(item.product_id)}
                                                     title="Eliminar producto"
-                                                >×</button>
+                                                >
+                                                    ×
+                                                </button>
                                             </div>
                                         </div>
 
@@ -2097,22 +1482,26 @@ const PuntosVenta = () => {
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
                                             paddingTop: '0.5rem',
-                                            borderTop: '1px dashed #e2e8f0'
+                                            borderTop: '1px dashed #e5e7eb'
                                         }}>
                                             <div style={{ flex: 1 }}>
                                                 {item.note ? (
                                                     <div style={{
-                                                        fontSize: screenWidth <= 768 ? '0.75rem' : '0.8rem',
-                                                        color: '#64748b', fontStyle: 'italic',
-                                                        backgroundColor: '#f8fafc', padding: '0.3rem 0.6rem',
-                                                        borderRadius: '6px', wordBreak: 'break-word', border: '1px solid #e2e8f0'
+                                                        fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
+                                                        color: '#6b7280',
+                                                        fontStyle: 'italic',
+                                                        backgroundColor: '#f3f4f6',
+                                                        padding: '0.25rem 0.5rem',
+                                                        borderRadius: '4px',
+                                                        wordBreak: 'break-word'
                                                     }}>
                                                         <strong>Nota:</strong> {item.note}
                                                     </div>
                                                 ) : (
                                                     <span style={{
-                                                        fontSize: screenWidth <= 768 ? '0.75rem' : '0.8rem',
-                                                        color: '#94a3b8', fontStyle: 'italic'
+                                                        fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
+                                                        color: '#9ca3af',
+                                                        fontStyle: 'italic'
                                                     }}>
                                                         Sin notas especiales
                                                     </span>
@@ -2121,14 +1510,16 @@ const PuntosVenta = () => {
 
                                             <button
                                                 style={{
-                                                    padding: '0.3rem 0.6rem',
-                                                    backgroundColor: item.note ? '#fffbeb' : '#f1f5f9',
-                                                    border: `1px solid ${item.note ? '#fde68a' : '#e2e8f0'}`,
-                                                    borderRadius: '6px',
-                                                    color: item.note ? '#b45309' : '#475569',
-                                                    fontSize: screenWidth <= 768 ? '0.75rem' : '0.8rem',
-                                                    fontWeight: '600', cursor: 'pointer',
-                                                    marginLeft: '0.5rem', whiteSpace: 'nowrap',
+                                                    padding: '0.25rem 0.5rem',
+                                                    backgroundColor: item.note ? '#fef3c7' : '#f3f4f6',
+                                                    border: `1px solid ${item.note ? '#fbbf24' : '#d1d5db'}`,
+                                                    borderRadius: '4px',
+                                                    color: item.note ? '#92400e' : '#374151',
+                                                    fontSize: screenWidth <= 768 ? '0.75rem' : '0.8125rem',
+                                                    fontWeight: '500',
+                                                    cursor: 'pointer',
+                                                    marginLeft: '0.5rem',
+                                                    whiteSpace: 'nowrap',
                                                     minHeight: TOUCH_MIN_SIZE
                                                 }}
                                                 onClick={() => handleAddNote(item.product_id)}
@@ -2141,35 +1532,37 @@ const PuntosVenta = () => {
                             </div>
                         )}
 
-                    </div>
-                    {/* Totales y Botones - FIJO inferior */}
-                    {cart.length > 0 && (
-                        <div style={{
-                            flexShrink: 0,
-                            padding: '1rem',
-                            borderTop: '1px solid #e2e8f0',
-                            backgroundColor: '#f8fafc',
-                            boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.05)'
-                        }}>
+                        {/* Totales y Botones */}
+                        {cart.length > 0 && (
+                            <div style={{
+                                marginTop: 'auto',
+                                paddingTop: '1rem',
+                                borderTop: '2px solid #e5e7eb'
+                            }}>
                                 {/* Totales */}
                                 <div style={{
                                     paddingBottom: '1rem',
                                     marginBottom: '0.75rem'
                                 }}>
                                     <div style={{
-                                        display: 'flex', justifyContent: 'space-between',
-                                        marginBottom: '0.5rem', fontSize: screenWidth <= 768 ? '0.9rem' : '0.95rem',
-                                        color: '#64748b'
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        marginBottom: '0.5rem',
+                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                        color: '#6b7280'
                                     }}>
                                         <span>Subtotal</span>
-                                        <span style={{ fontWeight: '600', color: '#334155' }}>{formatCurrency(calculateSubtotal)}</span>
+                                        <span style={{ fontWeight: '600' }}>{formatCurrency(calculateSubtotal)}</span>
                                     </div>
 
                                     {appliedDiscount && (
                                         <div style={{
-                                            display: 'flex', justifyContent: 'space-between',
-                                            marginBottom: '0.5rem', fontSize: screenWidth <= 768 ? '0.9rem' : '0.95rem',
-                                            color: '#ef4444', fontWeight: '600'
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            marginBottom: '0.5rem',
+                                            fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                            color: '#dc2626',
+                                            fontWeight: '600'
                                         }}>
                                             <span>Descuento</span>
                                             <span>- {formatCurrency(calculateDiscountAmount)}</span>
@@ -2177,135 +1570,119 @@ const PuntosVenta = () => {
                                     )}
 
                                     <div style={{
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        paddingTop: '0.75rem', borderTop: '2px dashed #cbd5e1',
-                                        fontSize: screenWidth <= 768 ? '1.5rem' : '1.75rem',
-                                        fontWeight: '800', color: '#0f172a'
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        paddingTop: '0.75rem',
+                                        borderTop: '2px solid #e5e7eb',
+                                        fontSize: screenWidth <= 768 ? '1.25rem' : '1.5rem',
+                                        fontWeight: '700',
+                                        color: '#111827'
                                     }}>
                                         <span>Total</span>
                                         <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
                                     </div>
                                 </div>
 
-                                {/* Botones principal Cocina/Fortaleza - SIEMPRE visibles en restaurant mode */}
-                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                    <button
-                                        onClick={() => handlePrintOrder('Cocina')}
-                                        disabled={cart.length === 0}
-                                        style={{
-                                            flex: 1, padding: '0.75rem',
-                                            backgroundColor: cart.length === 0 ? '#f1f5f9' : '#f59e0b',
-                                            color: cart.length === 0 ? '#94a3b8' : '#ffffff',
-                                            border: 'none', borderRadius: '8px',
-                                            fontSize: screenWidth <= 768 ? '0.85rem' : '0.9rem',
-                                            fontWeight: '600', cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                                            boxShadow: cart.length > 0 ? '0 1px 2px rgba(245, 158, 11, 0.5)' : 'none'
-                                        }}
-                                    >
-                                        <i className="bi bi-fire"></i> Cocina
-                                    </button>
-                                    <button
-                                        onClick={() => handlePrintOrder('Fortaleza')}
-                                        disabled={cart.length === 0}
-                                        style={{
-                                            flex: 1, padding: '0.75rem',
-                                            backgroundColor: cart.length === 0 ? '#f1f5f9' : '#8b5cf6',
-                                            color: cart.length === 0 ? '#94a3b8' : '#ffffff',
-                                            border: 'none', borderRadius: '8px',
-                                            fontSize: screenWidth <= 768 ? '0.85rem' : '0.9rem',
-                                            fontWeight: '600', cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
-                                            boxShadow: cart.length > 0 ? '0 1px 2px rgba(139, 92, 246, 0.5)' : 'none'
-                                        }}
-                                    >
-                                        <i className="bi bi-cup-straw"></i> Fortaleza
-                                    </button>
-                                </div>
-
-                                {/* Guardar en Mesa - siempre visible */}
+                                {/* Botones principales */}
                                 <button
                                     style={{
-                                        width: '100%', padding: '0.75rem', marginBottom: '0.5rem',
-                                        backgroundColor: processingOrder ? '#cbd5e1' : '#10b981',
-                                        border: 'none', borderRadius: '8px', color: '#ffffff',
-                                        fontSize: screenWidth <= 768 ? '0.95rem' : '1.05rem',
-                                        fontWeight: '700', cursor: processingOrder ? 'not-allowed' : 'pointer',
-                                        minHeight: TOUCH_MIN_SIZE,
-                                        boxShadow: processingOrder ? 'none' : '0 1px 2px rgba(16, 185, 129, 0.5)'
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#ffffff',
+                                        fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
+                                        fontWeight: '700',
+                                        cursor: processingOrder ? 'not-allowed' : 'pointer',
+                                        marginBottom: '0.5rem',
+                                        minHeight: TOUCH_MIN_SIZE
                                     }}
-                                    onClick={handleSaveToTable}
+                                    onClick={openOrderConfirmationModal}
                                     disabled={processingOrder}
                                 >
-                                    {processingOrder ? 'Guardando...' : '💾 Guardar en Mesa'}
+                                    {processingOrder ? 'Procesando...' : 'Revisar y Pagar'}
                                 </button>
 
-                                {!restaurantMode && (
-                                    <button
-                                        style={{
-                                            width: '100%', padding: '0.75rem',
-                                            backgroundColor: '#f59e0b', border: 'none', borderRadius: '8px',
-                                            color: '#ffffff', fontSize: screenWidth <= 768 ? '0.85rem' : '0.9rem',
-                                            fontWeight: '600', cursor: 'pointer', minHeight: TOUCH_MIN_SIZE,
-                                            boxShadow: '0 1px 2px rgba(245, 158, 11, 0.5)'
-                                        }}
-                                        onClick={handleOpenCashDrawer}
-                                    >
-                                        🔓 Abrir Caja
-                                    </button>
-                                )}
-                        </div>
-                    )}
+                                <button
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        backgroundColor: '#f59e0b',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        color: '#ffffff',
+                                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        minHeight: TOUCH_MIN_SIZE
+                                    }}
+                                    onClick={handleOpenCashDrawer}
+                                >
+                                    🔓 Abrir Caja
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
-            {/* Barra inferior con botones - Estilo Navigation Flow */}
+            {/* Barra inferior con botones */}
             <div style={{
                 backgroundColor: '#ffffff',
-                borderTop: '1px solid #e2e8f0',
-                padding: '0.75rem',
+                borderTop: '2px solid #e5e7eb',
+                padding: '0.5rem',
                 display: 'flex',
-                gap: '0.75rem',
-                flexShrink: 0,
-                boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.05)'
+                gap: '0.5rem',
+                flexShrink: 0
             }}>
                 <button
                     style={{
-                        flex: 1, padding: '0.75rem',
-                        backgroundColor: showOrderDetails ? '#f1f5f9' : '#1e293b',
-                        border: '1px solid', borderColor: showOrderDetails ? '#e2e8f0' : '#0f172a',
-                        borderRadius: '10px',
-                        color: showOrderDetails ? '#475569' : '#ffffff',
-                        fontSize: screenWidth <= 768 ? '0.9rem' : '0.95rem',
-                        fontWeight: '700', cursor: 'pointer', minHeight: TOUCH_MIN_SIZE,
-                        transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                        flex: 1,
+                        padding: '0.75rem',
+                        backgroundColor: showOrderDetails ? '#e5e7eb' : '#3b82f6',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: showOrderDetails ? '#374151' : '#ffffff',
+                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        minHeight: TOUCH_MIN_SIZE
                     }}
                     onClick={() => setShowOrderDetails(false)}
                 >
-                    <i className="bi bi-grid-fill"></i> Productos
+                    Productos
                 </button>
                 <button
                     style={{
-                        flex: 1, padding: '0.75rem',
-                        backgroundColor: !showOrderDetails ? '#f1f5f9' : '#1e293b',
-                        border: '1px solid', borderColor: !showOrderDetails ? '#e2e8f0' : '#0f172a',
-                        borderRadius: '10px',
-                        color: !showOrderDetails ? '#475569' : '#ffffff',
-                        fontSize: screenWidth <= 768 ? '0.9rem' : '0.95rem',
-                        fontWeight: '700', cursor: 'pointer', minHeight: TOUCH_MIN_SIZE,
-                        position: 'relative', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                        flex: 1,
+                        padding: '0.75rem',
+                        backgroundColor: !showOrderDetails ? '#e5e7eb' : '#3b82f6',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: !showOrderDetails ? '#374151' : '#ffffff',
+                        fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        minHeight: TOUCH_MIN_SIZE,
+                        position: 'relative'
                     }}
                     onClick={() => setShowOrderDetails(true)}
                 >
-                    <i className="bi bi-receipt-cutoff"></i> Orden
-                    {cart.length > 0 && (
+                    Orden {cart.length > 0 && (
                         <span style={{
-                            position: 'absolute', top: '-8px', right: '-8px',
-                            backgroundColor: '#fbbf24', color: '#78350f',
-                            borderRadius: '50%', width: '22px', height: '22px',
-                            fontSize: '0.8rem', fontWeight: '800',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            border: '2px solid #ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                            position: 'absolute',
+                            top: '-5px',
+                            right: '-5px',
+                            backgroundColor: '#ef4444',
+                            color: '#ffffff',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            fontSize: '0.75rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
                         }}>
                             {cart.length}
                         </span>
@@ -2321,54 +1698,25 @@ const PuntosVenta = () => {
             height: '100vh',
             display: 'flex',
             flexDirection: 'column',
-            backgroundColor: '#f1f5f9', // Elegante gris-azulado claro (Tailwind slate-100)
-            overflow: 'hidden',
-            fontFamily: "'Inter', system-ui, sans-serif"
+            backgroundColor: '#f9fafb',
+            overflow: 'hidden'
         }}>
-            {/* Header POS Moderno */}
+            {/* Header */}
             <div style={{
-                backgroundColor: '#1e293b', // Header oscuro premium (slate-800)
-                borderBottom: '1px solid #0f172a',
+                backgroundColor: '#ffffff',
+                borderBottom: '2px solid #e5e7eb',
                 padding: '1rem 1.5rem',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <button
-                        onClick={() => navigate('/restaurant')}
-                        style={{
-                            background: '#334155',
-                            border: '1px solid #475569',
-                            color: '#e2e8f0',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '0.95rem',
-                            fontWeight: '600',
-                            padding: '0.5rem 1rem',
-                            transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = '#475569'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = '#334155'; }}
-                    >
-                        <i className="bi bi-arrow-left"></i> Volver a Mesas
-                    </button>
-                    <h1 style={{
-                        fontSize: '1.5rem',
-                        fontWeight: '800',
-                        color: '#f8fafc',
-                        margin: 0,
-                        letterSpacing: '-0.025em',
-                        textTransform: 'uppercase'
-                    }}>
-                        <i className="bi bi-cart4" style={{ marginRight: '8px', color: '#38bdf8' }}></i>
-                        Punto de Venta
-                    </h1>
-                </div>
+                <h1 style={{
+                    fontSize: '1.75rem',
+                    fontWeight: '700',
+                    color: '#111827',
+                    margin: 0,
+                    letterSpacing: '-0.025em'
+                }}>
+                    Punto de Venta
+                </h1>
             </div>
 
             <div style={{
@@ -2377,64 +1725,62 @@ const PuntosVenta = () => {
                 overflow: 'hidden',
                 flexDirection: 'row'
             }}>
-                {/* Panel Izquierdo: Catálogo (Con minWidth 0 vital para flexbox y paneles colapsados) */}
+                {/* Panel Izquierdo: Catálogo */}
                 <div style={{
                     flex: '1 1 60%',
-                    minWidth: 0, // CRÍTICO: Previene que la barra de categorías estire el div y rompa la responsividad
                     display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: '#ffffff',
-                    borderRight: '1px solid #e2e8f0'
+                    borderRight: '2px solid #e5e7eb',
+                    minHeight: 'auto'
                 }}>
-                    {/* Filtros Categorías (Estilo Pills) */}
+                    {/* Filtros */}
                     <div style={{
-                        padding: '1.25rem',
-                        borderBottom: '1px solid #e2e8f0',
-                        backgroundColor: '#ffffff',
+                        padding: '1rem',
+                        borderBottom: '1px solid #e5e7eb',
+                        backgroundColor: '#fafafa',
                         flexShrink: 0
                     }}>
                         <div style={{
                             display: 'flex',
-                            gap: '0.5rem',
+                            gap: '0.75rem',
                             overflowX: 'auto',
-                            paddingBottom: '0.5rem',
-                            scrollbarWidth: 'thin',
-                            scrollbarColor: '#cbd5e1 transparent'
+                            paddingBottom: '0.25rem'
                         }}>
                             <button
                                 style={{
-                                    padding: '0.6rem 1.25rem',
-                                    borderRadius: '9999px', // Rounded full
-                                    backgroundColor: selectedCategory === 'all' ? '#1e293b' : '#f1f5f9',
-                                    color: selectedCategory === 'all' ? '#ffffff' : '#475569',
+                                    padding: '0.625rem 1.25rem',
+                                    borderRadius: '6px',
+                                    border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
+                                    backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
+                                    color: selectedCategory === 'all' ? '#ffffff' : '#374151',
                                     fontWeight: '600',
-                                    fontSize: '0.9rem',
-                                    border: 'none',
+                                    fontSize: '0.9375rem',
                                     cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
+                                    transition: 'all 0.2s',
                                     whiteSpace: 'nowrap',
-                                    boxShadow: selectedCategory === 'all' ? '0 4px 6px -1px rgba(30, 41, 59, 0.2)' : 'none',
+                                    boxShadow: selectedCategory === 'all' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
                                     minHeight: TOUCH_MIN_SIZE
                                 }}
                                 onClick={() => setSelectedCategory('all')}
                             >
-                                Todas
+                                Todos los productos
                             </button>
                             {categories.map(cat => (
                                 <button
                                     key={cat.id}
                                     style={{
-                                        padding: '0.6rem 1.25rem',
-                                        borderRadius: '9999px',
-                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#f1f5f9',
-                                        color: selectedCategory === cat.id ? '#ffffff' : '#475569',
+                                        padding: '0.625rem 1.25rem',
+                                        borderRadius: '6px',
+                                        border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
+                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
+                                        color: selectedCategory === cat.id ? '#ffffff' : '#374151',
                                         fontWeight: '600',
-                                        fontSize: '0.9rem',
-                                        border: 'none',
+                                        fontSize: '0.9375rem',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s ease',
+                                        transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
-                                        boxShadow: selectedCategory === cat.id ? '0 4px 6px -1px rgba(59, 130, 246, 0.3)' : 'none',
+                                        boxShadow: selectedCategory === cat.id ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={() => setSelectedCategory(cat.id)}
@@ -2450,101 +1796,85 @@ const PuntosVenta = () => {
                         flex: 1,
                         overflowY: 'auto',
                         padding: '1.5rem',
-                        backgroundColor: '#f8fafc' // slate-50
+                        backgroundColor: '#f9fafb'
                     }}>
                         <div style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', // Grid ligeramente más grande
-                            gap: '1.25rem' // Gap moderado
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                            gap: '1rem'
                         }}>
                             {filteredProducts.map(product => (
                                 <div
                                     key={product.id}
                                     style={{
                                         backgroundColor: '#ffffff',
-                                        borderRadius: '12px',
+                                        borderRadius: '10px',
                                         overflow: 'hidden',
                                         cursor: 'pointer',
-                                        transition: 'transform 0.2s, box-shadow 0.2s',
-                                        border: '1px solid #e2e8f0',
-                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                                        display: 'flex',
-                                        flexDirection: 'column'
+                                        transition: 'all 0.2s',
+                                        border: '1px solid #e5e7eb',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                                     }}
                                     onClick={() => addToCart(product)}
-                                    // Utilizando JS nativo para emular hover:
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'translateY(-4px)';
-                                        e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
-                                        e.currentTarget.style.borderColor = '#93c5fd';
+                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                                        e.currentTarget.style.borderColor = '#3b82f6';
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.05)';
-                                        e.currentTarget.style.borderColor = '#e2e8f0';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+                                        e.currentTarget.style.borderColor = '#e5e7eb';
                                     }}
                                 >
                                     <div style={{
-                                        height: '160px', /* Imagen más amplia */
-                                        backgroundColor: '#ffffff',
+                                        height: '140px',
+                                        backgroundColor: '#f8fafc',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        padding: '1rem',
-                                        borderBottom: '1px solid #f1f5f9'
+                                        padding: '0.75rem'
                                     }}>
                                         {product.image ? (
                                             <img
-                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_RESTAURANT_SERVICE}${product.image}`}
+                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
                                                 alt={product.name}
                                                 style={{
                                                     maxWidth: '100%',
                                                     maxHeight: '100%',
-                                                    objectFit: 'contain',
-                                                    dropShadow: '0 4px 6px rgba(0,0,0,0.1)' // Soft shadow en la imagen PNG
+                                                    objectFit: 'contain'
                                                 }}
                                             />
                                         ) : (
-                                            <div style={{
-                                                width: '60px', height: '60px', borderRadius: '50%',
-                                                backgroundColor: '#e2e8f0', display: 'flex',
-                                                alignItems: 'center', justifyContent: 'center',
-                                                color: '#94a3b8', fontSize: '1.5rem'
+                                            <span style={{
+                                                color: '#94a3b8',
+                                                fontSize: '0.75rem',
+                                                textAlign: 'center'
                                             }}>
-                                                <i className="bi bi-image"></i>
-                                            </div>
+                                                Sin imagen
+                                            </span>
                                         )}
                                     </div>
-                                    <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+                                    <div style={{ padding: '0.875rem' }}>
                                         <h3 style={{
-                                            fontSize: '0.95rem',
+                                            fontSize: '0.9375rem',
                                             fontWeight: '600',
-                                            color: '#334155', // slate-700
-                                            marginBottom: '0.5rem',
-                                            display: '-webkit-box',
-                                            WebkitLineClamp: 2, // Limite a 2 lineas
-                                            WebkitBoxOrient: 'vertical',
+                                            color: '#1f2937',
+                                            marginBottom: '0.375rem',
                                             overflow: 'hidden',
-                                            lineHeight: '1.2'
+                                            textOverflow: 'ellipsis',
+                                            whiteSpace: 'nowrap'
                                         }}>
                                             {product.name}
                                         </h3>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                            <p style={{
-                                                fontSize: '1.15rem',
-                                                fontWeight: '800',
-                                                color: '#0ea5e9', // sky-500
-                                                margin: 0
-                                            }}>
-                                                {formatCurrency(product.price)}
-                                            </p>
-                                            <div style={{
-                                                width: '32px', height: '32px', borderRadius: '50%',
-                                                backgroundColor: '#e0f2fe', color: '#0ea5e9',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontWeight: 'bold', fontSize: '1.2rem'
-                                            }}>+</div>
-                                        </div>
+                                        <p style={{
+                                            fontSize: '1.125rem',
+                                            fontWeight: '700',
+                                            color: '#059669',
+                                            margin: 0
+                                        }}>
+                                            ${product.price}
+                                        </p>
                                     </div>
                                 </div>
                             ))}
@@ -2554,50 +1884,28 @@ const PuntosVenta = () => {
 
                 {/* Panel Derecho: Orden Actual */}
                 <div style={{
-                    flex: '0 0 420px', // un poco mas ancho
+                    flex: '0 0 400px',
                     backgroundColor: '#ffffff',
                     display: 'flex',
                     flexDirection: 'column',
-                    boxShadow: '-4px 0 15px rgba(0, 0, 0, 0.05)',
-                    flexShrink: 0,
-                    overflow: 'hidden',
-                    height: '100%',
-                    zIndex: 10
+                    boxShadow: '-2px 0 8px rgba(0, 0, 0, 0.05)',
+                    flexShrink: 0
                 }}>
                     {/* Header de Orden Actual */}
                     <div style={{
-                        padding: '1.25rem 1.5rem',
-                        backgroundColor: '#f8fafc',
+                        padding: '1rem 1.5rem',
+                        backgroundColor: '#f3f4f6',
                         flexShrink: 0,
-                        borderBottom: '1px solid #e2e8f0',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
+                        borderBottom: '1px solid #e5e7eb'
                     }}>
                         <h3 style={{
-                            fontSize: '1.15rem',
+                            fontSize: '1.125rem',
                             fontWeight: '700',
-                            color: '#1e293b',
-                            margin: 0,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem'
+                            color: '#111827',
+                            margin: 0
                         }}>
-                            <i className="bi bi-receipt"></i>
                             Orden Actual
                         </h3>
-                        {cart.length > 0 && (
-                            <span style={{
-                                backgroundColor: '#e2e8f0',
-                                color: '#475569',
-                                padding: '0.2rem 0.6rem',
-                                borderRadius: '9999px',
-                                fontSize: '0.8rem',
-                                fontWeight: '700'
-                            }}>
-                                {cart.length} ítems
-                            </span>
-                        )}
                     </div>
 
                     {/* Contenido del Carrito */}
@@ -2606,69 +1914,65 @@ const PuntosVenta = () => {
                         overflowY: 'auto',
                         padding: '1.5rem',
                         display: 'flex',
-                        flexDirection: 'column',
-                        minHeight: 0,
-                        backgroundColor: '#ffffff'
+                        flexDirection: 'column'
                     }}>
-
                         {cart.length === 0 ? (
                             <div style={{
-                                flex: 1,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                                color: '#94a3b8',
+                                textAlign: 'center',
+                                padding: '3rem 1rem',
+                                color: '#9ca3af',
+                                fontSize: '0.875rem'
                             }}>
-                                <i className="bi bi-cart-x" style={{ fontSize: '3rem', marginBottom: '1rem', color: '#cbd5e1' }}></i>
-                                <p style={{ margin: 0, fontSize: '1rem', fontWeight: '500' }}>El carrito está vacío</p>
-                                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.85rem' }}>Selecciona productos para comenzar</p>
+                                <p style={{ margin: 0 }}>No hay productos en el carrito</p>
+                                <p style={{
+                                    margin: '0.5rem 0 0 0',
+                                    fontSize: '0.8125rem'
+                                }}>
+                                    Selecciona productos para comenzar
+                                </p>
                             </div>
                         ) : (
                             <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '0.75rem'
+                                gap: '0.75rem',
+                                flex: 1
                             }}>
                                 {cart.map((item, index) => (
                                     <div
                                         key={index}
                                         style={{
                                             backgroundColor: '#ffffff',
-                                            border: '1px solid #e2e8f0',
-                                            borderRadius: '12px',
+                                            border: '1px solid #e5e7eb',
+                                            borderRadius: '10px',
                                             padding: '1rem',
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            gap: '0.75rem',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                                            gap: '0.75rem'
                                         }}
                                     >
                                         {/* Información del producto */}
                                         <div style={{
                                             display: 'flex',
                                             justifyContent: 'space-between',
-                                            alignItems: 'flex-start',
+                                            alignItems: 'center',
                                             gap: '0.75rem'
                                         }}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <h4 style={{
-                                                    fontSize: '0.95rem',
+                                                    fontSize: '0.9375rem',
                                                     fontWeight: '600',
-                                                    color: item.is_paid ? '#94a3b8' : '#334155',
-                                                    marginBottom: '0.25rem',
-                                                    lineHeight: '1.3',
-                                                    textDecoration: item.is_paid ? 'line-through' : 'none'
+                                                    color: '#1f2937',
+                                                    marginBottom: '0.375rem',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
                                                 }}>
                                                     {item.name}
-                                                    {item.is_paid && <span style={{ marginLeft: '6px', color: '#10b981', fontSize: '0.75rem', fontWeight: 'bold' }}>(COBRADO)</span>}
                                                 </h4>
                                                 <p style={{
-                                                    fontSize: '0.85rem',
-                                                    color: item.is_paid ? '#cbd5e1' : '#64748b',
-                                                    margin: 0,
-                                                    fontWeight: '500',
-                                                    textDecoration: item.is_paid ? 'line-through' : 'none'
+                                                    fontSize: '0.8125rem',
+                                                    color: '#6b7280',
+                                                    margin: 0
                                                 }}>
                                                     {formatCurrency(item.price)} c/u
                                                 </p>
@@ -2677,53 +1981,83 @@ const PuntosVenta = () => {
                                             <div style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
-                                                gap: '0.5rem',
-                                                opacity: item.is_paid ? 0.5 : 1,
-                                                pointerEvents: item.is_paid ? 'none' : 'auto'
+                                                gap: '0.5rem'
                                             }}>
                                                 <div style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    border: '1px solid #cbd5e1',
+                                                    border: '2px solid #e5e7eb',
                                                     borderRadius: '8px',
                                                     overflow: 'hidden',
-                                                    backgroundColor: '#f8fafc'
+                                                    backgroundColor: '#ffffff'
                                                 }}>
                                                     <button
                                                         style={{
-                                                            width: '32px', height: '32px', border: 'none',
-                                                            backgroundColor: 'transparent', color: '#475569',
-                                                            fontSize: '1.2rem', fontWeight: '600', cursor: 'pointer',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                            width: '36px',
+                                                            height: '36px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: '1.25rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
                                                         }}
-                                                        onClick={() => !item.is_paid && updateQuantity(item.product_id, -1)}
-                                                    >−</button>
+                                                        onClick={() => updateQuantity(item.product_id, -1)}
+                                                    >
+                                                        −
+                                                    </button>
                                                     <span style={{
-                                                        width: '32px', textAlign: 'center', fontSize: '0.9rem',
-                                                        fontWeight: '700', color: '#1e293b'
-                                                    }}>{item.quantity}</span>
+                                                        width: '36px',
+                                                        textAlign: 'center',
+                                                        fontSize: '0.9375rem',
+                                                        fontWeight: '600',
+                                                        color: '#1f2937'
+                                                    }}>
+                                                        {item.quantity}
+                                                    </span>
                                                     <button
                                                         style={{
-                                                            width: '32px', height: '32px', border: 'none',
-                                                            backgroundColor: 'transparent', color: '#475569',
-                                                            fontSize: '1.2rem', fontWeight: '600', cursor: 'pointer',
-                                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                            width: '36px',
+                                                            height: '36px',
+                                                            border: 'none',
+                                                            backgroundColor: 'transparent',
+                                                            color: '#6b7280',
+                                                            fontSize: '1.25rem',
+                                                            fontWeight: '600',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
                                                         }}
-                                                        onClick={() => !item.is_paid && updateQuantity(item.product_id, 1)}
-                                                    >+</button>
+                                                        onClick={() => updateQuantity(item.product_id, 1)}
+                                                    >
+                                                        +
+                                                    </button>
                                                 </div>
 
                                                 <button
                                                     style={{
-                                                        width: '32px', height: '32px', backgroundColor: '#fee2e2',
-                                                        border: '1px solid #fca5a5', borderRadius: '8px', color: '#ef4444',
-                                                        fontSize: '1.2rem', fontWeight: '600', cursor: 'pointer',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                        width: '36px',
+                                                        height: '36px',
+                                                        backgroundColor: '#fee2e2',
+                                                        border: '2px solid #fecaca',
+                                                        borderRadius: '8px',
+                                                        color: '#dc2626',
+                                                        fontSize: '1.125rem',
+                                                        fontWeight: '600',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
                                                     }}
-                                                    onClick={() => !item.is_paid && removeFromCart(item.product_id)}
-                                                    title={item.is_paid ? "No se puede eliminar un producto cobrado" : "Eliminar producto"}
-                                                    disabled={item.is_paid}
-                                                >×</button>
+                                                    onClick={() => removeFromCart(item.product_id)}
+                                                    title="Eliminar producto"
+                                                >
+                                                    ×
+                                                </button>
                                             </div>
                                         </div>
 
@@ -2733,19 +2067,27 @@ const PuntosVenta = () => {
                                             justifyContent: 'space-between',
                                             alignItems: 'center',
                                             paddingTop: '0.75rem',
-                                            borderTop: '1px dashed #e2e8f0'
+                                            borderTop: '1px dashed #e5e7eb'
                                         }}>
                                             <div style={{ flex: 1 }}>
                                                 {item.note ? (
                                                     <div style={{
-                                                        fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic',
-                                                        backgroundColor: '#f8fafc', padding: '0.4rem 0.75rem',
-                                                        borderRadius: '6px', wordBreak: 'break-word', border: '1px solid #e2e8f0'
+                                                        fontSize: '0.8125rem',
+                                                        color: '#6b7280',
+                                                        fontStyle: 'italic',
+                                                        backgroundColor: '#f3f4f6',
+                                                        padding: '0.375rem 0.75rem',
+                                                        borderRadius: '4px',
+                                                        wordBreak: 'break-word'
                                                     }}>
                                                         <strong>Nota:</strong> {item.note}
                                                     </div>
                                                 ) : (
-                                                    <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                                    <span style={{
+                                                        fontSize: '0.8125rem',
+                                                        color: '#9ca3af',
+                                                        fontStyle: 'italic'
+                                                    }}>
                                                         Sin notas especiales
                                                     </span>
                                                 )}
@@ -2753,14 +2095,18 @@ const PuntosVenta = () => {
 
                                             <button
                                                 style={{
-                                                    padding: '0.35rem 0.75rem',
-                                                    backgroundColor: item.note ? '#fffbeb' : '#f1f5f9',
-                                                    border: `1px solid ${item.note ? '#fde68a' : '#e2e8f0'}`,
-                                                    borderRadius: '6px',
-                                                    color: item.note ? '#b45309' : '#475569',
-                                                    fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                                                    marginLeft: '0.5rem', whiteSpace: 'nowrap',
-                                                    minHeight: TOUCH_MIN_SIZE
+                                                    padding: '0.375rem 0.75rem',
+                                                    backgroundColor: item.note ? '#fef3c7' : '#f3f4f6',
+                                                    border: `1px solid ${item.note ? '#fbbf24' : '#d1d5db'}`,
+                                                    borderRadius: '4px',
+                                                    color: item.note ? '#92400e' : '#374151',
+                                                    fontSize: '0.8125rem',
+                                                    fontWeight: '500',
+                                                    cursor: 'pointer',
+                                                    marginLeft: '0.5rem',
+                                                    whiteSpace: 'nowrap',
+                                                    minHeight: TOUCH_MIN_SIZE,
+                                                    minWidth: '60px'
                                                 }}
                                                 onClick={() => handleAddNote(item.product_id)}
                                                 title={item.note ? "Editar nota" : "Agregar nota"}
@@ -2773,34 +2119,37 @@ const PuntosVenta = () => {
                             </div>
                         )}
 
-                    </div>
-
-                    {/* Totales y Botones - FIJO en la parte inferior */}
-                    {cart.length > 0 && (
-                        <div style={{
-                            flexShrink: 0,
-                            padding: '1.25rem 1.5rem',
-                            borderTop: '1px solid #e2e8f0',
-                            backgroundColor: '#f8fafc',
-                            boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.05)'
-                        }}>
+                        {/* Totales y Botones - SOLO se muestra cuando hay productos */}
+                        {cart.length > 0 && (
+                            <div style={{
+                                marginTop: 'auto',
+                                paddingTop: '1.5rem',
+                                borderTop: '2px solid #e5e7eb'
+                            }}>
                                 {/* Totales */}
                                 <div style={{
                                     paddingBottom: '1rem',
                                     marginBottom: '1rem'
                                 }}>
                                     <div style={{
-                                        display: 'flex', justifyContent: 'space-between',
-                                        marginBottom: '0.5rem', fontSize: '0.95rem', color: '#64748b'
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        marginBottom: '0.5rem',
+                                        fontSize: '0.9375rem',
+                                        color: '#6b7280'
                                     }}>
                                         <span>Subtotal</span>
-                                        <span style={{ fontWeight: '600', color: '#334155' }}>{formatCurrency(calculateSubtotal)}</span>
+                                        <span style={{ fontWeight: '600' }}>{formatCurrency(calculateSubtotal)}</span>
                                     </div>
 
                                     {appliedDiscount && (
                                         <div style={{
-                                            display: 'flex', justifyContent: 'space-between',
-                                            marginBottom: '0.5rem', fontSize: '0.95rem', color: '#ef4444', fontWeight: '600'
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            marginBottom: '0.5rem',
+                                            fontSize: '0.9375rem',
+                                            color: '#dc2626',
+                                            fontWeight: '600'
                                         }}>
                                             <span>Descuento</span>
                                             <span>- {formatCurrency(calculateDiscountAmount)}</span>
@@ -2808,100 +2157,24 @@ const PuntosVenta = () => {
                                     )}
 
                                     <div style={{
-                                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                        paddingTop: '0.75rem', borderTop: '2px dashed #cbd5e1',
-                                        fontSize: '1.75rem', fontWeight: '800', color: '#0f172a'
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        paddingTop: '1rem',
+                                        borderTop: '2px solid #e5e7eb',
+                                        fontSize: '1.5rem',
+                                        fontWeight: '700',
+                                        color: '#111827'
                                     }}>
                                         <span>Total</span>
                                         <span style={{ color: '#059669' }}>{formatCurrency(calculateTotal)}</span>
                                     </div>
                                 </div>
 
-                                {/* Múltiples Botones de Imprimir y Acciones */}
-                                {/* Botones Cocina / Fortaleza - siempre visibles */}
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr',
-                                    gap: '0.75rem',
-                                    marginBottom: '0.75rem'
-                                }}>
-                                    <button
-                                        onClick={() => handlePrintOrder('Cocina')}
-                                        disabled={cart.length === 0}
-                                        style={{
-                                            padding: '0.75rem',
-                                            backgroundColor: cart.length === 0 ? '#f3f4f6' : '#f59e0b',
-                                            color: cart.length === 0 ? '#9ca3af' : '#ffffff',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontSize: '0.9375rem',
-                                            fontWeight: '600',
-                                            cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                                            transition: 'all 0.2s',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem'
-                                        }}
-                                        onMouseEnter={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#d97706' }}
-                                        onMouseLeave={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#f59e0b' }}
-                                    >
-                                        <i className="bi bi-fire"></i> M. a Cocina
-                                    </button>
-                                    <button
-                                        onClick={() => handlePrintOrder('Fortaleza')}
-                                        disabled={cart.length === 0}
-                                        style={{
-                                            padding: '0.75rem',
-                                            backgroundColor: cart.length === 0 ? '#f3f4f6' : '#8b5cf6',
-                                            color: cart.length === 0 ? '#9ca3af' : '#ffffff',
-                                            border: 'none',
-                                            borderRadius: '8px',
-                                            fontSize: '0.9375rem',
-                                            fontWeight: '600',
-                                            cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
-                                            transition: 'all 0.2s',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '0.5rem'
-                                        }}
-                                        onMouseEnter={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#7c3aed' }}
-                                        onMouseLeave={(e) => { if (cart.length > 0) e.currentTarget.style.backgroundColor = '#8b5cf6' }}
-                                    >
-                                        <i className="bi bi-cup-straw"></i> M. a Fortaleza
-                                    </button>
-                                </div>
-
-                                {/* Guardar en Mesa - siempre visible */}
+                                {/* Botón Principal */}
                                 <button
                                     style={{
                                         width: '100%',
                                         padding: '1rem',
-                                        marginBottom: '0.75rem',
-                                        backgroundColor: processingOrder ? '#d1d5db' : '#10b981',
-                                        border: 'none',
-                                        borderRadius: '10px',
-                                        color: '#ffffff',
-                                        fontSize: '1.125rem',
-                                        fontWeight: '700',
-                                        cursor: processingOrder ? 'not-allowed' : 'pointer',
-                                        transition: 'all 0.2s',
-                                        boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(16, 185, 129, 0.3)',
-                                        minHeight: TOUCH_MIN_SIZE
-                                    }}
-                                    onClick={handleSaveToTable}
-                                    disabled={processingOrder}
-                                >
-                                    {processingOrder ? 'Guardando...' : '💾 Guardar en Mesa'}
-                                </button>
-
-                                {!restaurantMode && (
-                                <button
-                                    style={{
-                                        width: '100%',
-                                        padding: '1rem',
-                                        marginBottom: '0.75rem',
                                         backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
                                         border: 'none',
                                         borderRadius: '10px',
@@ -2911,17 +2184,16 @@ const PuntosVenta = () => {
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
                                         boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
+                                        marginBottom: '0.75rem',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={openOrderConfirmationModal}
                                     disabled={processingOrder}
                                 >
-                                    {processingOrder ? 'Procesando...' : 'Cobrar / Pagar'}
+                                    {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
                                 </button>
-                                )}
 
                                 {/* 🔓 Botón Abrir Caja */}
-                                {!restaurantMode && (
                                 <button
                                     style={{
                                         width: '100%',
@@ -2940,9 +2212,9 @@ const PuntosVenta = () => {
                                 >
                                     🔓 Abrir Caja Registradora
                                 </button>
-                                )}
-                        </div>
-                    )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
@@ -3343,19 +2615,6 @@ const PuntosVenta = () => {
                         </form>
                     </div>
                 </div>
-            )}
-
-            {/* Modal de Selección de Mesa Visual */}
-            {showTableSelector && (
-                <TableCroquis
-                    tables={tables}
-                    selectedTable={tables.find(t => t.number === selectedTable)}
-                    onSelectTable={(table) => {
-                        setSelectedTable(table.number);
-                        setShowTableSelector(false);
-                    }}
-                    onClose={() => setShowTableSelector(false)}
-                />
             )}
         </>
     );
