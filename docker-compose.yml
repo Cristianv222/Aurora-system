@@ -46,7 +46,7 @@ services:
         echo 'PostgreSQL started'
         python manage.py migrate
         python manage.py collectstatic --noinput
-        gunicorn auth_service.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+        daphne -b 0.0.0.0 -p 8000 auth_service.asgi:application
       "
     volumes:
       - auth-static:/app/staticfiles
@@ -82,7 +82,7 @@ services:
         echo 'PostgreSQL started'
         python manage.py migrate
         python manage.py collectstatic --noinput
-        gunicorn fast_food_service.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+        daphne -b 0.0.0.0 -p 8000 fast_food_service.asgi:application
       "
     volumes:
       - fastfood-static:/app/staticfiles
@@ -119,7 +119,7 @@ services:
         echo 'PostgreSQL started'
         python manage.py migrate
         python manage.py collectstatic --noinput
-        gunicorn restaurant_service.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
+        daphne -b 0.0.0.0 -p 8000 restaurant_service.asgi:application
       "
     volumes:
       - restaurant-static:/app/staticfiles

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../../services/api';
+import { getCleanImageUrl } from '../../utils/image';
 import printerService from '../../services/printerService';
 
 // ====================================================================
@@ -843,7 +844,7 @@ const PuntosVenta = () => {
                     color: '#3730a3',
                     fontSize: screenWidth <= 1366 ? '0.9rem' : '1rem'
                 }}>
-                    🧮 Calculadora de Vuelto
+                    <i className="bi bi-calculator"></i> Calculadora de Vuelto
                 </h4>
 
                 <div style={{ marginBottom: '1rem' }}>
@@ -946,7 +947,9 @@ const PuntosVenta = () => {
                         </div>
                         {(cashGiven - calculateTotal) < 0 && (
                             <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: '0.5rem 0 0 0' }}>
-                                ⚠️ Monto insuficiente
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}>
+                                    <i className="bi bi-exclamation-triangle-fill"></i> Monto insuficiente
+                                </span>
                             </p>
                         )}
                     </div>
@@ -1251,12 +1254,16 @@ const PuntosVenta = () => {
                                     }}>
                                         {product.image ? (
                                             <img
-                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
+                                                src={getCleanImageUrl(product.image)}
                                                 alt={product.name}
                                                 style={{
                                                     maxWidth: '100%',
                                                     maxHeight: '100%',
                                                     objectFit: 'contain'
+                                                }}
+                                                onError={(e) => {
+                                                    e.currentTarget.onerror = null;
+                                                    e.currentTarget.src = '/logo-aurora.png';
                                                 }}
                                             />
                                         ) : (
@@ -1524,7 +1531,15 @@ const PuntosVenta = () => {
                                                 }}
                                                 onClick={() => handleAddNote(item.product_id)}
                                             >
-                                                {item.note ? '📝 Editar' : '✏️ Nota'}
+                                                {item.note ? (
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <i className="bi bi-chat-left-text"></i> Editar
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <i className="bi bi-pencil"></i> Nota
+                                                    </span>
+                                                )}
                                             </button>
                                         </div>
                                     </div>
@@ -1619,7 +1634,9 @@ const PuntosVenta = () => {
                                     }}
                                     onClick={handleOpenCashDrawer}
                                 >
-                                    🔓 Abrir Caja
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        <i className="bi bi-unlock"></i> Abrir Caja
+                                    </span>
                                 </button>
                             </div>
                         )}
@@ -1837,12 +1854,16 @@ const PuntosVenta = () => {
                                     }}>
                                         {product.image ? (
                                             <img
-                                                src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
+                                                src={getCleanImageUrl(product.image)}
                                                 alt={product.name}
                                                 style={{
                                                     maxWidth: '100%',
                                                     maxHeight: '100%',
                                                     objectFit: 'contain'
+                                                }}
+                                                onError={(e) => {
+                                                    e.currentTarget.onerror = null;
+                                                    e.currentTarget.src = '/logo-aurora.png';
                                                 }}
                                             />
                                         ) : (
@@ -2111,7 +2132,15 @@ const PuntosVenta = () => {
                                                 onClick={() => handleAddNote(item.product_id)}
                                                 title={item.note ? "Editar nota" : "Agregar nota"}
                                             >
-                                                {item.note ? '📝 Editar' : '✏️ Nota'}
+                                                {item.note ? (
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <i className="bi bi-chat-left-text"></i> Editar
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <i className="bi bi-pencil"></i> Nota
+                                                    </span>
+                                                )}
                                             </button>
                                         </div>
                                     </div>
@@ -2210,7 +2239,9 @@ const PuntosVenta = () => {
                                     }}
                                     onClick={handleOpenCashDrawer}
                                 >
-                                    🔓 Abrir Caja Registradora
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        <i className="bi bi-unlock"></i> Abrir Caja Registradora
+                                    </span>
                                 </button>
                             </div>
                         )}

@@ -24,3 +24,6 @@ reportlab==4.0.4
 # Para Excel
 openpyxl==3.1.5
 django-import-export==4.3.14
+daphne==4.1.0
+channels==4.0.0
+channels-redis==4.2.0

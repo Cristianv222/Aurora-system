@@ -13,6 +13,7 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost').split(',')
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -62,6 +63,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'hotel_service.wsgi.application'
+ASGI_APPLICATION = 'hotel_service.asgi.application'
 
 # Database
 import dj_database_url

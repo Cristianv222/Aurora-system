@@ -5,6 +5,7 @@ import Categorias from './Categorias';
 import Extras from './Extras';
 import Combos from './Combos';
 import Tamanos from './Tamanos';
+import { getCleanImageUrl } from '../../utils/image';
 import { Product, Category } from '../../types';
 
 const PRODUCTS_PER_PAGE = 10;
@@ -290,9 +291,13 @@ const Inventario: React.FC = () => {
                                                 <td className="px-6 py-3">
                                                     {product.image ? (
                                                         <img
-                                                            src={product.image.startsWith('http') ? product.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${product.image}`}
+                                                            src={getCleanImageUrl(product.image)}
                                                             alt={product.name}
                                                             className="w-12 h-12 object-cover rounded-xl border border-slate-100 shadow-sm"
+                                                            onError={(e) => {
+                                                                e.currentTarget.onerror = null;
+                                                                e.currentTarget.src = '/logo-aurora.png';
+                                                            }}
                                                         />
                                                     ) : (
                                                         <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-300">
