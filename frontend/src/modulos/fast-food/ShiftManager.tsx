@@ -42,7 +42,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
     const checkCurrentShift = async () => {
         try {
             const response = await api.get('/api/pos/shifts/current/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             if (response.data && response.data.status === 'open') {
                 setCurrentShift(response.data);
@@ -71,7 +71,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
         setError('');
         try {
             const registersRes = await api.get('/api/payments/cash-registers/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             const register = registersRes.data.results ? registersRes.data.results[0] : registersRes.data[0];
             if (!register) {
@@ -82,7 +82,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                 cash_register: register.id,
                 opening_cash: parseFloat(openingCash),
                 opening_notes: notes
-            }, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            }, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setCurrentShift(response.data);
             onShiftActive(true);
             setOpeningCash('');
@@ -101,11 +101,11 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
             await api.post(`/api/pos/shifts/${currentShift.id}/close/`, {
                 closing_cash: parseFloat(closingCash),
                 closing_notes: notes
-            }, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            }, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
 
             try {
                 const reportResponse = await api.get(`/api/pos/shifts/${currentShift.id}/report/`, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
                 });
                 const shiftData = reportResponse.data;
                 const normalizedReport: ShiftReport = {

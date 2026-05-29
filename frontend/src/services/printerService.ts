@@ -2,7 +2,7 @@
 import api from './api';
 import { Order } from '../types';
 
-const PRINTER_API_URL = `${process.env.REACT_APP_FAST_FOOD_SERVICE}/api/hardware`;
+const PRINTER_API_URL = `${import.meta.env.VITE_FAST_FOOD_SERVICE}/api/hardware`;
 
 class PrinterService {
   async printReceipt(orderData: Order | any, printerId: string | null = null): Promise<any> {

@@ -23,7 +23,7 @@ const Categorias: React.FC = () => {
     const fetchCategories = async () => {
         try {
             const response = await api.get('/api/menu/categories/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             setCategories(response.data.results || response.data || []);
         } catch (err) {
@@ -64,7 +64,7 @@ const Categorias: React.FC = () => {
         if (window.confirm('¿Estás seguro de eliminar esta categoría?')) {
             try {
                 await api.delete(`/api/menu/categories/${id}/`, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
                 });
                 fetchCategories();
             } catch (err) {
@@ -93,12 +93,12 @@ const Categorias: React.FC = () => {
         try {
             if (editingCategory) {
                 await api.patch(`/api/menu/categories/${editingCategory.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/menu/categories/', formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }
@@ -157,7 +157,7 @@ const Categorias: React.FC = () => {
                                         <td className="px-6 py-3">
                                             {cat.image ? (
                                                 <img
-                                                    src={cat.image.startsWith('http') ? cat.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${cat.image}`}
+                                                    src={cat.image.startsWith('http') ? cat.image : `${import.meta.env.VITE_FAST_FOOD_SERVICE}${cat.image}`}
                                                     alt={cat.name}
                                                     className="w-12 h-12 object-cover rounded-lg border border-slate-100 shadow-sm"
                                                 />

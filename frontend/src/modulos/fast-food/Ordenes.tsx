@@ -48,7 +48,7 @@ const Ordenes: React.FC = () => {
     useEffect(() => {
         const fetchOrders = async () => {
             try {
-                const response = await api.get('/api/orders/orders/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+                const response = await api.get('/api/orders/orders/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
                 setOrders(response.data.results || response.data || []);
             } catch (err) {
                 console.error('Error fetching orders:', err);
@@ -87,7 +87,7 @@ const Ordenes: React.FC = () => {
             const response = await api.post(
                 `/api/orders/orders/${orderNumber}/update_status/`,
                 { status: newStatus },
-                { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE }
+                { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE }
             );
             setOrders(prevOrders =>
                 prevOrders.map(order =>
@@ -105,7 +105,7 @@ const Ordenes: React.FC = () => {
         setShowModal(true);
         setSelectedOrder({ ...order, loading: true });
         try {
-            const response = await api.get(`/api/orders/orders/${order.order_number}/`, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get(`/api/orders/orders/${order.order_number}/`, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             const orderData = response.data;
             setSelectedOrder({ ...orderData, customer_name: orderData.customer_name || order.customer_name });
         } catch {
@@ -121,7 +121,7 @@ const Ordenes: React.FC = () => {
         if (!selectedOrder) return;
         if (!window.confirm(`¿Eliminar la Orden ${selectedOrder.order_number}? Esta acción no se puede deshacer.`)) return;
         try {
-            await api.delete(`/api/orders/orders/${selectedOrder.order_number}/`, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            await api.delete(`/api/orders/orders/${selectedOrder.order_number}/`, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setOrders(prev => prev.filter(o => o.id !== selectedOrder.id));
             alert('Orden eliminada exitosamente');
             closeModal();

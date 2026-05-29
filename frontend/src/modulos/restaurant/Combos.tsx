@@ -74,7 +74,7 @@ const Combos: React.FC = () => {
         if (window.confirm('¿Estás seguro de eliminar este combo?')) {
             try {
                 await api.delete(`/api/restaurant/menu/combos/${id}/`, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                    baseURL: import.meta.env.VITE_RESTAURANT_SERVICE,
                 });
                 fetchCombos();
             } catch (err: any) {
@@ -103,12 +103,12 @@ const Combos: React.FC = () => {
         try {
             if (editingCombo) {
                 await api.patch(`/api/restaurant/menu/combos/${editingCombo.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                    baseURL: import.meta.env.VITE_RESTAURANT_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/restaurant/menu/combos/', formData, {
-                    baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                    baseURL: import.meta.env.VITE_RESTAURANT_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }
@@ -183,7 +183,7 @@ const Combos: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         {combo.image ? (
                                             <img
-                                                src={combo.image.startsWith('http') ? combo.image : `${process.env.REACT_APP_RESTAURANT_SERVICE}${combo.image}`}
+                                                src={combo.image.startsWith('http') ? combo.image : `${import.meta.env.VITE_RESTAURANT_SERVICE}${combo.image}`}
                                                 alt={combo.name}
                                                 className="w-12 h-12 object-cover rounded-lg shadow-sm border border-gray-100"
                                             />

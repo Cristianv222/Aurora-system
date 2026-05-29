@@ -151,7 +151,7 @@ const Categorias: React.FC = () => {
                                         <td className="px-6 py-3">
                                             {cat.image ? (
                                                 <img
-                                                    src={cat.image.startsWith('http') ? cat.image : `${process.env.REACT_APP_RESTAURANT_SERVICE}${cat.image}`}
+                                                    src={cat.image.startsWith('http') ? cat.image : `${import.meta.env.VITE_RESTAURANT_SERVICE}${cat.image}`}
                                                     alt={cat.name}
                                                     className="w-12 h-12 object-cover rounded-lg border border-slate-100 shadow-sm"
                                                 />

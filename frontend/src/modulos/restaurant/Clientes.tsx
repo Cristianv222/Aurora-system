@@ -59,7 +59,7 @@ const Clientes: React.FC = () => {
         try {
             const params = search ? { search } : {};
             const response = await api.get('/api/restaurant/customers/admin/list/', {
-                baseURL: process.env.REACT_APP_RESTAURANT_SERVICE,
+                baseURL: import.meta.env.VITE_RESTAURANT_SERVICE,
                 params
             });
             setCustomers(response.data?.data?.customers || []);

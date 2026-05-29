@@ -30,7 +30,7 @@ const Tamanos: React.FC = () => {
 
     const fetchSizes = async () => {
         try {
-            const response = await api.get('/api/menu/sizes/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get('/api/menu/sizes/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setSizes(response.data.results || response.data || []);
         } catch (err) {
             console.error('Error fetching sizes:', err);
@@ -42,7 +42,7 @@ const Tamanos: React.FC = () => {
 
     const fetchProducts = async () => {
         try {
-            const response = await api.get('/api/menu/products/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get('/api/menu/products/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setProducts(response.data.results || response.data || []);
         } catch (err) {
             console.error('Error fetching products:', err);
@@ -72,7 +72,7 @@ const Tamanos: React.FC = () => {
     const handleDeleteSize = async (id: string) => {
         if (!window.confirm('¿Estás seguro de eliminar este tamaño?')) return;
         try {
-            await api.delete(`/api/menu/sizes/${id}/`, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            await api.delete(`/api/menu/sizes/${id}/`, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             fetchSizes();
         } catch (err) {
             console.error('Error deleting size:', err);
@@ -84,9 +84,9 @@ const Tamanos: React.FC = () => {
         e.preventDefault();
         try {
             if (editingSize) {
-                await api.patch(`/api/menu/sizes/${editingSize.id}/`, newSize, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+                await api.patch(`/api/menu/sizes/${editingSize.id}/`, newSize, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             } else {
-                await api.post('/api/menu/sizes/', newSize, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+                await api.post('/api/menu/sizes/', newSize, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             }
             setIsModalOpen(false);
             setNewSize({ product: '', name: '', price_adjustment: 0, is_default: false });

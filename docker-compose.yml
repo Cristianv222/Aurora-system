@@ -148,19 +148,19 @@ services:
     build:
       context: ./frontend
       args:
-        - REACT_APP_API_BASE_URL=https://aurora.fronteratech.ec
-        - REACT_APP_AUTH_SERVICE=https://aurora.fronteratech.ec
-        - REACT_APP_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
-        - REACT_APP_RESTAURANT_SERVICE=https://aurora.fronteratech.ec
+        - VITE_API_BASE_URL=https://aurora.fronteratech.ec
+        - VITE_AUTH_SERVICE=https://aurora.fronteratech.ec
+        - VITE_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
+        - VITE_RESTAURANT_SERVICE=https://aurora.fronteratech.ec
     container_name: aurora_frontend
     volumes:
       - /app/node_modules
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_BASE_URL=https://aurora.fronteratech.ec
-      - REACT_APP_AUTH_SERVICE=https://aurora.fronteratech.ec
-      - REACT_APP_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
-      - REACT_APP_RESTAURANT_SERVICE=https://aurora.fronteratech.ec
+      - VITE_API_BASE_URL=https://aurora.fronteratech.ec
+      - VITE_AUTH_SERVICE=https://aurora.fronteratech.ec
+      - VITE_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
+      - VITE_RESTAURANT_SERVICE=https://aurora.fronteratech.ec
     expose:
       - "3000"
     networks:

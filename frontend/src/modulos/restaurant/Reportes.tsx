@@ -125,7 +125,7 @@ interface DashboardStats {
 const COLORS = ['#4f46e5', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#b45309', '#ec4899', '#6b7280'];
 
 const getFastFoodBaseURL = (): string => {
-    return process.env.REACT_APP_RESTAURANT_SERVICE || 'http://localhost:8002';
+    return import.meta.env.VITE_RESTAURANT_SERVICE || 'http://localhost:8002';
 };
 
 const isSameLocalDate = (date1: string | Date | undefined, date2: string | Date | undefined): boolean => {

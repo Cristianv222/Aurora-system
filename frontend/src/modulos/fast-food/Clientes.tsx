@@ -27,7 +27,7 @@ const Clientes: React.FC = () => {
         try {
             const params = search ? { search } : {};
             const response = await api.get('/api/customers/admin/list/', {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                 params
             });
             setCustomers(response.data.data.customers || []);
@@ -75,7 +75,7 @@ const Clientes: React.FC = () => {
         setSubmitting(true);
         try {
             await api.post('/api/customers/register/', newCustomer, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
 
             alert('Cliente creado exitosamente');

@@ -27,7 +27,7 @@ const Extras: React.FC = () => {
 
     const fetchExtras = async () => {
         try {
-            const response = await api.get('/api/menu/extras/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get('/api/menu/extras/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setExtras(response.data.results || response.data || []);
         } catch (err) {
             console.error('Error fetching extras:', err);
@@ -59,7 +59,7 @@ const Extras: React.FC = () => {
     const handleDeleteExtra = async (id: string) => {
         if (!window.confirm('¿Estás seguro de eliminar este extra?')) return;
         try {
-            await api.delete(`/api/menu/extras/${id}/`, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            await api.delete(`/api/menu/extras/${id}/`, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             fetchExtras();
         } catch (err) {
             console.error('Error deleting extra:', err);
@@ -78,12 +78,12 @@ const Extras: React.FC = () => {
         try {
             if (editingExtra) {
                 await api.patch(`/api/menu/extras/${editingExtra.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/menu/extras/', formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }

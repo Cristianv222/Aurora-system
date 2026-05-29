@@ -51,7 +51,7 @@ const Inventario: React.FC = () => {
     const fetchProducts = async () => {
         setLoading(true);
         try {
-            const response = await api.get('/api/menu/products/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get('/api/menu/products/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setProducts(response.data.results || response.data || []);
         } catch {
             setError('Error al cargar el inventario');
@@ -62,7 +62,7 @@ const Inventario: React.FC = () => {
 
     const fetchCategories = async () => {
         try {
-            const response = await api.get('/api/menu/categories/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get('/api/menu/categories/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setCategories(response.data.results || response.data || []);
         } catch (err) {
             console.error('Error fetching categories:', err);
@@ -105,7 +105,7 @@ const Inventario: React.FC = () => {
             formData.append('is_active', 'false');
             formData.append('is_available', 'false');
             await api.patch(`/api/menu/products/${id}/`, formData, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             fetchProducts();
@@ -132,12 +132,12 @@ const Inventario: React.FC = () => {
         try {
             if (editingProduct) {
                 await api.patch(`/api/menu/products/${editingProduct.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/menu/products/', formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }

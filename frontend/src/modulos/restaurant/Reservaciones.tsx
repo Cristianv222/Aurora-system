@@ -36,7 +36,7 @@ const useWindowSize = (): number => {
     return width;
 };
 
-const RESTAURANT_API = process.env.REACT_APP_RESTAURANT_SERVICE || '';
+const RESTAURANT_API = import.meta.env.VITE_RESTAURANT_SERVICE || '';
 const API_BASE = `${RESTAURANT_API}/api/restaurant`;
 
 // ─── Configuración de estados ──────────────────────────────────────

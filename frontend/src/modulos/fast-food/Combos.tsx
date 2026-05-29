@@ -28,7 +28,7 @@ const Combos: React.FC = () => {
 
     const fetchCombos = async () => {
         try {
-            const response = await api.get('/api/menu/combos/', { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            const response = await api.get('/api/menu/combos/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             setCombos(response.data.results || response.data || []);
         } catch (err) {
             console.error('Error fetching combos:', err);
@@ -60,7 +60,7 @@ const Combos: React.FC = () => {
     const handleDeleteCombo = async (id: string) => {
         if (!window.confirm('¿Estás seguro de eliminar este combo?')) return;
         try {
-            await api.delete(`/api/menu/combos/${id}/`, { baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE });
+            await api.delete(`/api/menu/combos/${id}/`, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
             fetchCombos();
         } catch (err) {
             console.error('Error deleting combo:', err);
@@ -81,12 +81,12 @@ const Combos: React.FC = () => {
         try {
             if (editingCombo) {
                 await api.patch(`/api/menu/combos/${editingCombo.id}/`, formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             } else {
                 await api.post('/api/menu/combos/', formData, {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE,
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE,
                     headers: { 'Content-Type': 'multipart/form-data' },
                 });
             }
@@ -140,7 +140,7 @@ const Combos: React.FC = () => {
                                         <td className="px-6 py-3">
                                             {combo.image ? (
                                                 <img
-                                                    src={combo.image.startsWith('http') ? combo.image : `${process.env.REACT_APP_FAST_FOOD_SERVICE}${combo.image}`}
+                                                    src={combo.image.startsWith('http') ? combo.image : `${import.meta.env.VITE_FAST_FOOD_SERVICE}${combo.image}`}
                                                     alt={combo.name}
                                                     className="w-12 h-12 object-cover rounded-lg border border-slate-100 shadow-sm"
                                                 />

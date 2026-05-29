@@ -119,7 +119,7 @@ const PuntosVenta = () => {
         const fetchData = async () => {
             try {
                 const productsRes = await api.get('/api/menu/products/', {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
                 });
 
                 if (!isMounted) return;
@@ -133,7 +133,7 @@ const PuntosVenta = () => {
 
             try {
                 const categoriesRes = await api.get('/api/menu/categories/', {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
                 });
 
                 if (!isMounted) return;
@@ -147,7 +147,7 @@ const PuntosVenta = () => {
 
             try {
                 const tablesRes = await api.get('/api/pos/tables/', {
-                    baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
                 });
 
                 if (!isMounted) return;
@@ -287,7 +287,7 @@ const PuntosVenta = () => {
         if (!discountCode) return;
         try {
             const response = await api.post('/api/pos/discounts/validate/', { code: discountCode }, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             if (response.data.valid) {
                 setAppliedDiscount(response.data.discount);
@@ -314,7 +314,7 @@ const PuntosVenta = () => {
         }
         try {
             const response = await api.post('/api/customers/admin/search/', { query }, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             setCustomers(response.data.data.customers || []);
         } catch (err) {
@@ -331,7 +331,7 @@ const PuntosVenta = () => {
             };
 
             const response = await api.post('/api/customers/register/', customerData, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             alert('Cliente creado exitosamente');
             setShowCustomerModal(false);
@@ -436,7 +436,7 @@ const PuntosVenta = () => {
         try {
             // 1. CREAR LA ORDEN
             const orderResponse = await api.post('/api/orders/orders/', orderPayload, {
-                baseURL: process.env.REACT_APP_FAST_FOOD_SERVICE
+                baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
 
             const createdOrder = orderResponse.data;

@@ -21,7 +21,7 @@ import { formatCurrency, formatDate, getValidDate, generateDetailedPDF } from '.
 const COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
 
 const getFastFoodBaseURL = () => {
-    return process.env.REACT_APP_FAST_FOOD_SERVICE || 'http://localhost:8002';
+    return import.meta.env.VITE_FAST_FOOD_SERVICE || 'http://localhost:8002';
 };
 
 // Reemplaza la función isSameLocalDate con esta versión corregida:

@@ -1,7 +1,7 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_AUTH_SERVICE,
+  baseURL: import.meta.env.VITE_AUTH_SERVICE,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
