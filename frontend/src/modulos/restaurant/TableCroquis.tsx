@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Table } from '../../types';
 
-// Configuración de mesas con dimensiones base para un ancho de referencia de 1600px
-const REFERENCE_WIDTH = 1600;
+// Configuración de mesas con dimensiones base para un ancho de referencia de 1200px (según el SVG de 1200x700)
+const REFERENCE_WIDTH = 1200;
 
 interface TableConfig {
     top: string;
@@ -16,134 +16,133 @@ interface TableConfig {
 const TABLE_CONFIGS: Record<string, TableConfig> = {
     // ───── ZONA SUPERIOR IZQUIERDA ─────
     'Mesa 7 B': {
-        top: '2%',
-        left: '24.7%',
-        tableWidth: 120,
-        tableHeight: 221,
+        top: '5.714%',
+        left: '15%',
+        tableWidth: 110,
+        tableHeight: 170,
         type: 'rectangle',
         chairs: []
     },
     'Mesa 7': {
-        top: '3.5%',
-        left: '33.3%',
-        tableWidth: 122,
-        tableHeight: 208,
+        top: '5.714%',
+        left: '25.833%',
+        tableWidth: 110,
+        tableHeight: 170,
         type: 'rectangle',
         chairs: []
     },
 
-    // ───── SUPERIOR CENTRO ─────
-    'Mesa 5': {
-        top: '14%',
-        left: '59%',
-        tableWidth: 157,
-        tableHeight: 105,
-        type: 'square',
-        chairs: []
-    },
-    'Mesa 4': {
-        top: '14.5%',
-        left: '70.8%',
-        tableWidth: 137,
-        tableHeight: 105,
-        type: 'square',
-        chairs: []
-    },
-
-    // ───── DOMICILIO ─────
-    'Domicilio': {
-        top: '4%',
-        left: '85%',
-        tableWidth: 100,
-        tableHeight: 50,
-        type: 'special',
-        chairs: []
-    },
-
-    // ───── SEGUNDA FILA ─────
+    // ───── SEGUNDA FILA IZQUIERDA ─────
     'Mesa 7 C': {
-        top: '29.2%',
-        left: '24.8%',
-        tableWidth: 255,
-        tableHeight: 60,
+        top: '32.857%',
+        left: '15%',
+        tableWidth: 240,
+        tableHeight: 55,
         type: 'rectangle',
         chairs: []
     },
     'Mesa 8': {
-        top: '43%',
-        left: '24.7%',
-        tableWidth: 214,
-        tableHeight: 116,
+        top: '48.571%',
+        left: '14.167%',
+        tableWidth: 170,
+        tableHeight: 120,
         type: 'square',
         chairs: []
     },
 
     // ───── ZONA CENTRAL ─────
     'Mesa 9': {
-        top: '34%',
-        left: '47.8%',
-        tableWidth: 183,
-        tableHeight: 129,
+        top: '35.714%',
+        left: '45%',
+        tableWidth: 190,
+        tableHeight: 120,
         type: 'square',
         chairs: []
     },
     'Mesa 6': {
-        top: '14%',
-        left: '46.5%',
-        tableWidth: 157,
-        tableHeight: 105,
+        top: '10%',
+        left: '43.333%',
+        tableWidth: 150,
+        tableHeight: 90,
         type: 'square',
         chairs: []
     },
+    'Mesa 5': {
+        top: '10%',
+        left: '60.833%',
+        tableWidth: 150,
+        tableHeight: 90,
+        type: 'square',
+        chairs: []
+    },
+
     // ───── COLUMNA DERECHA ─────
+    'Mesa 4': {
+        top: '10%',
+        left: '77.5%',
+        tableWidth: 150,
+        tableHeight: 90,
+        type: 'square',
+        chairs: []
+    },
     'Mesa 3': {
-        top: '29.2%',
-        left: '70.8%',
-        tableWidth: 137,
-        tableHeight: 100,
+        top: '30%',
+        left: '77.5%',
+        tableWidth: 150,
+        tableHeight: 90,
         type: 'square',
         chairs: []
     },
     'Mesa 2': {
-        top: '44%',
-        left: '70.8%',
-        tableWidth: 137,
-        tableHeight: 100,
+        top: '50%',
+        left: '77.5%',
+        tableWidth: 150,
+        tableHeight: 90,
         type: 'square',
         chairs: []
     },
     'Mesa 1': {
-        top: '59%',
-        left: '70.8%',
-        tableWidth: 137,
-        tableHeight: 100,
+        top: '70%',
+        left: '77.5%',
+        tableWidth: 150,
+        tableHeight: 90,
         type: 'square',
         chairs: []
     },
 
     // ───── BARRA ─────
     'Barra 1': {
-        top: '87%',
-        left: '36%',
+        top: '87.143%',
+        left: '27.5%',
         tableWidth: 170,
-        tableHeight: 83,
+        tableHeight: 55,
         type: 'bar',
         chairs: []
     },
     'Barra 2': {
-        top: '87%',
-        left: '46.9%',
+        top: '87.143%',
+        left: '42.083%',
         tableWidth: 170,
-        tableHeight: 83,
+        tableHeight: 55,
         type: 'bar',
         chairs: []
     },
     'Barra 3': {
-        top: '87%',
-        left: '57.8%',
+        top: '87.143%',
+        left: '56.667%',
         tableWidth: 170,
-        tableHeight: 83,
+        tableHeight: 55,
         type: 'bar',
+        chairs: []
+    },
+
+    // ───── DOMICILIO ─────
+    'Domicilio': {
+        top: '10%',
+        left: '90.833%',
+        tableWidth: 100,
+        tableHeight: 90,
+        type: 'special',
         chairs: []
     }
 };
@@ -195,8 +194,8 @@ const TableCroquis: React.FC<TableCroquisProps> = ({
 
         if (isSelected) {
             return {
-                table: 'rgba(34, 197, 94, 0.9)',
-                tableBorder: '#16a34a',
+                table: 'rgba(34, 197, 94, 0.85)', // Verde semi-transparente de alta opacidad
+                tableBorder: '#15803d',
                 tableText: 'text-white'
             };
         }
@@ -204,27 +203,27 @@ const TableCroquis: React.FC<TableCroquisProps> = ({
         switch (table.status) {
             case 'available':
                 return {
-                    table: 'rgba(241, 237, 218, 0.47)',
+                    table: 'rgba(255, 251, 235, 0.8)', // Crema semi-transparente
                     tableBorder: '#d97706',
-                    tableText: 'text-amber-900'
+                    tableText: 'text-amber-950' // Texto oscuro de alto contraste
                 };
             case 'occupied':
                 return {
-                    table: 'rgba(254, 202, 202, 0.85)',
+                    table: 'rgba(254, 226, 226, 0.8)', // Rojo claro semi-transparente
                     tableBorder: '#dc2626',
-                    tableText: 'text-red-900'
+                    tableText: 'text-red-950'
                 };
             case 'reserved':
                 return {
-                    table: 'rgba(191, 219, 254, 0.85)',
+                    table: 'rgba(219, 234, 254, 0.8)', // Azul claro semi-transparente
                     tableBorder: '#2563eb',
-                    tableText: 'text-blue-900'
+                    tableText: 'text-blue-950'
                 };
             default:
                 return {
-                    table: 'rgba(229, 231, 235, 0.85)',
+                    table: 'rgba(243, 244, 246, 0.8)', // Gris claro semi-transparente
                     tableBorder: '#9ca3af',
-                    tableText: 'text-gray-700'
+                    tableText: 'text-gray-800'
                 };
         }
     };
@@ -258,16 +257,16 @@ const TableCroquis: React.FC<TableCroquisProps> = ({
 
                 {/* Contenedor del Mapa */}
                 <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col items-center justify-center p-2.5 bg-neutral-900">
-                    {/* Contenedor Relativo Escalable */}
+                    {/* Contenedor Relativo Escalable con Aspect Ratio Fijo de 1200x700 */}
                     <div
                         ref={containerRef}
-                        className="relative w-full max-w-full leading-none"
+                        className="relative w-full max-w-full leading-none aspect-[1200/700]"
                     >
                         {/* Imagen Real que dicta la altura y el aspecto */}
                         <img
-                            src="/restaurant-background.png"
+                            src="/restaurant-background.svg"
                             alt="Mapa del Restaurante"
-                            className="w-full h-auto block rounded"
+                            className="w-full h-full block rounded object-fill"
                         />
 
                         {/* Capa de Mesas Superpuesta */}
@@ -279,7 +278,7 @@ const TableCroquis: React.FC<TableCroquisProps> = ({
                                 const colors = getColors(table);
                                 const isClickable = ['available', 'reserved', 'occupied'].includes(table.status);
 
-                                // Calcular dimensiones dinámicas
+                                // Calcular dimensiones dinámicas en pixeles escalables
                                 const dynamicWidth = config.tableWidth * scaleFactor;
                                 const dynamicHeight = config.tableHeight * scaleFactor;
                                 // Ajustar tamaño de fuente basado en la escala (mínimo 10px)
@@ -334,7 +333,7 @@ const TableCroquis: React.FC<TableCroquisProps> = ({
                                             </div>
 
                                             {/* Capacidad */}
-                                            {config.type !== 'special' && dynamicHeight > 30 && (
+                                            {config.type !== 'special' && dynamicHeight > 25 && (
                                                 <div
                                                     style={{
                                                         fontSize: `${fontSizeCap}px`

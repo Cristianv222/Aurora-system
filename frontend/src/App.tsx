@@ -30,6 +30,8 @@ import DisenoRestaurant from './modulos/restaurant/DisenoRestaurant';
 import ReservacionesRestaurant from './modulos/restaurant/Reservaciones';
 
 import './App.css';
+import ToastContainer from './components/ToastContainer';
+
 
 interface RouteProps {
   children: React.ReactNode;
@@ -101,6 +103,7 @@ const Dashboard: React.FC = () => (
 function App(): JSX.Element {
   return (
     <AuthProvider>
+      <ToastContainer />
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
