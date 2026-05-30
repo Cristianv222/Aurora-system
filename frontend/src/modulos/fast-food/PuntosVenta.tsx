@@ -124,7 +124,8 @@ const PuntosVenta = () => {
 
                 if (!isMounted) return;
 
-                const loadedProducts = productsRes.data.results || productsRes.data || [];
+                const rawProducts = productsRes.data.results || (Array.isArray(productsRes.data) ? productsRes.data : []);
+                const loadedProducts = Array.isArray(rawProducts) ? rawProducts : [];
                 setProducts(loadedProducts);
 
             } catch (err) {
@@ -138,7 +139,8 @@ const PuntosVenta = () => {
 
                 if (!isMounted) return;
 
-                const loadedCategories = categoriesRes.data.results || categoriesRes.data || [];
+                const rawCategories = categoriesRes.data.results || (Array.isArray(categoriesRes.data) ? categoriesRes.data : []);
+                const loadedCategories = Array.isArray(rawCategories) ? rawCategories : [];
                 setCategories(loadedCategories);
 
             } catch (err) {
@@ -151,7 +153,7 @@ const PuntosVenta = () => {
                 });
 
                 if (!isMounted) return;
-                setTables(tablesRes.data.results || tablesRes.data || []);
+                setTables(tablesRes.data.results || (Array.isArray(tablesRes.data) ? tablesRes.data : []));
 
             } catch (err) {
                 console.warn('Mesas no disponibles');

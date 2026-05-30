@@ -29,7 +29,7 @@ const Combos: React.FC = () => {
     const fetchCombos = async () => {
         try {
             const response = await api.get('/api/menu/combos/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
-            setCombos(response.data.results || response.data || []);
+            setCombos(response.data.results || (Array.isArray(response.data) ? response.data : []));
         } catch (err) {
             console.error('Error fetching combos:', err);
             setError('Error al cargar los combos');

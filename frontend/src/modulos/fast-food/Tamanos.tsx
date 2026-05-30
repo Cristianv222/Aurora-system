@@ -31,7 +31,7 @@ const Tamanos: React.FC = () => {
     const fetchSizes = async () => {
         try {
             const response = await api.get('/api/menu/sizes/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
-            setSizes(response.data.results || response.data || []);
+            setSizes(response.data.results || (Array.isArray(response.data) ? response.data : []));
         } catch (err) {
             console.error('Error fetching sizes:', err);
             setError('Error al cargar los tamaños');
@@ -43,7 +43,7 @@ const Tamanos: React.FC = () => {
     const fetchProducts = async () => {
         try {
             const response = await api.get('/api/menu/products/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
-            setProducts(response.data.results || response.data || []);
+            setProducts(response.data.results || (Array.isArray(response.data) ? response.data : []));
         } catch (err) {
             console.error('Error fetching products:', err);
         }

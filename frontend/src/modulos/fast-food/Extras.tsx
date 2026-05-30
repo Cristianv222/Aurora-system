@@ -28,7 +28,7 @@ const Extras: React.FC = () => {
     const fetchExtras = async () => {
         try {
             const response = await api.get('/api/menu/extras/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
-            setExtras(response.data.results || response.data || []);
+            setExtras(response.data.results || (Array.isArray(response.data) ? response.data : []));
         } catch (err) {
             console.error('Error fetching extras:', err);
             setError('Error al cargar los extras');

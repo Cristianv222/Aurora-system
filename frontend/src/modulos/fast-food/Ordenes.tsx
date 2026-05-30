@@ -49,7 +49,7 @@ const Ordenes: React.FC = () => {
         const fetchOrders = async () => {
             try {
                 const response = await api.get('/api/orders/orders/', { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
-                setOrders(response.data.results || response.data || []);
+                setOrders(response.data.results || (Array.isArray(response.data) ? response.data : []));
             } catch (err) {
                 console.error('Error fetching orders:', err);
                 setError('Error al cargar las órdenes');

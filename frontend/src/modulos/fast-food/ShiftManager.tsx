@@ -41,7 +41,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
 
     const checkCurrentShift = async () => {
         try {
-            const response = await api.get('/api/pos/shifts/current/', {
+            const response = await api.get('/pos/shifts/current/', {
                 baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             if (response.data && response.data.status === 'open') {
@@ -70,7 +70,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
         e.preventDefault();
         setError('');
         try {
-            const registersRes = await api.get('/api/payments/cash-registers/', {
+            const registersRes = await api.get('/payments/cash-registers/', {
                 baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
             const register = registersRes.data.results ? registersRes.data.results[0] : registersRes.data[0];
@@ -78,7 +78,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                 setError('No hay cajas registradoras configuradas');
                 return;
             }
-            const response = await api.post('/api/pos/shifts/', {
+            const response = await api.post('/pos/shifts/', {
                 cash_register: register.id,
                 opening_cash: parseFloat(openingCash),
                 opening_notes: notes
@@ -98,13 +98,13 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
         if (!currentShift) return;
         if (!window.confirm('¿Está seguro de cerrar el turno?')) return;
         try {
-            await api.post(`/api/pos/shifts/${currentShift.id}/close/`, {
+            await api.post(`/pos/shifts/${currentShift.id}/close/`, {
                 closing_cash: parseFloat(closingCash),
                 closing_notes: notes
             }, { baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE });
 
             try {
-                const reportResponse = await api.get(`/api/pos/shifts/${currentShift.id}/report/`, {
+                const reportResponse = await api.get(`/pos/shifts/${currentShift.id}/report/`, {
                     baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
                 });
                 const shiftData = reportResponse.data;

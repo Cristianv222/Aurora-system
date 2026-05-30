@@ -105,7 +105,7 @@ const Reportes = () => {
     // Cargar estadísticas del dashboard
     const fetchDashboardStats = useCallback(async () => {
         try {
-            const response = await api.get('/api/pos/daily-summaries/dashboard/', {
+            const response = await api.get('/pos/daily-summaries/dashboard/', {
                 baseURL: getFastFoodBaseURL(),
                 timeout: 20000
             });
@@ -121,7 +121,7 @@ const Reportes = () => {
     const fetchDayShifts = useCallback(async (dateStr) => {
         if (!dateStr) return;
         try {
-            const response = await api.get(`/api/pos/shifts/by_date/?date=${dateStr}`, {
+            const response = await api.get(`/pos/shifts/by_date/?date=${dateStr}`, {
                 baseURL: getFastFoodBaseURL()
             });
             if (response.data && response.data.shifts) {
@@ -139,7 +139,7 @@ const Reportes = () => {
     const handlePrintShiftReport = async (shiftId) => {
         if (!shiftId) return;
         try {
-            const response = await api.get(`/api/pos/shifts/${shiftId}/report/`, {
+            const response = await api.get(`/pos/shifts/${shiftId}/report/`, {
                 baseURL: getFastFoodBaseURL()
             });
             const reportData = response.data;
@@ -157,7 +157,7 @@ const Reportes = () => {
     // ========== GESTIÓN DE TURNOS ==========
     const checkCurrentShift = useCallback(async () => {
         try {
-            const response = await api.get('/api/pos/shifts/current/', {
+            const response = await api.get('/pos/shifts/current/', {
                 baseURL: getFastFoodBaseURL()
             });
             // La respuesta es { shift: { ... } } o { message: "...", shift: null }
@@ -180,7 +180,7 @@ const Reportes = () => {
         setProcessingShift(true);
         try {
             // Enviamos solo el nombre del encargado. El backend se encarga de la caja.
-            await api.post('/api/pos/shifts/', {
+            await api.post('/pos/shifts/', {
                 manager_name: managerName,
                 opening_cash: 0,
                 notes: shiftNotes || 'Apertura Simplificada'
@@ -210,14 +210,14 @@ const Reportes = () => {
 
         setProcessingShift(true);
         try {
-            await api.post(`/api/pos/shifts/${currentShift.id}/close/`, {
+            await api.post(`/pos/shifts/${currentShift.id}/close/`, {
                 closing_cash: 0,
                 closing_notes: 'Cierre desde Reportes'
             }, { baseURL: getFastFoodBaseURL() });
 
             // Reporte y PDF
             try {
-                const reportResponse = await api.get(`/api/pos/shifts/${currentShift.id}/report/`, {
+                const reportResponse = await api.get(`/pos/shifts/${currentShift.id}/report/`, {
                     baseURL: getFastFoodBaseURL()
                 });
 
@@ -259,7 +259,7 @@ const Reportes = () => {
             const today = new Date();
             console.log('Fecha de hoy (cliente):', today.toLocaleDateString('es-MX'), today.toISOString());
 
-            const listResponse = await api.get('/api/pos/daily-summaries/', {
+            const listResponse = await api.get('/pos/daily-summaries/', {
                 baseURL: getFastFoodBaseURL(),
                 params: { ordering: '-date', limit: 30 },
                 timeout: 10000
@@ -297,7 +297,7 @@ const Reportes = () => {
             if (!todayReport) {
                 console.log('No se encontró reporte de hoy en lista, intentando endpoint /today/');
                 try {
-                    const todayResponse = await api.get('/api/pos/daily-summaries/today/', {
+                    const todayResponse = await api.get('/pos/daily-summaries/today/', {
                         baseURL: getFastFoodBaseURL(),
                         timeout: 5000
                     });
@@ -353,7 +353,7 @@ const Reportes = () => {
 
             let response;
             if (isShift) {
-                response = await api.get(`/api/pos/shifts/${reportId}/report/`, {
+                response = await api.get(`/pos/shifts/${reportId}/report/`, {
                     baseURL: getFastFoodBaseURL()
                 });
                 // Normalizar datos del turno para que coincidan con la estructura esperada por el UI y PDF
@@ -370,7 +370,7 @@ const Reportes = () => {
                 };
                 setCurrentReport(normalizedReport);
             } else {
-                response = await api.get(`/api/pos/daily-summaries/${reportId}/detail_with_orders/`, {
+                response = await api.get(`/pos/daily-summaries/${reportId}/detail_with_orders/`, {
                     baseURL: getFastFoodBaseURL()
                 });
                 setCurrentReport(response.data);
@@ -431,7 +431,7 @@ const Reportes = () => {
 
             // SOLO generar nuevo reporte si se solicita explícitamente
             console.log("Generando nuevo reporte para:", dateStr);
-            const response = await api.post('/api/pos/daily-summaries/generate/', {
+            const response = await api.post('/pos/daily-summaries/generate/', {
                 date: dateStr,
                 detailed: true,
                 include_orders_detail: true
@@ -531,7 +531,7 @@ const Reportes = () => {
                 payload.end_date = endDate;
             }
 
-            const response = await api.post('/api/pos/daily-summaries/get_report/', payload, {
+            const response = await api.post('/pos/daily-summaries/get_report/', payload, {
                 baseURL: getFastFoodBaseURL(),
                 timeout: 15000
             });
@@ -627,7 +627,7 @@ const Reportes = () => {
             setError('');
             setDebugInfo('');
 
-            await api.post('/api/pos/daily-summaries/close_day/', {
+            await api.post('/pos/daily-summaries/close_day/', {
                 date: format(new Date(), 'yyyy-MM-dd'),
                 closing_notes: 'Cierre manual del día'
             }, {
@@ -723,7 +723,7 @@ const Reportes = () => {
             const dateStr = format(date, 'yyyy-MM-dd');
             console.log('Buscando turnos para:', dateStr);
 
-            const response = await api.get('/api/pos/shifts/by_date/', {
+            const response = await api.get('/pos/shifts/by_date/', {
                 baseURL: getFastFoodBaseURL(),
                 params: { date: dateStr }
             });
@@ -759,7 +759,7 @@ const Reportes = () => {
         try {
             // 1. Si es REPORTE DE TURNO
             if (currentReport.is_shift_report && currentReport.shift_info?.id) {
-                const response = await api.get(`/api/pos/shifts/${currentReport.shift_info.id}/report/`, {
+                const response = await api.get(`/pos/shifts/${currentReport.shift_info.id}/report/`, {
                     baseURL: getFastFoodBaseURL()
                 });
                 const shiftData = response.data;
@@ -779,7 +779,7 @@ const Reportes = () => {
             else if (currentReport.date && !currentReport.start_date) {
                 const dateStr = currentReport.date;
                 // Re-generar reporte detallado sin loading
-                const response = await api.post('/api/pos/daily-summaries/generate/', {
+                const response = await api.post('/pos/daily-summaries/generate/', {
                     date: dateStr,
                     detailed: true,
                     include_orders_detail: true

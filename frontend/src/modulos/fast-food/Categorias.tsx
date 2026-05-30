@@ -25,7 +25,7 @@ const Categorias: React.FC = () => {
             const response = await api.get('/api/menu/categories/', {
                 baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
             });
-            setCategories(response.data.results || response.data || []);
+            setCategories(response.data.results || (Array.isArray(response.data) ? response.data : []));
         } catch (err) {
             console.error('Error fetching categories:', err);
             setError('Error al cargar las categorías');

@@ -159,7 +159,8 @@ class ShiftCreateSerializer(serializers.ModelSerializer):
         
         validated_data['user_id'] = str(request.user.id)
         validated_data['user_name'] = manager_name if manager_name else request.user.get_full_name()
-        validated_data['user_role'] = getattr(request.user, 'role', {}).get('name', '') if hasattr(request.user, 'role') else ''
+        role = getattr(request.user, 'role', None)
+        validated_data['user_role'] = role.get('name', '') if isinstance(role, dict) else ''
         
         return super().create(validated_data)
 
