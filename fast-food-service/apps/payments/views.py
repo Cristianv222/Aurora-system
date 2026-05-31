@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from core.permissions import require_authentication, require_staff
 from .models import (
     Currency, ExchangeRate, PaymentMethod, Payment,
-    Refund, CashRegister, CashMovement
+    Refund, CashRegister, CashMovement, SRIConfiguration
 )
 from .serializers import (
     CurrencySerializer,
@@ -27,6 +27,7 @@ from .serializers import (
     CashRegisterOpenSerializer,
     CashRegisterCloseSerializer,
     CashMovementSerializer,
+    SRIConfigurationSerializer,
 )
 
 
@@ -78,6 +79,12 @@ class CurrencyViewSet(viewsets.ModelViewSet):
         GET /api/payments/currencies/active/
         """
         currencies = self.get_queryset().filter(is_active=True)
+        if not currencies.exists():
+            Currency.objects.get_or_create(
+                code='USD',
+                defaults={'name': 'Dólar Estadounidense', 'symbol': '$', 'is_default': True, 'is_active': True, 'decimal_places': 2}
+            )
+            currencies = self.get_queryset().filter(is_active=True)
         serializer = self.get_serializer(currencies, many=True)
         return Response(serializer.data)
     
@@ -88,6 +95,12 @@ class CurrencyViewSet(viewsets.ModelViewSet):
         GET /api/payments/currencies/default/
         """
         currency = Currency.get_default()
+        if not currency:
+            Currency.objects.get_or_create(
+                code='USD',
+                defaults={'name': 'Dólar Estadounidense', 'symbol': '$', 'is_default': True, 'is_active': True, 'decimal_places': 2}
+            )
+            currency = Currency.get_default()
         if not currency:
             return Response(
                 {'error': 'No hay moneda por defecto configurada'},
@@ -261,6 +274,12 @@ class PaymentMethodViewSet(viewsets.ModelViewSet):
         GET /api/payments/payment-methods/active/
         """
         methods = self.get_queryset().filter(is_active=True)
+        if not methods.exists():
+            PaymentMethod.objects.get_or_create(name='Efectivo', method_type='cash', is_active=True, display_order=1)
+            PaymentMethod.objects.get_or_create(name='Tarjeta de Crédito', method_type='credit_card', is_active=True, display_order=2)
+            PaymentMethod.objects.get_or_create(name='Tarjeta de Débito', method_type='debit_card', is_active=True, display_order=3)
+            PaymentMethod.objects.get_or_create(name='Transferencia Bancaria', method_type='bank_transfer', is_active=True, display_order=4)
+            methods = self.get_queryset().filter(is_active=True)
         serializer = self.get_serializer(methods, many=True)
         return Response(serializer.data)
     
@@ -353,7 +372,128 @@ class PaymentViewSet(viewsets.ModelViewSet):
         """Crea un nuevo pago"""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        
+        process_sri = serializer.validated_data.get('process_sri', False)
+        billing_data = serializer.validated_data.get('billing_data', {})
+        
         payment = serializer.save()
+        
+        # Integración Facturación SRI
+        if process_sri:
+            sri_config = SRIConfiguration.objects.filter(is_active=True).first()
+            if not sri_config or not sri_config.vsr_token:
+                payment.sri_status = 'REJECTED'
+                payment.save()
+                
+                detail_serializer = PaymentDetailSerializer(payment)
+                data = detail_serializer.data
+                data['invoice_error'] = 'SRI_CONFIGURATION_MISSING'
+                return Response(data, status=status.HTTP_201_CREATED)
+            
+            order = payment.order
+            customer_identification_type = billing_data.get('identification_type', '05')
+            customer_identification = billing_data.get('identification', '9999999999999')
+            customer_name = billing_data.get('name', 'CONSUMIDOR FINAL')
+            customer_email = billing_data.get('email', 'facturacion@example.com')
+            customer_address = billing_data.get('address', 'N/A')
+            customer_phone = billing_data.get('phone', '0000000000')
+            
+            issue_date = timezone.now().strftime('%Y-%m-%d')
+            
+            items_payload = []
+            for item in order.items.all():
+                items_payload.append({
+                    'main_code': f'PROD-{item.product.id.hex[:6].upper()}',
+                    'description': f'{item.product.name}' + (f' ({item.size.name})' if item.size else ''),
+                    'quantity': float(item.quantity),
+                    'unit_price': float(item.unit_price),
+                    'discount': 0.0
+                })
+            
+            # Map payment method type to SRI codes (Ecuador)
+            sri_payment_code = "01"  # Default to cash / efectivo
+            if payment.payment_method:
+                mtype = payment.payment_method.method_type
+                if mtype == 'cash':
+                    sri_payment_code = "01"
+                elif mtype == 'debit_card':
+                    sri_payment_code = "16"
+                elif mtype == 'credit_card':
+                    sri_payment_code = "19"
+                else:
+                    sri_payment_code = "20"  # Otros con utilización del sistema financiero
+            
+            payload = {
+                'issue_date': issue_date,
+                'customer_identification_type': customer_identification_type,
+                'customer_identification': customer_identification,
+                'customer_name': customer_name,
+                'customer_address': customer_address,
+                'customer_email': customer_email,
+                'customer_phone': customer_phone,
+                'send_email': True,
+                'payments': [
+                    {
+                        'payment_method': sri_payment_code,
+                        'total': float(payment.amount),
+                        'term': 0,
+                        'time_unit': 'dias'
+                    }
+                ],
+                'items': items_payload
+            }
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'Token {sri_config.vsr_token}'
+            }
+            
+            import requests
+            try:
+                payment.sri_status = 'QUEUED'
+                payment.save()
+                
+                response = requests.post(
+                    'https://factuexpress.fronteratech.ec/api/sri/documents/create_and_process_invoice_complete/',
+                    json=payload,
+                    headers=headers,
+                    timeout=10
+                )
+                
+                if response.status_code == 201:
+                    resp_data = response.json()
+                    is_success = resp_data.get('success', False)
+                    invoice_data = resp_data.get('invoice', {})
+                    
+                    payment.sri_access_key = invoice_data.get('access_key')
+                    payment.sri_number = invoice_data.get('number')
+                    
+                    if is_success:
+                        payment.sri_status = 'AUTHORIZED'
+                        payment.save()
+                    else:
+                        payment.sri_status = 'REJECTED'
+                        payment.save()
+                        detail_serializer = PaymentDetailSerializer(payment)
+                        data = detail_serializer.data
+                        data['invoice_error'] = invoice_data.get('error_details', 'Error desconocido SRI')
+                        return Response(data, status=status.HTTP_201_CREATED)
+                else:
+                    payment.sri_status = 'REJECTED'
+                    payment.save()
+                    err_msg = response.json().get('message', 'Error en la llamada al API.')
+                    detail_serializer = PaymentDetailSerializer(payment)
+                    data = detail_serializer.data
+                    data['invoice_error'] = err_msg
+                    return Response(data, status=status.HTTP_201_CREATED)
+                    
+            except requests.exceptions.RequestException as e:
+                payment.sri_status = 'REJECTED'
+                payment.save()
+                detail_serializer = PaymentDetailSerializer(payment)
+                data = detail_serializer.data
+                data['invoice_error'] = f'Error de red: {str(e)}'
+                return Response(data, status=status.HTTP_201_CREATED)
         
         # Retornar con el serializer de detalle
         detail_serializer = PaymentDetailSerializer(payment)
@@ -769,4 +909,17 @@ class CashMovementViewSet(viewsets.ModelViewSet):
         
         movements = self.get_queryset().filter(cash_register_id=register_id)
         serializer = self.get_serializer(movements, many=True)
+        return Response(serializer.data)
+
+
+class SRIConfigurationViewSet(viewsets.ModelViewSet):
+    queryset = SRIConfiguration.objects.all()
+    serializer_class = SRIConfigurationSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def list(self, request):
+        config = SRIConfiguration.objects.first()
+        if not config:
+            config = SRIConfiguration.objects.create(is_active=False)
+        serializer = self.get_serializer(config)
         return Response(serializer.data)

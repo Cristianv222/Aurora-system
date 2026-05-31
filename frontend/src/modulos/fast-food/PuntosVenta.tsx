@@ -11,9 +11,9 @@ import printerService from '../../services/printerService';
 const formatCurrency = (amount) => {
     if (amount === undefined || amount === null) return '$0.00';
     const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return new Intl.NumberFormat('es-MX', {
+    return new Intl.NumberFormat('es-US', {
         style: 'currency',
-        currency: 'MXN',
+        currency: 'USD',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
     }).format(num || 0);
@@ -58,7 +58,7 @@ const PuntosVenta = () => {
     const [cart, setCart] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('all');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedTable, setSelectedTable] = useState('');
+    const [selectedTable, setSelectedTable] = useState('takeout');
     const [discountCode, setDiscountCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState(null);
 
@@ -84,6 +84,55 @@ const PuntosVenta = () => {
         city: '',
         cedula: ''
     });
+
+    // States for Payment Methods and SRI Invoicing
+    const [paymentMethods, setPaymentMethods] = useState([]);
+    const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
+    const [processSRI, setProcessSRI] = useState(false);
+    const [billingIdentType, setBillingIdentType] = useState('05');
+    const [billingIdent, setBillingIdent] = useState('');
+    const [billingName, setBillingName] = useState('');
+    const [billingEmail, setBillingEmail] = useState('');
+    const [billingPhone, setBillingPhone] = useState('');
+    const [billingAddress, setBillingAddress] = useState('');
+
+    // Auto-populate SRI billing info from selected customer or default to Consumidor Final
+    useEffect(() => {
+        if (selectedCustomer) {
+            setBillingIdent(selectedCustomer.cedula || '');
+            setBillingName(`${selectedCustomer.first_name} ${selectedCustomer.last_name}`.trim());
+            setBillingEmail(selectedCustomer.email || '');
+            setBillingPhone(selectedCustomer.phone || '');
+            setBillingAddress(selectedCustomer.address || 'Quito');
+            if (selectedCustomer.cedula) {
+                if (selectedCustomer.cedula.length === 13) {
+                    setBillingIdentType('04'); // RUC
+                } else if (selectedCustomer.cedula.length === 10) {
+                    setBillingIdentType('05'); // Cédula
+                } else {
+                    setBillingIdentType('07'); // Consumidor Final / Otro
+                }
+            } else {
+                setBillingIdentType('07');
+            }
+        } else {
+            if (processSRI) {
+                setBillingIdentType('07'); // Consumidor Final
+                setBillingIdent('9999999999999');
+                setBillingName('CONSUMIDOR FINAL');
+                setBillingEmail('facturacion@consumidorfinal.com');
+                setBillingPhone('9999999999');
+                setBillingAddress('Quito');
+            } else {
+                setBillingIdent('');
+                setBillingName('');
+                setBillingEmail('');
+                setBillingPhone('');
+                setBillingAddress('');
+                setBillingIdentType('05');
+            }
+        }
+    }, [selectedCustomer, processSRI]);
 
     // =====================================
     // 4. EFECTOS - CARGA INICIAL DE DATOS Y RESPONSIVIDAD
@@ -160,6 +209,21 @@ const PuntosVenta = () => {
                 if (isMounted) {
                     setTables([]);
                 }
+            }
+
+            try {
+                const paymentsRes = await api.get('/api/payments/payment-methods/active/', {
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
+                });
+                if (!isMounted) return;
+                const methods = paymentsRes.data.results || paymentsRes.data || [];
+                setPaymentMethods(methods);
+                if (methods.length > 0) {
+                    const cashMethod = methods.find(m => m.method_type === 'cash');
+                    setSelectedPaymentMethod(cashMethod ? cashMethod.id : methods[0].id);
+                }
+            } catch (err) {
+                console.warn('Métodos de pago no disponibles', err);
             }
 
             if (isMounted) {
@@ -443,6 +507,42 @@ const PuntosVenta = () => {
 
             const createdOrder = orderResponse.data;
 
+            // 1.5. CREAR EL PAGO Y PROCESAR FACTURACIÓN ELECTRÓNICA
+            try {
+                const paymentPayload = {
+                    order_id: createdOrder.id,
+                    payment_method_id: selectedPaymentMethod,
+                    currency_code: 'USD',
+                    amount: calculateTotal,
+                    amount_received: cashGiven || calculateTotal,
+                    process_sri: processSRI,
+                    billing_data: processSRI ? {
+                        identification_type: billingIdentType,
+                        identification: billingIdent,
+                        name: billingName,
+                        email: billingEmail,
+                        phone: billingPhone,
+                        address: billingAddress
+                    } : {}
+                };
+
+                const paymentResponse = await api.post('/api/payments/payments/', paymentPayload, {
+                    baseURL: import.meta.env.VITE_FAST_FOOD_SERVICE
+                });
+
+                const paymentData = paymentResponse.data;
+
+                if (processSRI && paymentData.invoice_error) {
+                    alert(`⚠️ Pago registrado pero hubo un problema con la factura electrónica SRI:\n\n${paymentData.invoice_error}`);
+                } else if (processSRI && paymentData.sri_status === 'AUTHORIZED') {
+                    alert(`✅ Factura electrónica SRI autorizada exitosamente.\nClave de Acceso: ${paymentData.sri_access_key}\nNúmero de Factura: ${paymentData.sri_number}`);
+                }
+            } catch (payError) {
+                console.error('⚠️ Error al registrar el pago / SRI:', payError);
+                const payErrMsg = payError.response?.data?.detail || payError.response?.data?.error || JSON.stringify(payError.response?.data || payError.message);
+                alert(`⚠️ Se creó la orden pero no se pudo registrar el pago ni procesar el SRI:\n\n${payErrMsg}`);
+            }
+
             // 2. PREPARAR DATOS PARA EL TICKET (incluyendo notas)
             const receiptData = {
                 order_number: createdOrder.order_number || createdOrder.id,
@@ -487,15 +587,16 @@ const PuntosVenta = () => {
                 );
             }
 
-            // 4. LIMPIAR EL CARRITO
+            // 4. LIMPIAR EL CARRITO Y ESTADOS SRI
             setCart([]);
             setAppliedDiscount(null);
             setDiscountCode('');
-            setSelectedTable('');
+            setSelectedTable('takeout');
             setSelectedCustomer(null);
             setCustomerSearch('');
             setCashGiven(null); // Resetear calculadora
             setInputCash('');
+            setProcessSRI(false);
 
         } catch (err) {
             console.error('❌ Error al procesar la orden:', err);
@@ -958,6 +1059,138 @@ const PuntosVenta = () => {
                 )}
             </div>
 
+            {/* Método de Pago Selector */}
+            <div style={{ marginBottom: '1rem', marginTop: '1rem' }}>
+                <label style={{
+                    display: 'block',
+                    fontSize: '0.875rem',
+                    fontWeight: '600',
+                    color: '#374151',
+                    marginBottom: '0.5rem'
+                }}>
+                    Método de Pago
+                </label>
+                <select
+                    style={{
+                        width: '100%',
+                        padding: screenWidth <= 1366 ? '0.5rem' : '0.75rem',
+                        border: '2px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: screenWidth <= 1366 ? '0.875rem' : '0.9375rem',
+                        color: '#1f2937',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        minHeight: TOUCH_MIN_SIZE
+                    }}
+                    value={selectedPaymentMethod}
+                    onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                >
+                    {paymentMethods.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                </select>
+            </div>
+
+            {/* Toggle SRI Invoicing */}
+            <div className="flex items-center justify-between border-y border-slate-200 py-3 my-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
+                        <i className="bi bi-receipt-cutoff text-lg text-indigo-600"></i>
+                    </div>
+                    <div className="text-left">
+                        <span className="text-xs font-bold text-slate-700 block">Emitir Factura Electrónica (SRI)</span>
+                        <span className="text-[10px] text-slate-500 block">Conectar al portal de SRI FactuExpress</span>
+                    </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                        type="checkbox" 
+                        checked={processSRI} 
+                        onChange={e => setProcessSRI(e.target.checked)}
+                        className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900"></div>
+                </label>
+            </div>
+
+            {/* SRI Billing fields conditionally shown */}
+            {processSRI && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 mb-4 text-left animate-in slide-in-from-top-4 duration-150">
+                    <h4 className="text-xs font-bold text-slate-950 uppercase tracking-wider flex items-center gap-1.5"><i className="bi bi-person-badge-fill text-slate-500"></i> Datos de Emisión</h4>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Tipo ID</label>
+                            <select 
+                                value={billingIdentType} 
+                                onChange={e => setBillingIdentType(e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2 text-xs bg-white text-slate-850"
+                            >
+                                <option value="07">Consumidor Final</option>
+                                <option value="05">Cédula</option>
+                                <option value="04">RUC</option>
+                                <option value="06">Pasaporte</option>
+                                <option value="08">ID Exterior</option>
+                            </select>
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">N. Identificación</label>
+                            <input 
+                                type="text" 
+                                value={billingIdent}
+                                onChange={e => setBillingIdent(e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2 text-xs text-slate-850 bg-white" 
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Razón Social / Nombre</label>
+                        <input 
+                            type="text" 
+                            value={billingName}
+                            onChange={e => setBillingName(e.target.value)}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs text-slate-850 bg-white" 
+                            required
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Email Destinatario</label>
+                            <input 
+                                type="email" 
+                                value={billingEmail}
+                                onChange={e => setBillingEmail(e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2 text-xs text-slate-850 bg-white" 
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Teléfono</label>
+                            <input 
+                                type="text" 
+                                value={billingPhone}
+                                onChange={e => setBillingPhone(e.target.value)}
+                                className="w-full border border-slate-300 rounded-xl p-2 text-xs text-slate-850 bg-white" 
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Dirección Fiscal</label>
+                        <input 
+                            type="text" 
+                            value={billingAddress}
+                            onChange={e => setBillingAddress(e.target.value)}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs text-slate-850 bg-white" 
+                        />
+                    </div>
+                </div>
+            )}
+
             <div style={{ borderTop: '2px solid #e5e7eb', paddingTop: '1rem', marginTop: '1rem' }}>
                 <div style={{
                     display: 'flex',
@@ -1089,7 +1322,7 @@ const PuntosVenta = () => {
                     <button
                         style={{
                             padding: screenWidth <= 1366 ? '0.5rem 1rem' : '0.75rem 1.5rem',
-                            backgroundColor: '#3b82f6',
+                            backgroundColor: '#4f46e5',
                             border: 'none',
                             borderRadius: '8px',
                             color: '#ffffff',
@@ -1169,9 +1402,9 @@ const PuntosVenta = () => {
                             <button
                                 style={{
                                     padding: '0.5rem 1rem',
-                                    borderRadius: '6px',
-                                    border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
-                                    backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
+                                    borderRadius: '12px',
+                                    border: selectedCategory === 'all' ? 'none' : '1px solid #e2e8f0',
+                                    backgroundColor: selectedCategory === 'all' ? '#4f46e5' : '#ffffff',
                                     color: selectedCategory === 'all' ? '#ffffff' : '#374151',
                                     fontWeight: '600',
                                     fontSize: '0.875rem',
@@ -1189,9 +1422,9 @@ const PuntosVenta = () => {
                                     key={cat.id}
                                     style={{
                                         padding: '0.5rem 1rem',
-                                        borderRadius: '6px',
-                                        border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
-                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
+                                        borderRadius: '12px',
+                                        border: selectedCategory === cat.id ? 'none' : '1px solid #e2e8f0',
+                                        backgroundColor: selectedCategory === cat.id ? '#4f46e5' : '#ffffff',
                                         color: selectedCategory === cat.id ? '#ffffff' : '#374151',
                                         fontWeight: '600',
                                         fontSize: '0.875rem',
@@ -1238,7 +1471,7 @@ const PuntosVenta = () => {
                                     onMouseEnter={screenWidth > 768 ? (e) => {
                                         e.currentTarget.style.transform = 'translateY(-4px)';
                                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-                                        e.currentTarget.style.borderColor = '#3b82f6';
+                                        e.currentTarget.style.borderColor = '#4f46e5';
                                     } : undefined}
                                     onMouseLeave={screenWidth > 768 ? (e) => {
                                         e.currentTarget.style.transform = 'translateY(0)';
@@ -1328,9 +1561,9 @@ const PuntosVenta = () => {
                         <button
                             style={{
                                 padding: '0.5rem 1rem',
-                                backgroundColor: '#3b82f6',
+                                backgroundColor: '#4f46e5',
                                 border: 'none',
-                                borderRadius: '6px',
+                                borderRadius: '12px',
                                 color: '#ffffff',
                                 fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                 fontWeight: '600',
@@ -1546,6 +1779,314 @@ const PuntosVenta = () => {
                                         </div>
                                     </div>
                                 ))}
+                                
+                                {/* Sección de Pago y Facturación Directa en el POS (Compacto) */}
+                                <div style={{
+                                    marginTop: '1rem',
+                                    paddingTop: '1rem',
+                                    borderTop: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '0.75rem'
+                                }}>
+                                    <h4 style={{
+                                        fontSize: '0.875rem',
+                                        fontWeight: '700',
+                                        color: '#0f172a',
+                                        marginBottom: '0.125rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                    }}>
+                                        <i className="bi bi-wallet2 text-indigo-600"></i> Configuración de Pago
+                                    </h4>
+
+                                    {/* Mesa / Tipo de Orden */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem' }}>
+                                            Mesa / Tipo de Orden
+                                        </label>
+                                        <select
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.5rem',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8125rem',
+                                                color: '#1e293b',
+                                                backgroundColor: '#ffffff'
+                                            }}
+                                            value={selectedTable}
+                                            onChange={(e) => setSelectedTable(e.target.value)}
+                                        >
+                                            <option value="takeout">Para Llevar (Takeout)</option>
+                                            {tables.map(table => (
+                                                <option key={table.id} value={table.number} disabled={table.status !== 'available'}>
+                                                    Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Cliente Selector */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem' }}>
+                                            Cliente
+                                        </label>
+                                        <div style={{ display: 'flex', gap: '0.375rem' }}>
+                                            <div style={{ position: 'relative', flex: 1 }}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar cliente..."
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.5rem',
+                                                        border: '1px solid #cbd5e1',
+                                                        borderRadius: '8px',
+                                                        fontSize: '0.8125rem',
+                                                        backgroundColor: '#ffffff'
+                                                    }}
+                                                    value={customerSearch}
+                                                    onChange={(e) => searchCustomers(e.target.value)}
+                                                />
+                                                {customers.length > 0 && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        zIndex: 2000,
+                                                        width: '100%',
+                                                        backgroundColor: '#ffffff',
+                                                        border: '1px solid #e2e8f0',
+                                                        borderRadius: '8px',
+                                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                                                        marginTop: '0.25rem',
+                                                        maxHeight: '150px',
+                                                        overflowY: 'auto'
+                                                    }}>
+                                                        {customers.map(c => (
+                                                            <div
+                                                                key={c.id}
+                                                                style={{
+                                                                    padding: '0.5rem 0.75rem',
+                                                                    cursor: 'pointer',
+                                                                    borderBottom: '1px solid #f1f5f9',
+                                                                    fontSize: '0.75rem'
+                                                                }}
+                                                                onClick={() => {
+                                                                    setSelectedCustomer(c);
+                                                                    setCustomerSearch(`${c.first_name} ${c.last_name}`);
+                                                                    setCustomers([]);
+                                                                }}
+                                                            >
+                                                                <strong>{c.first_name} {c.last_name}</strong>
+                                                                <div style={{ color: '#64748b', fontSize: '0.7rem' }}>{c.cedula}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                style={{
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    backgroundColor: '#4f46e5',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    fontSize: '1rem',
+                                                    cursor: 'pointer'
+                                                }}
+                                                onClick={() => setShowCustomerModal(true)}
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                        {selectedCustomer && (
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginTop: '0.25rem',
+                                                padding: '0.25rem 0.5rem',
+                                                backgroundColor: '#f8fafc',
+                                                borderRadius: '6px',
+                                                border: '1px solid #e2e8f0',
+                                                fontSize: '0.75rem'
+                                            }}>
+                                                <span>{selectedCustomer.first_name} {selectedCustomer.last_name}</span>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedCustomer(null);
+                                                        setCustomerSearch('');
+                                                    }}
+                                                    style={{ border: 'none', background: 'none', color: '#ef4444', fontWeight: 'bold' }}
+                                                >
+                                                    Quitar
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Método de Pago */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: '#475569', marginBottom: '0.25rem' }}>
+                                            Método de Pago
+                                        </label>
+                                        <select
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.5rem',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '8px',
+                                                fontSize: '0.8125rem',
+                                                color: '#1e293b',
+                                                backgroundColor: '#ffffff'
+                                            }}
+                                            value={selectedPaymentMethod}
+                                            onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                                        >
+                                            {paymentMethods.length > 0 ? (
+                                                paymentMethods.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))
+                                            ) : (
+                                                <>
+                                                    <option value="cash-default">Efectivo</option>
+                                                    <option value="card-default">Tarjeta</option>
+                                                </>
+                                            )}
+                                        </select>
+                                    </div>
+
+                                    {/* Facturación SRI Switch */}
+                                    <div className="flex items-center justify-between border-y border-slate-150 py-2 my-1">
+                                        <div className="text-left">
+                                            <span className="text-xs font-bold text-slate-700 block">Emitir Factura SRI</span>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={processSRI} 
+                                                onChange={e => setProcessSRI(e.target.checked)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    </div>
+
+                                    {/* Campos SRI Condicionales */}
+                                    {processSRI && (
+                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-2 text-left animate-in slide-in-from-top-4 duration-150">
+                                            <div className="grid grid-cols-3 gap-1.5">
+                                                <div>
+                                                    <select 
+                                                        value={billingIdentType} 
+                                                        onChange={e => setBillingIdentType(e.target.value)}
+                                                        className="w-full border border-slate-300 rounded p-1 text-[10px] bg-white text-slate-800"
+                                                    >
+                                                        <option value="07">C. Final</option>
+                                                        <option value="05">Cédula</option>
+                                                        <option value="04">RUC</option>
+                                                        <option value="06">Pasaporte</option>
+                                                        <option value="08">Exterior</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Identificación"
+                                                        value={billingIdent}
+                                                        onChange={e => setBillingIdent(e.target.value)}
+                                                        className="w-full border border-slate-300 rounded p-1 text-[10px] text-slate-800 bg-white" 
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Razón Social / Nombre"
+                                                value={billingName}
+                                                onChange={e => setBillingName(e.target.value)}
+                                                className="w-full border border-slate-300 rounded p-1 text-[10px] text-slate-800 bg-white" 
+                                                required
+                                            />
+                                            <input 
+                                                type="email" 
+                                                placeholder="Email"
+                                                value={billingEmail}
+                                                onChange={e => setBillingEmail(e.target.value)}
+                                                className="w-full border border-slate-300 rounded p-1 text-[10px] text-slate-800 bg-white" 
+                                                required
+                                            />
+                                            <div className="grid grid-cols-2 gap-1.5">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Teléfono"
+                                                    value={billingPhone}
+                                                    onChange={e => setBillingPhone(e.target.value)}
+                                                    className="w-full border border-slate-300 rounded p-1 text-[10px] text-slate-800 bg-white" 
+                                                />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Dirección"
+                                                    value={billingAddress}
+                                                    onChange={e => setBillingAddress(e.target.value)}
+                                                    className="w-full border border-slate-300 rounded p-1 text-[10px] text-slate-800 bg-white" 
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Calculadora de Vuelto Compacta */}
+                                    <div style={{
+                                        padding: '0.5rem',
+                                        backgroundColor: '#f8fafc',
+                                        borderRadius: '8px',
+                                        border: '1px solid #e2e8f0',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '0.25rem'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyStyle: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>
+                                                Efectivo Recibido:
+                                            </span>
+                                            <input
+                                                type="number"
+                                                placeholder="0.00"
+                                                style={{
+                                                    width: '80px',
+                                                    padding: '0.25rem',
+                                                    border: '1px solid #cbd5e1',
+                                                    borderRadius: '6px',
+                                                    fontSize: '0.8125rem',
+                                                    textAlign: 'right'
+                                                }}
+                                                value={inputCash}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setInputCash(val);
+                                                    setCashGiven(val ? parseFloat(val) : null);
+                                                }}
+                                            />
+                                        </div>
+                                        {cashGiven !== null && (
+                                            <div style={{
+                                                paddingTop: '0.25rem',
+                                                borderTop: '1px dashed #cbd5e1',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontSize: '0.75rem',
+                                                fontWeight: '700'
+                                            }}>
+                                                <span style={{ color: '#475569' }}>Vuelto:</span>
+                                                <span style={{ color: (cashGiven - calculateTotal) < 0 ? '#ef4444' : '#10b981' }}>
+                                                    {formatCurrency(cashGiven - calculateTotal)}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -1605,30 +2146,31 @@ const PuntosVenta = () => {
                                     style={{
                                         width: '100%',
                                         padding: '0.75rem',
-                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#4f46e5',
                                         border: 'none',
-                                        borderRadius: '8px',
+                                        borderRadius: '12px',
                                         color: '#ffffff',
                                         fontSize: screenWidth <= 768 ? '1rem' : '1.125rem',
                                         fontWeight: '700',
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
                                         marginBottom: '0.5rem',
+                                        boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(79, 70, 229, 0.2)',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
-                                    onClick={openOrderConfirmationModal}
+                                    onClick={finalPlaceOrder}
                                     disabled={processingOrder}
                                 >
-                                    {processingOrder ? 'Procesando...' : 'Revisar y Pagar'}
+                                    {processingOrder ? 'Procesando...' : 'Confirmar y Pagar'}
                                 </button>
 
                                 <button
                                     style={{
                                         width: '100%',
                                         padding: '0.75rem',
-                                        backgroundColor: '#f59e0b',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#ffffff',
+                                        backgroundColor: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '12px',
+                                        color: '#475569',
                                         fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                                         fontWeight: '600',
                                         cursor: 'pointer',
@@ -1659,9 +2201,9 @@ const PuntosVenta = () => {
                     style={{
                         flex: 1,
                         padding: '0.75rem',
-                        backgroundColor: showOrderDetails ? '#e5e7eb' : '#3b82f6',
+                        backgroundColor: showOrderDetails ? '#e5e7eb' : '#4f46e5',
                         border: 'none',
-                        borderRadius: '8px',
+                        borderRadius: '12px',
                         color: showOrderDetails ? '#374151' : '#ffffff',
                         fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                         fontWeight: '600',
@@ -1676,9 +2218,9 @@ const PuntosVenta = () => {
                     style={{
                         flex: 1,
                         padding: '0.75rem',
-                        backgroundColor: !showOrderDetails ? '#e5e7eb' : '#3b82f6',
+                        backgroundColor: !showOrderDetails ? '#e5e7eb' : '#4f46e5',
                         border: 'none',
-                        borderRadius: '8px',
+                        borderRadius: '12px',
                         color: !showOrderDetails ? '#374151' : '#ffffff',
                         fontSize: screenWidth <= 768 ? '0.875rem' : '0.9375rem',
                         fontWeight: '600',
@@ -1769,16 +2311,16 @@ const PuntosVenta = () => {
                             <button
                                 style={{
                                     padding: '0.625rem 1.25rem',
-                                    borderRadius: '6px',
-                                    border: selectedCategory === 'all' ? 'none' : '2px solid #d1d5db',
-                                    backgroundColor: selectedCategory === 'all' ? '#3b82f6' : '#ffffff',
+                                    borderRadius: '12px',
+                                    border: selectedCategory === 'all' ? 'none' : '1px solid #e2e8f0',
+                                    backgroundColor: selectedCategory === 'all' ? '#4f46e5' : '#ffffff',
                                     color: selectedCategory === 'all' ? '#ffffff' : '#374151',
                                     fontWeight: '600',
                                     fontSize: '0.9375rem',
                                     cursor: 'pointer',
                                     transition: 'all 0.2s',
                                     whiteSpace: 'nowrap',
-                                    boxShadow: selectedCategory === 'all' ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
+                                    boxShadow: selectedCategory === 'all' ? '0 4px 12px rgba(79, 70, 229, 0.2)' : 'none',
                                     minHeight: TOUCH_MIN_SIZE
                                 }}
                                 onClick={() => setSelectedCategory('all')}
@@ -1790,16 +2332,16 @@ const PuntosVenta = () => {
                                     key={cat.id}
                                     style={{
                                         padding: '0.625rem 1.25rem',
-                                        borderRadius: '6px',
-                                        border: selectedCategory === cat.id ? 'none' : '2px solid #d1d5db',
-                                        backgroundColor: selectedCategory === cat.id ? '#3b82f6' : '#ffffff',
+                                        borderRadius: '12px',
+                                        border: selectedCategory === cat.id ? 'none' : '1px solid #e2e8f0',
+                                        backgroundColor: selectedCategory === cat.id ? '#4f46e5' : '#ffffff',
                                         color: selectedCategory === cat.id ? '#ffffff' : '#374151',
                                         fontWeight: '600',
                                         fontSize: '0.9375rem',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
-                                        boxShadow: selectedCategory === cat.id ? '0 2px 4px rgba(59, 130, 246, 0.3)' : 'none',
+                                        boxShadow: selectedCategory === cat.id ? '0 4px 12px rgba(79, 70, 229, 0.2)' : 'none',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
                                     onClick={() => setSelectedCategory(cat.id)}
@@ -1827,23 +2369,23 @@ const PuntosVenta = () => {
                                     key={product.id}
                                     style={{
                                         backgroundColor: '#ffffff',
-                                        borderRadius: '10px',
+                                        borderRadius: '16px',
                                         overflow: 'hidden',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s',
-                                        border: '1px solid #e5e7eb',
-                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                                        border: '1px solid #f1f5f9',
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)'
                                     }}
                                     onClick={() => addToCart(product)}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'translateY(-4px)';
-                                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-                                        e.currentTarget.style.borderColor = '#3b82f6';
+                                        e.currentTarget.style.boxShadow = '0 6px 16px rgba(79, 70, 229, 0.1)';
+                                        e.currentTarget.style.borderColor = '#4f46e5';
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
-                                        e.currentTarget.style.borderColor = '#e5e7eb';
+                                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.04)';
+                                        e.currentTarget.style.borderColor = '#f1f5f9';
                                     }}
                                 >
                                     <div style={{
@@ -1916,15 +2458,15 @@ const PuntosVenta = () => {
                 }}>
                     {/* Header de Orden Actual */}
                     <div style={{
-                        padding: '1rem 1.5rem',
-                        backgroundColor: '#f3f4f6',
+                        padding: '1.25rem 1.5rem',
+                        backgroundColor: '#ffffff',
                         flexShrink: 0,
-                        borderBottom: '1px solid #e5e7eb'
+                        borderBottom: '1px solid #f1f5f9'
                     }}>
                         <h3 style={{
                             fontSize: '1.125rem',
-                            fontWeight: '700',
-                            color: '#111827',
+                            fontWeight: '800',
+                            color: '#0f172a',
                             margin: 0
                         }}>
                             Orden Actual
@@ -1966,12 +2508,13 @@ const PuntosVenta = () => {
                                         key={index}
                                         style={{
                                             backgroundColor: '#ffffff',
-                                            border: '1px solid #e5e7eb',
-                                            borderRadius: '10px',
+                                            border: '1px solid #f1f5f9',
+                                            borderRadius: '14px',
                                             padding: '1rem',
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            gap: '0.75rem'
+                                            gap: '0.75rem',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
                                         }}
                                     >
                                         {/* Información del producto */}
@@ -2147,6 +2690,317 @@ const PuntosVenta = () => {
                                         </div>
                                     </div>
                                 ))}
+
+                                {/* Sección de Pago y Facturación Directa en el POS (Desktop) */}
+                                <div style={{
+                                    marginTop: '1.5rem',
+                                    paddingTop: '1.5rem',
+                                    borderTop: '1px solid #cbd5e1',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '1rem'
+                                }}>
+                                    <h4 style={{
+                                        fontSize: '1rem',
+                                        fontWeight: '850',
+                                        color: '#0f172a',
+                                        marginBottom: '0.25rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <i className="bi bi-wallet2 text-indigo-650"></i> Configuración de Pago
+                                    </h4>
+
+                                    {/* Mesa / Tipo de Orden */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#475569', marginBottom: '0.375rem' }}>
+                                            Mesa / Tipo de Orden
+                                        </label>
+                                        <select
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.625rem',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '10px',
+                                                fontSize: '0.875rem',
+                                                color: '#1e293b',
+                                                backgroundColor: '#ffffff'
+                                            }}
+                                            value={selectedTable}
+                                            onChange={(e) => setSelectedTable(e.target.value)}
+                                        >
+                                            <option value="takeout">Para Llevar (Takeout)</option>
+                                            {tables.map(table => (
+                                                <option key={table.id} value={table.number} disabled={table.status !== 'available'}>
+                                                    Mesa {table.number} {table.status !== 'available' ? '(Ocupada)' : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Cliente Selector */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#475569', marginBottom: '0.375rem' }}>
+                                            Cliente
+                                        </label>
+                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                            <div style={{ position: 'relative', flex: 1 }}>
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar cliente..."
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '0.625rem',
+                                                        border: '1px solid #cbd5e1',
+                                                        borderRadius: '10px',
+                                                        fontSize: '0.875rem',
+                                                        backgroundColor: '#ffffff'
+                                                    }}
+                                                    value={customerSearch}
+                                                    onChange={(e) => searchCustomers(e.target.value)}
+                                                />
+                                                {customers.length > 0 && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        zIndex: 2000,
+                                                        width: '100%',
+                                                        backgroundColor: '#ffffff',
+                                                        border: '1px solid #e2e8f0',
+                                                        borderRadius: '10px',
+                                                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                                                        marginTop: '0.25rem',
+                                                        maxHeight: '150px',
+                                                        overflowY: 'auto'
+                                                    }}>
+                                                        {customers.map(c => (
+                                                            <div
+                                                                key={c.id}
+                                                                style={{
+                                                                    padding: '0.625rem 0.875rem',
+                                                                    cursor: 'pointer',
+                                                                    borderBottom: '1px solid #f1f5f9',
+                                                                    fontSize: '0.8125rem'
+                                                                }}
+                                                                onClick={() => {
+                                                                    setSelectedCustomer(c);
+                                                                    setCustomerSearch(`${c.first_name} ${c.last_name}`);
+                                                                    setCustomers([]);
+                                                                }}
+                                                            >
+                                                                <strong>{c.first_name} {c.last_name}</strong>
+                                                                <div style={{ color: '#64748b', fontSize: '0.75rem' }}>{c.cedula}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button
+                                                type="button"
+                                                style={{
+                                                    width: '38px',
+                                                    height: '38px',
+                                                    backgroundColor: '#4f46e5',
+                                                    color: '#ffffff',
+                                                    border: 'none',
+                                                    borderRadius: '10px',
+                                                    fontSize: '1.25rem',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}
+                                                onClick={() => setShowCustomerModal(true)}
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+                                        {selectedCustomer && (
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                alignItems: 'center',
+                                                marginTop: '0.375rem',
+                                                padding: '0.375rem 0.75rem',
+                                                backgroundColor: '#f8fafc',
+                                                borderRadius: '8px',
+                                                border: '1px solid #e2e8f0',
+                                                fontSize: '0.8125rem'
+                                            }}>
+                                                <span>{selectedCustomer.first_name} {selectedCustomer.last_name}</span>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedCustomer(null);
+                                                        setCustomerSearch('');
+                                                    }}
+                                                    style={{ border: 'none', background: 'none', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer' }}
+                                                >
+                                                    Quitar
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Método de Pago */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: '600', color: '#475569', marginBottom: '0.375rem' }}>
+                                            Método de Pago
+                                        </label>
+                                        <select
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.625rem',
+                                                border: '1px solid #cbd5e1',
+                                                borderRadius: '10px',
+                                                fontSize: '0.875rem',
+                                                color: '#1e293b',
+                                                backgroundColor: '#ffffff'
+                                            }}
+                                            value={selectedPaymentMethod}
+                                            onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                                        >
+                                            {paymentMethods.length > 0 ? (
+                                                paymentMethods.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))
+                                            ) : (
+                                                <>
+                                                    <option value="cash-default">Efectivo</option>
+                                                    <option value="card-default">Tarjeta</option>
+                                                </>
+                                            )}
+                                        </select>
+                                    </div>
+
+                                    {/* Facturación SRI Switch */}
+                                    <div className="flex items-center justify-between border-y border-slate-150 py-3 my-1">
+                                        <div className="text-left">
+                                            <span className="text-sm font-bold text-slate-700 block">Emitir Factura SRI</span>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={processSRI} 
+                                                onChange={e => setProcessSRI(e.target.checked)}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                        </label>
+                                    </div>
+
+                                    {/* Campos SRI Condicionales */}
+                                    {processSRI && (
+                                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2.5 text-left animate-in slide-in-from-top-4 duration-150">
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div>
+                                                    <select 
+                                                        value={billingIdentType} 
+                                                        onChange={e => setBillingIdentType(e.target.value)}
+                                                        className="w-full border border-slate-300 rounded-lg p-1.5 text-xs bg-white text-slate-800"
+                                                    >
+                                                        <option value="07">C. Final</option>
+                                                        <option value="05">Cédula</option>
+                                                        <option value="04">RUC</option>
+                                                        <option value="06">Pasaporte</option>
+                                                        <option value="08">Exterior</option>
+                                                    </select>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="Identificación"
+                                                        value={billingIdent}
+                                                        onChange={e => setBillingIdent(e.target.value)}
+                                                        className="w-full border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 bg-white" 
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Razón Social / Nombre"
+                                                value={billingName}
+                                                onChange={e => setBillingName(e.target.value)}
+                                                className="w-full border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 bg-white" 
+                                                required
+                                            />
+                                            <input 
+                                                type="email" 
+                                                placeholder="Email"
+                                                value={billingEmail}
+                                                onChange={e => setBillingEmail(e.target.value)}
+                                                className="w-full border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 bg-white" 
+                                                required
+                                            />
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Teléfono"
+                                                    value={billingPhone}
+                                                    onChange={e => setBillingPhone(e.target.value)}
+                                                    className="w-full border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 bg-white" 
+                                                />
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Dirección"
+                                                    value={billingAddress}
+                                                    onChange={e => setBillingAddress(e.target.value)}
+                                                    className="w-full border border-slate-300 rounded-lg p-1.5 text-xs text-slate-800 bg-white" 
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Calculadora de Vuelto Compacta */}
+                                    <div style={{
+                                        padding: '0.75rem',
+                                        backgroundColor: '#f8fafc',
+                                        borderRadius: '10px',
+                                        border: '1px solid #e2e8f0',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '0.375rem'
+                                    }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#475569' }}>
+                                                Efectivo Recibido:
+                                            </span>
+                                            <input
+                                                type="number"
+                                                placeholder="0.00"
+                                                style={{
+                                                    width: '100px',
+                                                    padding: '0.375rem',
+                                                    border: '1px solid #cbd5e1',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.875rem',
+                                                    textAlign: 'right'
+                                                }}
+                                                value={inputCash}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setInputCash(val);
+                                                    setCashGiven(val ? parseFloat(val) : null);
+                                                }}
+                                            />
+                                        </div>
+                                        {cashGiven !== null && (
+                                            <div style={{
+                                                paddingTop: '0.375rem',
+                                                borderTop: '1px dashed #cbd5e1',
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                fontSize: '0.8125rem',
+                                                fontWeight: '700'
+                                            }}>
+                                                <span style={{ color: '#475569' }}>Vuelto:</span>
+                                                <span style={{ color: (cashGiven - calculateTotal) < 0 ? '#ef4444' : '#10b981' }}>
+                                                    {formatCurrency(cashGiven - calculateTotal)}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -2206,22 +3060,22 @@ const PuntosVenta = () => {
                                     style={{
                                         width: '100%',
                                         padding: '1rem',
-                                        backgroundColor: processingOrder ? '#d1d5db' : '#3b82f6',
+                                        backgroundColor: processingOrder ? '#d1d5db' : '#4f46e5',
                                         border: 'none',
-                                        borderRadius: '10px',
+                                        borderRadius: '12px',
                                         color: '#ffffff',
                                         fontSize: '1.125rem',
                                         fontWeight: '700',
                                         cursor: processingOrder ? 'not-allowed' : 'pointer',
                                         transition: 'all 0.2s',
-                                        boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(59, 130, 246, 0.3)',
+                                        boxShadow: processingOrder ? 'none' : '0 4px 12px rgba(79, 70, 229, 0.25)',
                                         marginBottom: '0.75rem',
                                         minHeight: TOUCH_MIN_SIZE
                                     }}
-                                    onClick={openOrderConfirmationModal}
+                                    onClick={finalPlaceOrder}
                                     disabled={processingOrder}
                                 >
-                                    {processingOrder ? 'Procesando pedido...' : 'Revisar y Pagar'}
+                                    {processingOrder ? 'Procesando pedido...' : 'Confirmar y Pagar'}
                                 </button>
 
                                 {/* 🔓 Botón Abrir Caja */}
@@ -2229,10 +3083,10 @@ const PuntosVenta = () => {
                                     style={{
                                         width: '100%',
                                         padding: '0.75rem',
-                                        backgroundColor: '#f59e0b',
-                                        border: 'none',
-                                        borderRadius: '8px',
-                                        color: '#ffffff',
+                                        backgroundColor: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '12px',
+                                        color: '#475569',
                                         fontSize: '0.9375rem',
                                         fontWeight: '600',
                                         cursor: 'pointer',
@@ -2281,103 +3135,24 @@ const PuntosVenta = () => {
             {/* Modal para agregar nota */}
             {editingNoteForItem && renderNoteModal()}
 
-            {/* Modal Confirmación (Compartido) */}
-            {showReviewModal && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 1000,
-                    padding: isSmallScreen ? '0.5rem' : '1rem'
-                }}>
-                    <div style={{
-                        backgroundColor: '#ffffff',
-                        borderRadius: '12px',
-                        width: '100%',
-                        maxWidth: isSmallScreen ? '95%' : '550px',
-                        maxHeight: '90vh',
-                        overflowY: 'auto',
-                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)'
-                    }}>
-                        <div style={{
-                            padding: isSmallScreen ? '1rem' : '1.5rem',
-                            borderBottom: '2px solid #e5e7eb',
-                            backgroundColor: '#1f2937',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                        }}>
-                            <div>
-                                <h3 style={{
-                                    fontSize: isSmallScreen ? '1.25rem' : '1.5rem',
-                                    fontWeight: '700',
-                                    color: '#ffffff',
-                                    margin: 0
-                                }}>
-                                    Confirmación de Orden
-                                </h3>
-                                <p style={{
-                                    color: '#d1d5db',
-                                    fontSize: isSmallScreen ? '0.75rem' : '0.9rem',
-                                    margin: '0.25rem 0 0 0'
-                                }}>
-                                    Confirma la orden antes de procesar el pago.
-                                </p>
+            {/* Modal Confirmación (Desactivado para integración inline directa) */}
+            {false && showReviewModal && (
+                <div className="fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[9000] p-4 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+                        <div className="px-6 py-5 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
+                            <div className="text-left">
+                                <h3 className="text-base font-extrabold text-slate-900">Confirmación de Orden</h3>
+                                <p className="text-xs text-slate-500 mt-0.5">Revisa la orden y selecciona el método de pago.</p>
                             </div>
+                            <button className="text-slate-400 hover:text-slate-650 bg-slate-50 hover:bg-slate-100 border-none rounded-xl w-8 h-8 text-xl font-medium flex items-center justify-center cursor-pointer transition-colors" onClick={() => setShowReviewModal(false)}>×</button>
                         </div>
-
-                        {renderReviewDetails()}
-
-                        <div style={{
-                            padding: isSmallScreen ? '1rem' : '1.5rem',
-                            borderTop: '2px solid #e5e7eb',
-                            display: 'flex',
-                            gap: '0.75rem',
-                            justifyContent: 'space-between'
-                        }}>
-                            <button
-                                style={{
-                                    padding: isSmallScreen ? '0.75rem' : '0.75rem 1.5rem',
-                                    backgroundColor: '#9ca3af',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    color: '#ffffff',
-                                    fontWeight: '600',
-                                    fontSize: isSmallScreen ? '0.875rem' : '1rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    flex: 1,
-                                    minHeight: TOUCH_MIN_SIZE
-                                }}
-                                onClick={() => setShowReviewModal(false)}
-                            >
-                                Editar Pedido
-                            </button>
-
-                            <button
-                                style={{
-                                    padding: isSmallScreen ? '0.75rem' : '0.75rem 1.5rem',
-                                    backgroundColor: '#059669',
-                                    border: 'none',
-                                    borderRadius: '8px',
-                                    color: '#ffffff',
-                                    fontWeight: '700',
-                                    fontSize: isSmallScreen ? '0.875rem' : '1rem',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    flex: 1,
-                                    minHeight: TOUCH_MIN_SIZE
-                                }}
-                                onClick={finalPlaceOrder}
-                                disabled={processingOrder}
-                            >
-                                Confirmar y Procesar Pago
+                        <div className="overflow-y-auto flex-1 p-6 bg-slate-50/50">
+                            {renderReviewDetails()}
+                        </div>
+                        <div className="px-6 py-4 border-t border-slate-150 flex gap-2.5 justify-end bg-white">
+                            <button className="bg-slate-100 hover:bg-slate-200 text-slate-750 border-none px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer" onClick={() => setShowReviewModal(false)}>Editar Pedido</button>
+                            <button className="bg-emerald-650 hover:bg-emerald-700 text-white border-none px-6 py-2.5 rounded-xl text-xs font-extrabold uppercase tracking-wider transition disabled:opacity-50 cursor-pointer" onClick={finalPlaceOrder} disabled={processingOrder}>
+                                {processingOrder ? 'Procesando...' : 'Confirmar y Pagar'}
                             </button>
                         </div>
                     </div>
@@ -2396,7 +3171,7 @@ const PuntosVenta = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 1000,
+                    zIndex: 10000,
                     padding: isSmallScreen ? '0.5rem' : '1rem'
                 }}>
                     <div style={{

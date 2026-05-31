@@ -29,6 +29,10 @@ import ImpresorasRestaurant from './modulos/restaurant/Impresoras';
 import DisenoRestaurant from './modulos/restaurant/DisenoRestaurant';
 import ReservacionesRestaurant from './modulos/restaurant/Reservaciones';
 
+// Hotel imports
+import PanelHotel from './modulos/hotel/PanelHotel';
+import ReservaPublica from './modulos/hotel/ReservaPublica';
+
 import './App.css';
 import ToastContainer from './components/ToastContainer';
 
@@ -163,9 +167,11 @@ function App(): JSX.Element {
 
           <Route path="/hotel" element={
             <PrivateRoute>
-              <ServicePlaceholder title="Hotel" />
+              <PanelHotel />
             </PrivateRoute>
           } />
+
+          <Route path="/reserva/:code" element={<ReservaPublica />} />
 
           <Route path="/pool" element={
             <PrivateRoute>

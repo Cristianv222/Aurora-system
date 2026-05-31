@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from .models import (
     Currency, ExchangeRate, PaymentMethod, Payment, 
-    SplitPayment, Refund, CashRegister, CashMovement
+    SplitPayment, Refund, CashRegister, CashMovement, SRIConfiguration
 )
 from apps.orders.serializers import OrderListSerializer
 
@@ -136,6 +136,7 @@ class PaymentListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     currency_code = serializers.CharField(source='currency.code', read_only=True)
     currency_symbol = serializers.CharField(source='currency.symbol', read_only=True)
+    sri_status_display = serializers.CharField(source='get_sri_status_display', read_only=True)
     
     class Meta:
         model = Payment
@@ -143,7 +144,8 @@ class PaymentListSerializer(serializers.ModelSerializer):
             'id', 'payment_number', 'order', 'order_number',
             'payment_method', 'payment_method_name', 'currency',
             'currency_code', 'currency_symbol', 'amount',
-            'status', 'status_display', 'created_at'
+            'status', 'status_display', 'sri_status', 'sri_status_display',
+            'sri_access_key', 'sri_number', 'created_at'
         ]
         read_only_fields = ['id', 'payment_number', 'created_at']
 
@@ -155,6 +157,7 @@ class PaymentDetailSerializer(serializers.ModelSerializer):
     currency = CurrencySerializer(read_only=True)
     original_currency = CurrencySerializer(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    sri_status_display = serializers.CharField(source='get_sri_status_display', read_only=True)
     
     # Montos convertidos
     amount_in_default_currency = serializers.SerializerMethodField()
@@ -166,6 +169,7 @@ class PaymentDetailSerializer(serializers.ModelSerializer):
             'currency', 'amount', 'amount_received', 'change_amount',
             'original_amount', 'original_currency', 'exchange_rate',
             'amount_in_default_currency', 'status', 'status_display',
+            'sri_status', 'sri_status_display', 'sri_access_key', 'sri_number',
             'transaction_id', 'authorization_code', 'reference_number',
             'notes', 'card_last_four', 'card_brand', 'gateway_response',
             'cash_register', 'created_at', 'updated_at',
@@ -210,6 +214,9 @@ class PaymentCreateSerializer(serializers.Serializer):
     card_last_four = serializers.CharField(max_length=4, required=False, allow_blank=True)
     card_brand = serializers.CharField(max_length=20, required=False, allow_blank=True)
     cash_register_id = serializers.UUIDField(required=False, allow_null=True)
+    process_sri = serializers.BooleanField(required=False, default=False)
+    billing_data = serializers.JSONField(required=False, default=dict)
+    
     
     def validate_order_id(self, value):
         """Validar que la orden exista"""
@@ -235,6 +242,17 @@ class PaymentCreateSerializer(serializers.Serializer):
     
     def validate_currency_code(self, value):
         """Validar que la moneda exista y esté activa"""
+        if not Currency.objects.filter(code=value).exists():
+            if value.upper() == 'USD':
+                Currency.objects.get_or_create(
+                    code='USD',
+                    defaults={'name': 'Dólar Estadounidense', 'symbol': '$', 'is_default': True, 'is_active': True, 'decimal_places': 2}
+                )
+            elif value.upper() == 'COP':
+                Currency.objects.get_or_create(
+                    code='COP',
+                    defaults={'name': 'Peso Colombiano', 'symbol': '$', 'is_default': False, 'is_active': True, 'decimal_places': 2}
+                )
         try:
             currency = Currency.objects.get(code=value)
             if not currency.is_active:
@@ -406,6 +424,36 @@ class RefundCreateSerializer(serializers.Serializer):
         return result
 
 
+class SRIConfigurationSerializer(serializers.ModelSerializer):
+    vsr_token = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    has_token = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SRIConfiguration
+        fields = [
+            'id', 'is_active', 'vsr_token', 'has_token', 
+            'environment', 'establishment_code', 'emission_point'
+        ]
+
+    def get_has_token(self, obj):
+        return bool(obj.encrypted_vsr_token)
+
+    def update(self, instance, validated_data):
+        vsr_token = validated_data.pop('vsr_token', None)
+        if vsr_token is not None:
+            instance.vsr_token = vsr_token
+        return super().update(instance, validated_data)
+
+    def create(self, validated_data):
+        vsr_token = validated_data.pop('vsr_token', None)
+        instance = super().create(validated_data)
+        if vsr_token is not None:
+            instance.vsr_token = vsr_token
+            instance.save()
+        return instance
+
+
+
 class CashRegisterSerializer(serializers.ModelSerializer):
     """Serializer para cajas registradoras"""
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -443,6 +491,17 @@ class CashRegisterOpenSerializer(serializers.Serializer):
     
     def validate_currency_code(self, value):
         """Validar que la moneda exista"""
+        if not Currency.objects.filter(code=value).exists():
+            if value.upper() == 'USD':
+                Currency.objects.get_or_create(
+                    code='USD',
+                    defaults={'name': 'Dólar Estadounidense', 'symbol': '$', 'is_default': True, 'is_active': True, 'decimal_places': 2}
+                )
+            elif value.upper() == 'COP':
+                Currency.objects.get_or_create(
+                    code='COP',
+                    defaults={'name': 'Peso Colombiano', 'symbol': '$', 'is_default': False, 'is_active': True, 'decimal_places': 2}
+                )
         try:
             Currency.objects.get(code=value, is_active=True)
             return value

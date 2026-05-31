@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_MULTIPLE_DATABASES: auth_service_db,fast_food_service_db,restaurant_service_db
+      POSTGRES_MULTIPLE_DATABASES: auth_service_db,fast_food_service_db,restaurant_service_db,hotel_service_db
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/create-multiple-postgresql-databases.sh:/docker-entrypoint-initdb.d/create-multiple-postgresql-databases.sh
@@ -144,6 +144,44 @@ services:
     mem_limit: 1g
     cpus: '1.0'
 
+  hotel-service:
+    build: ./hotel-service
+    container_name: aurora_hotel_service
+    command: >
+      sh -c "
+        echo 'Waiting for postgres...'
+        until python -c 'import socket; socket.create_connection((\"postgres\", 5432), timeout=1)' 2>/dev/null; do
+          sleep 1
+        done
+        echo 'PostgreSQL started'
+        python manage.py migrate
+        python manage.py collectstatic --noinput
+        daphne -b 0.0.0.0 -p 8000 hotel_service.asgi:application
+      "
+    volumes:
+      - hotel-static:/app/staticfiles
+      - hotel-media:/app/media
+    environment:
+      - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotel_service_db
+      - AUTH_SERVICE_URL=http://auth-service:8000/auth
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,auth-service,auth-service:8000
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
+      - DEBUG=False
+    expose:
+      - "8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    networks:
+      - aurora-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: '0.5'
+
+
   frontend:
     build:
       context: ./frontend
@@ -185,6 +223,7 @@ services:
       - auth-service
       - fast-food-service
       - restaurant-service
+      - hotel-service
       - frontend
     networks:
       - aurora-network
@@ -213,3 +252,8 @@ volumes:
     name: aurora_restaurant_static
   restaurant-media:
     name: aurora_restaurant_media
+  hotel-static:
+    name: aurora_hotel_static
+  hotel-media:
+    name: aurora_hotel_media
+

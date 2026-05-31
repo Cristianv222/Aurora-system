@@ -13,6 +13,7 @@ router.register(r'payments', views.PaymentViewSet, basename='payment')
 router.register(r'refunds', views.RefundViewSet, basename='refund')
 router.register(r'cash-registers', views.CashRegisterViewSet, basename='cashregister')
 router.register(r'cash-movements', views.CashMovementViewSet, basename='cashmovement')
+router.register(r'sri-config', views.SRIConfigurationViewSet, basename='sri-config')
 
 # URLs
 urlpatterns = [

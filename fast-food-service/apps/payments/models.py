@@ -414,6 +414,21 @@ class Payment(models.Model):
     # Información adicional
     notes = models.TextField(blank=True, verbose_name='Notas')
     
+    # SRI integration fields
+    sri_access_key = models.CharField(max_length=49, blank=True, null=True, verbose_name="Clave de Acceso SRI")
+    sri_number = models.CharField(max_length=20, blank=True, null=True, verbose_name="Número de Factura SRI")
+    sri_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('DRAFT', 'Borrador'),
+            ('QUEUED', 'En Cola'),
+            ('AUTHORIZED', 'Autorizado'),
+            ('REJECTED', 'Rechazado')
+        ],
+        default='DRAFT',
+        verbose_name="Estado SRI"
+    )
+    
     # Información de tarjeta (últimos 4 dígitos)
     card_last_four = models.CharField(
         max_length=4,
@@ -933,3 +948,42 @@ class CashMovement(models.Model):
     def __str__(self):
         sign = '+' if self.movement_type == 'in' else '-'
         return f'{sign}${self.amount} - {self.get_reason_display()}'
+
+
+class SRIConfiguration(models.Model):
+    """Configuración de credenciales SRI encriptadas"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ENVIRONMENT_CHOICES = [
+        ('TEST', 'Pruebas / Test'),
+        ('PRODUCTION', 'Producción'),
+    ]
+
+    is_active = models.BooleanField(default=False, verbose_name="¿Activo?")
+    encrypted_vsr_token = models.TextField(blank=True, null=True, verbose_name="Token VSR Encriptado")
+    environment = models.CharField(
+        max_length=20, 
+        choices=ENVIRONMENT_CHOICES, 
+        default='TEST',
+        verbose_name="Ambiente"
+    )
+    establishment_code = models.CharField(max_length=3, default='001', verbose_name="Código de Establecimiento")
+    emission_point = models.CharField(max_length=3, default='001', verbose_name="Punto de Emisión")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Configuración SRI"
+        verbose_name_plural = "Configuraciones SRI"
+
+    def __str__(self):
+        return f"Configuración SRI - {'Activa' if self.is_active else 'Inactiva'}"
+
+    @property
+    def vsr_token(self):
+        from .utils import decrypt_token
+        return decrypt_token(self.encrypted_vsr_token)
+
+    @vsr_token.setter
+    def vsr_token(self, value):
+        from .utils import encrypt_token
+        self.encrypted_vsr_token = encrypt_token(value)

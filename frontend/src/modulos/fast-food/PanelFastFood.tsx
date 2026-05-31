@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
 
 interface QuickAccessItem {
     title: string;
@@ -7,11 +8,85 @@ interface QuickAccessItem {
     path?: string;
     icon: React.ReactNode;
     wip?: boolean;
+    action?: () => void;
 }
 
 const PanelFastFood: React.FC = () => {
     const navigate = useNavigate();
     const [showWip, setShowWip] = useState<boolean>(false);
+    const [showSRIModal, setShowSRIModal] = useState<boolean>(false);
+    
+    // SRI Config States
+    const [sriIsActive, setSriIsActive] = useState<boolean>(false);
+    const [sriVsrToken, setSriVsrToken] = useState<string>('');
+    const [sriEnvironment, setSriEnvironment] = useState<string>('TEST');
+    const [sriEstCode, setSriEstCode] = useState<string>('001');
+    const [sriEmPoint, setSriEmPoint] = useState<string>('001');
+    const [savingSri, setSavingSri] = useState<boolean>(false);
+
+    // Monitor States
+    const [showMonitorModal, setShowMonitorModal] = useState<boolean>(false);
+    const [paymentsList, setPaymentsList] = useState<any[]>([]);
+    const [loadingPayments, setLoadingPayments] = useState<boolean>(false);
+    const [monitorFilter, setMonitorFilter] = useState<string>('all');
+    const [monitorSearch, setMonitorSearch] = useState<string>('');
+
+    const fetchPaymentsList = async () => {
+        setLoadingPayments(true);
+        try {
+            const res = await api.get('/api/fast-food/payments/payments/');
+            const data = res.data.results || res.data || [];
+            setPaymentsList(data);
+        } catch (err) {
+            console.error('Error fetching payments list:', err);
+        } finally {
+            setLoadingPayments(false);
+        }
+    };
+
+    // Fetch SRI Config
+    const fetchSRIConfig = async () => {
+        try {
+            const res = await api.get('/api/fast-food/payments/sri-config/');
+            if (res.status === 200) {
+                setSriIsActive(res.data.is_active);
+                setSriEnvironment(res.data.environment || 'TEST');
+                setSriEstCode(res.data.establishment_code || '001');
+                setSriEmPoint(res.data.emission_point || '001');
+            }
+        } catch (err) {
+            console.error('Error fetching SRI configuration:', err);
+        }
+    };
+
+    const handleSaveSRIConfig = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setSavingSri(true);
+        try {
+            const payload: any = {
+                is_active: sriIsActive,
+                environment: sriEnvironment,
+                establishment_code: sriEstCode,
+                emission_point: sriEmPoint,
+            };
+            if (sriVsrToken) {
+                payload.vsr_token = sriVsrToken;
+            }
+            const res = await api.post('/api/fast-food/payments/sri-config/', payload);
+            if (res.status === 200 || res.status === 201) {
+                alert('✅ Configuración SRI guardada con éxito.');
+                setShowSRIModal(false);
+                setSriVsrToken('');
+            } else {
+                alert('❌ Error al guardar configuración.');
+            }
+        } catch (err) {
+            console.error('Error saving SRI config:', err);
+            alert('❌ Error de conexión al guardar la configuración.');
+        } finally {
+            setSavingSri(false);
+        }
+    };
 
     const quickAccess: QuickAccessItem[] = [
         {
@@ -82,7 +157,23 @@ const PanelFastFood: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                 </svg>
             ),
-            wip: true,
+            action: () => {
+                fetchPaymentsList();
+                setShowMonitorModal(true);
+            }
+        },
+        {
+            title: 'Credenciales SRI',
+            description: 'Configurar ambiente y tokens de emisión',
+            icon: (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+            ),
+            action: () => {
+                fetchSRIConfig();
+                setShowSRIModal(true);
+            }
         },
     ];
 
@@ -149,7 +240,15 @@ const PanelFastFood: React.FC = () => {
                 {quickAccess.map((item, i) => (
                     <div
                         key={i}
-                        onClick={() => item.wip ? setShowWip(true) : item.path && navigate(item.path)}
+                        onClick={() => {
+                            if (item.action) {
+                                item.action();
+                            } else if (item.wip) {
+                                setShowWip(true);
+                            } else if (item.path) {
+                                navigate(item.path);
+                            }
+                        }}
                         className={`
                             relative bg-white border rounded-2xl p-5 cursor-pointer group
                             flex items-center gap-4 overflow-hidden
@@ -206,10 +305,284 @@ const PanelFastFood: React.FC = () => {
                 ))}
             </div>
 
+            {/* SRI Configuration Modal */}
+            {showSRIModal && (
+                <div
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-5 animate-in fade-in duration-200"
+                    onClick={() => setShowSRIModal(false)}
+                >
+                    <div
+                        className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-250 flex flex-col"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="flex justify-between items-center border-b pb-4 mb-5">
+                            <h3 className="text-lg font-bold text-slate-900">Configuración SRI — Comida Rápida</h3>
+                            <button className="text-slate-400 hover:text-slate-600 border-none bg-transparent cursor-pointer text-xl" onClick={() => setShowSRIModal(false)}>×</button>
+                        </div>
+                        
+                        <form onSubmit={handleSaveSRIConfig} className="space-y-4">
+                            <div className="flex items-center justify-between bg-slate-50 p-4 rounded-xl border">
+                                <div>
+                                    <span className="block text-sm font-semibold text-slate-800">Facturación SRI</span>
+                                    <span className="block text-xs text-slate-500 mt-0.5">Activar envío automático al SRI</span>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only peer"
+                                        checked={sriIsActive}
+                                        onChange={e => setSriIsActive(e.target.checked)}
+                                    />
+                                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                </label>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Token de FactuExpress / VSR</label>
+                                <input
+                                    type="password"
+                                    placeholder="Ingresa el token de autenticación..."
+                                    className="w-full px-3.5 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-slate-800 transition bg-white"
+                                    value={sriVsrToken}
+                                    onChange={e => setSriVsrToken(e.target.value)}
+                                />
+                                <span className="block text-[10px] text-slate-400 mt-1">Déjalo en blanco para mantener el token actual.</span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Establecimiento</label>
+                                    <input 
+                                        type="text" 
+                                        value={sriEstCode} 
+                                        onChange={e => setSriEstCode(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-slate-800 transition bg-white" 
+                                        placeholder="Ej: 001"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Punto Emisión</label>
+                                    <input 
+                                        type="text" 
+                                        value={sriEmPoint} 
+                                        onChange={e => setSriEmPoint(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-slate-800 transition bg-white" 
+                                        placeholder="Ej: 001"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Ambiente</label>
+                                <select 
+                                    value={sriEnvironment} 
+                                    onChange={e => setSriEnvironment(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 text-sm text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-slate-800 transition bg-white"
+                                >
+                                    <option value="TEST">Pruebas / Test</option>
+                                    <option value="PRODUCTION">Producción</option>
+                                </select>
+                            </div>
+
+                            <div className="flex gap-2.5 justify-end pt-4 border-t">
+                                <button
+                                    type="button"
+                                    className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider border-none rounded-xl cursor-pointer transition"
+                                    onClick={() => setShowSRIModal(false)}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingSri}
+                                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-wider border-none rounded-xl cursor-pointer transition disabled:opacity-60"
+                                >
+                                    {savingSri ? 'Guardando...' : 'Guardar Configuración'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Monitor de Facturación Electrónica Modal */}
+            {showMonitorModal && !showSRIModal && (
+                <div
+                    className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-5 text-left animate-in fade-in duration-200"
+                    onClick={() => setShowMonitorModal(false)}
+                >
+                    <div
+                        className="bg-white rounded-2xl w-full max-w-5xl shadow-2xl border border-slate-200 flex flex-col max-h-[85vh] overflow-hidden transform transition-all duration-300 scale-100"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm">
+                                    <i className="bi bi-receipt-cutoff text-lg"></i>
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-extrabold text-slate-900">
+                                        Monitor de Facturación Electrónica (SRI)
+                                    </h3>
+                                    <p className="text-xs text-slate-500 mt-0.5">Controla y verifica el estado fiscal de todas tus facturas.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => {
+                                        fetchSRIConfig();
+                                        setShowSRIModal(true);
+                                    }}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-md hover:shadow-lg active:scale-95 duration-150"
+                                >
+                                    <i className="bi bi-gear-fill"></i> Credenciales SRI
+                                </button>
+                                <button 
+                                    className="text-slate-400 hover:text-slate-650 bg-slate-50 hover:bg-slate-100 border-none rounded-xl w-9 h-9 text-xl font-medium flex items-center justify-center cursor-pointer transition-colors" 
+                                    onClick={() => setShowMonitorModal(false)}
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filters & Search */}
+                        <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/40 flex flex-wrap items-center justify-between gap-4 shrink-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Estado:</span>
+                                <select
+                                    value={monitorFilter}
+                                    onChange={e => setMonitorFilter(e.target.value)}
+                                    className="px-3 py-2 text-xs text-slate-800 border border-slate-200 bg-white rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all cursor-pointer font-medium"
+                                >
+                                    <option value="all">Todos los estados</option>
+                                    <option value="AUTHORIZED">Autorizados</option>
+                                    <option value="QUEUED">En Cola</option>
+                                    <option value="REJECTED">Rechazados</option>
+                                    <option value="DRAFT">Borradores</option>
+                                </select>
+                            </div>
+
+                            <div className="flex items-center gap-3 w-full sm:w-auto">
+                                <div className="relative flex-1 sm:flex-initial">
+                                    <i className="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-450 text-xs"></i>
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar por N. Factura o Clave..."
+                                        value={monitorSearch}
+                                        onChange={e => setMonitorSearch(e.target.value)}
+                                        className="pl-9 pr-3.5 py-2 text-xs text-slate-800 border border-slate-200 rounded-xl outline-none w-full sm:w-60 bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
+                                    />
+                                </div>
+                                <button
+                                    onClick={fetchPaymentsList}
+                                    className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer hover:shadow-sm active:scale-95"
+                                    title="Actualizar listado"
+                                >
+                                    <i className="bi bi-arrow-clockwise"></i> Actualizar
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* List / Table */}
+                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/30">
+                            {loadingPayments ? (
+                                <div className="text-center py-20 flex flex-col items-center justify-center">
+                                    <div className="inline-block w-8 h-8 border-4 border-slate-250 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+                                    <span className="text-slate-500 text-xs font-bold uppercase tracking-wider">Cargando facturas...</span>
+                                </div>
+                            ) : paymentsList.length === 0 ? (
+                                <div className="text-center py-16 px-4 flex flex-col items-center justify-center">
+                                    <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 mb-4 shadow-sm">
+                                        <i className="bi bi-receipt text-2xl"></i>
+                                    </div>
+                                    <h4 className="text-slate-800 font-bold text-sm">Sin comprobantes</h4>
+                                    <p className="text-slate-400 text-xs mt-1 max-w-xs mx-auto">
+                                        No se encontraron registros de facturación electrónica. Asegúrate de activar la facturación en tus ventas.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto rounded-2xl border border-slate-150 bg-white shadow-sm">
+                                    <table className="w-full border-collapse text-left text-xs">
+                                        <thead>
+                                            <tr className="bg-slate-50/70 border-b border-slate-150 text-slate-550 font-bold uppercase tracking-wider text-[10px]">
+                                                <th className="px-6 py-4">Fecha</th>
+                                                <th className="px-6 py-4">Pedido</th>
+                                                <th className="px-6 py-4">Factura SRI</th>
+                                                <th className="px-6 py-4">Monto</th>
+                                                <th className="px-6 py-4">Estado SRI</th>
+                                                <th className="px-6 py-4">Clave de Acceso</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100 text-slate-700">
+                                            {paymentsList
+                                                .filter(p => {
+                                                    const matchesFilter = monitorFilter === 'all' || p.sri_status === monitorFilter;
+                                                    const query = monitorSearch.toLowerCase();
+                                                    const matchesSearch = !monitorSearch || 
+                                                        (p.sri_number && p.sri_number.toLowerCase().includes(query)) ||
+                                                        (p.sri_access_key && p.sri_access_key.toLowerCase().includes(query)) ||
+                                                        (p.payment_number && p.payment_number.toLowerCase().includes(query));
+                                                    return matchesFilter && matchesSearch;
+                                                })
+                                                .map(payment => (
+                                                    <tr key={payment.id} className="hover:bg-slate-50/40 transition-colors">
+                                                        <td className="px-6 py-4.5 whitespace-nowrap text-slate-500">
+                                                            {new Date(payment.created_at).toLocaleString('es-EC')}
+                                                        </td>
+                                                        <td className="px-6 py-4.5 font-bold text-slate-800">
+                                                            #{payment.order_number || payment.payment_number}
+                                                        </td>
+                                                        <td className="px-6 py-4.5 font-semibold text-slate-900">
+                                                            {payment.sri_number || (
+                                                                <span className="text-slate-450 italic font-normal">No Generado</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4.5 font-extrabold text-slate-950">
+                                                            ${parseFloat(payment.amount).toFixed(2)}
+                                                        </td>
+                                                        <td className="px-6 py-4.5">
+                                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
+                                                                payment.sri_status === 'AUTHORIZED' 
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/60' 
+                                                                    : payment.sri_status === 'QUEUED'
+                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200/60'
+                                                                    : payment.sri_status === 'REJECTED'
+                                                                    ? 'bg-rose-50 text-rose-700 border-rose-200/60'
+                                                                    : 'bg-slate-50 text-slate-600 border-slate-200/60'
+                                                            }`}>
+                                                                {payment.sri_status_display || payment.sri_status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4.5 font-mono text-[10px] text-slate-450 select-all max-w-[220px] truncate" title={payment.sri_access_key}>
+                                                            {payment.sri_access_key || <span className="italic font-sans text-slate-400">N/A</span>}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="px-6 py-4.5 border-t border-slate-100 flex justify-end bg-white shrink-0">
+                            <button
+                                className="bg-slate-900 hover:bg-slate-800 text-white border-none px-5 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer hover:shadow-sm active:scale-95"
+                                onClick={() => setShowMonitorModal(false)}
+                            >
+                                Cerrar Monitor
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* WIP Modal */}
             {showWip && (
                 <div
-                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-5 animate-fade-in"
+                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-5"
                     onClick={() => setShowWip(false)}
                 >
                     <div
@@ -219,12 +592,8 @@ const PanelFastFood: React.FC = () => {
                         <div className="w-16 h-16 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center text-2xl mx-auto mb-5">🚧</div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Módulo en Construcción</h3>
                         <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                            La <strong className="text-slate-700">Facturación Electrónica</strong> está actualmente en desarrollo.
-                            Pronto podrás emitir comprobantes electrónicos directamente desde el sistema.
+                            Este módulo está actualmente en desarrollo.
                         </p>
-                        <div className="w-full h-1.5 bg-slate-100 rounded-full mb-6 overflow-hidden">
-                            <div className="h-full w-[35%] bg-gradient-to-r from-amber-400 to-amber-500 rounded-full" />
-                        </div>
                         <button
                             className="px-8 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition"
                             onClick={() => setShowWip(false)}

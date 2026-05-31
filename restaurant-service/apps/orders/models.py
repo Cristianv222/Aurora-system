@@ -198,7 +198,9 @@ class Order(models.Model):
         El saldo pendiente se determina restando `amount_paid`.
         """
         # Subtotal = TODOS los items (incluyendo los ya cobrados en separar cuenta)
-        items_total = sum(item.line_total for item in self.items.all())
+        # Evitar problemas de caché en relaciones en Django usando agregación directa a la DB
+        from django.db.models import Sum
+        items_total = self.items.aggregate(total=Sum('line_total'))['total'] or Decimal('0')
         self.subtotal = items_total
 
         # Calcular impuestos (0% por ahora)
