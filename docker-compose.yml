@@ -54,7 +54,7 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_service_db
       - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000
       - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
       - DEBUG=False
     expose:
@@ -91,7 +91,7 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fast_food_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000/auth
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000
       - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
       - DEBUG=False
     expose:
