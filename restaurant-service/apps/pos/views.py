@@ -386,7 +386,6 @@ class TableViewSet(viewsets.ModelViewSet):
         return TableSerializer
     
     def get_queryset(self):
-        Table.objects.filter(status="occupied", current_order=None).update(status="available", waiter_id="system", waiter_name="")
         queryset = super().get_queryset()
         
         table_status = self.request.query_params.get('status')

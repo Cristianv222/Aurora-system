@@ -3,6 +3,7 @@ from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticatedOrReadOnly, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
 from django.db.models import Q, Count, Sum, Avg, Prefetch
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -284,6 +285,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(detail_serializer.data)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def checkout(self, request, order_number=None):
         """
         Procesa el pago y cobra una orden pendiente, liberando la mesa.
@@ -330,6 +332,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(detail_serializer.data)
         
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def partial_checkout(self, request, order_number=None):
         """
         Registra un pago parcial a la orden.
@@ -396,6 +399,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         return Response(detail_serializer.data)
         
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def split_checkout(self, request, order_number=None):
         """
         Separa items específicos para pagarlos en una orden nueva.

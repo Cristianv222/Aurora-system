@@ -293,9 +293,11 @@ const PanelRestaurant: React.FC = () => {
 
     const calculateTotalToPay = () => {
         return tableOrders.reduce((sum, o) => {
-            const total = parseFloat(o.total || 0);
+            const itemsTotal = (o.items || [])
+                .filter((i: any) => !i.is_paid)
+                .reduce((acc: number, i: any) => acc + parseFloat(i.line_total || 0), 0);
             const paid = parseFloat(o.amount_paid || 0);
-            return sum + Math.max(0, total - paid);
+            return sum + Math.max(0, itemsTotal - paid);
         }, 0);
     };
 
@@ -750,7 +752,7 @@ const PanelRestaurant: React.FC = () => {
 
                                 <div className="flex gap-2.5 p-4 mt-auto">
                                     <button
-                                        onClick={() => navigate(`/restaurant/pos?table=${encodeURIComponent(selectedOrderModal.number)}&restaurantMode=1&newOrder=1`)}
+                                        onClick={() => navigate(`/restaurant/pos?table=${encodeURIComponent(selectedOrderModal.number)}&restaurantMode=1`)}
                                         className="flex-1 flex items-center justify-center gap-2 p-3 bg-[#1a2e4a]/10 hover:bg-[#1a2e4a]/20 border border-[#1a2e4a]/20 rounded-xl cursor-pointer text-[#1a2e4a] font-semibold text-sm transition-colors"
                                     >
                                         <i className="bi bi-plus-lg text-lg"></i>

@@ -908,11 +908,9 @@ class DailySummary(models.Model):
             total=models.Sum('total')
         )['total'] or Decimal('0')
         
-        # Calcular total de productos vendidos
-        total_items = 0
-        for order in orders:
-            # Corregido: Sumar la cantidad de items en lugar de contarlos
-            total_items += sum(item.quantity for item in order.items.all()) 
+        # Calcular total de productos vendidos (optimizado: 1 sola query)
+        from django.db.models import Sum as _Sum
+        total_items = orders.aggregate(total=_Sum("items__quantity"))["total"] or 0
         summary.total_items_sold = total_items
         
         # ============ POR TIPO DE ORDEN ============
@@ -1030,11 +1028,7 @@ class DailySummary(models.Model):
                 total=Sum('total')
             )['total'] or Decimal('0')
             
-            total_orders = orders_in_hour.count()
-            
-            total_items = 0
-            for order in orders_in_hour:
-                total_items += sum(item.quantity for item in order.items.all())
+            total_items = orders_in_hour.aggregate(total=Sum("items__quantity"))["total"] or 0
             
             average_order_value = float(total_sales / total_orders) if total_orders > 0 else 0
             

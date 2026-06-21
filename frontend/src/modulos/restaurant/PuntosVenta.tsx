@@ -534,16 +534,16 @@ const PuntosVenta: React.FC = () => {
                 try {
                     const existingRes = await api.get(`/api/restaurant/orders/orders/${activeOrderNumber}/`);
                     existingResData = existingRes.data;
-                    
-                    if (!currentOrder) {
-                        const existingItems = (existingRes.data.items || []).map((i: any) => ({
+                    const paidItems = (existingRes.data.items || [])
+                        .filter((i: any) => i.is_paid)
+                        .map((i: any) => ({
                             product_id: i.product_details ? i.product_details.id : i.product,
                             size_id: i.size_details ? i.size_details.id : null,
                             quantity: i.quantity,
-                            notes: i.notes || ''
+                            notes: i.notes || '',
+                            is_paid: true
                         }));
-                        mergedItems = [...existingItems, ...newItems];
-                    }
+                    mergedItems = [...paidItems, ...newItems];
                 } catch (e) {
                     console.error("Error obteniendo orden existente, se pisará con los del carrito", e);
                 }
