@@ -25,6 +25,8 @@ class Guest(models.Model):
     email = models.EmailField(blank=True, null=True, verbose_name="Correo Electrónico")
     phone = models.CharField(max_length=20, blank=True, null=True, verbose_name="Teléfono")
     address = models.TextField(blank=True, null=True, verbose_name="Dirección")
+    nationality = models.CharField(max_length=100, blank=True, null=True, verbose_name="Nacionalidad")
+    origin_city = models.CharField(max_length=200, blank=True, null=True, verbose_name="De qué parte viaja")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

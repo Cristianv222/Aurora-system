@@ -2,10 +2,15 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from core.permissions import IsJWTAuthenticated
-from .models import Floor, Room
-from .serializers import FloorSerializer, RoomSerializer
+from .models import Floor, Room, RoomType
+from .serializers import FloorSerializer, RoomSerializer, RoomTypeSerializer
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+
+class RoomTypeViewSet(viewsets.ModelViewSet):
+    queryset = RoomType.objects.all()
+    serializer_class = RoomTypeSerializer
+    permission_classes = [IsJWTAuthenticated]
 
 class FloorViewSet(viewsets.ModelViewSet):
     queryset = Floor.objects.all()
@@ -78,4 +83,3 @@ class RoomViewSet(viewsets.ModelViewSet):
         rooms = Room.objects.exclude(id__in=overlapping_room_ids)
         serializer = RoomSerializer(rooms, many=True)
         return Response(serializer.data)
-

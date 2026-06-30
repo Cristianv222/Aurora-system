@@ -30,7 +30,8 @@ class ReservationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'room', 'room_details', 'guest', 'guest_details', 
             'check_in_date', 'check_out_date', 'planned_check_out',
-            'number_of_adults', 'number_of_children', 'total_amount', 
+            'number_of_adults', 'number_of_children', 'children_over_2', 'children_under_2',
+            'checked_in_by', 'checked_out_by', 'checkout_notes', 'total_amount', 
             'deposit_amount', 'deposit_paid', 'reservation_code', 'notes',
             'status', 'status_display', 'payments', 'nights_count', 'total_estimated',
             'created_at', 'updated_at'
@@ -40,8 +41,10 @@ class ReservationSerializer(serializers.ModelSerializer):
         check_in = obj.check_in_date
         check_out = obj.planned_check_out or obj.check_out_date
         if check_in and check_out:
-            delta = check_out - check_in
-            nights = delta.days
+            from django.utils import timezone
+            check_in_local = timezone.localtime(check_in).date()
+            check_out_local = timezone.localtime(check_out).date()
+            nights = (check_out_local - check_in_local).days
             if nights <= 0:
                 nights = 1
             return nights
@@ -49,9 +52,16 @@ class ReservationSerializer(serializers.ModelSerializer):
 
     def get_total_estimated(self, obj):
         nights = self.get_nights_count(obj)
-        return float(obj.room.price_per_night) * nights
+        return float(obj.price_per_night_calculated) * nights
 
     def validate(self, data):
+        # Update number_of_children based on children_over_2 and children_under_2
+        children_over_2 = data.get('children_over_2', 0 if not self.instance else self.instance.children_over_2)
+        children_under_2 = data.get('children_under_2', 0 if not self.instance else self.instance.children_under_2)
+        
+        # Automatically update number_of_children
+        data['number_of_children'] = children_over_2 + children_under_2
+
         # Validate room capacity
         room = data.get('room')
         if not room:

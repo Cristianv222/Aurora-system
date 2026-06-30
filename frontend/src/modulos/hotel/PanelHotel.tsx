@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { showToast } from '../../utils/toast';
 import '../../App.css';
+import ShiftManager from './ShiftManager';
+import Reportes from './Reportes';
 
 const toast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     const mappedType = (type === 'warning' ? 'info' : type) as 'success' | 'error' | 'info';
@@ -14,13 +16,24 @@ interface Floor {
     rooms?: Room[];
 }
 
+interface RoomType {
+    id: number;
+    name: string;
+    price_per_adult: number | string;
+    price_per_child: number | string;
+    adult_capacity: number;
+    child_capacity: number;
+}
+
 interface Room {
     id: number;
     floor: number;
     room_number: string;
-    room_type: 'single' | 'double' | 'suite' | 'matrimonial';
+    room_type: number;
     room_type_display: string;
-    price_per_night: number;
+    price_per_adult?: number;
+    price_per_child?: number;
+    price_per_night?: number;
     adult_capacity: number;
     child_capacity: number;
     status: 'available' | 'occupied' | 'cleaning' | 'maintenance';
@@ -35,6 +48,8 @@ interface Guest {
     email: string;
     phone: string;
     address: string;
+    nationality?: string;
+    origin_city?: string;
 }
 
 interface Payment {
@@ -57,6 +72,11 @@ interface Reservation {
     check_out_date: string | null;
     number_of_adults: number;
     number_of_children: number;
+    children_over_2?: number;
+    children_under_2?: number;
+    checked_in_by?: string | null;
+    checked_out_by?: string | null;
+    checkout_notes?: string | null;
     total_amount: string;
     deposit_amount: string;
     deposit_paid: boolean;
@@ -88,10 +108,13 @@ const getLocalISODate = (date: Date = new Date()) => {
 const PanelHotel: React.FC = () => {
     const API_BASE = '/api/hotel';
 
-    const [activeViewTab, setActiveViewTab] = useState<'croquis' | 'reservas' | 'calendario'>('croquis');
+    const [activeViewTab, setActiveViewTab] = useState<'croquis' | 'reservas' | 'calendario' | 'turnos' | 'reportes'>('croquis');
+    const [isShiftActive, setIsShiftActive] = useState<boolean>(true);
     const [floors, setFloors] = useState<Floor[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
     const [activeFloorTab, setActiveFloorTab] = useState<number | null>(null);
+    const [isSavingFloor, setIsSavingFloor] = useState<boolean>(false);
+    const [isSavingRoom, setIsSavingRoom] = useState<boolean>(false);
     const [loading, setLoading] = useState<boolean>(true);
 
     // Filter states
@@ -131,11 +154,19 @@ const PanelHotel: React.FC = () => {
     // Form inputs: Floors/Rooms configuration
     const [newFloorName, setNewFloorName] = useState<string>('');
     const [newRoomNumber, setNewRoomNumber] = useState<string>('');
-    const [newRoomType, setNewRoomType] = useState<'single' | 'double' | 'suite' | 'matrimonial'>('single');
-    const [newRoomPrice, setNewRoomPrice] = useState<number>(50.0);
-    const [newRoomAdults, setNewRoomAdults] = useState<number>(2);
-    const [newRoomChildren, setNewRoomChildren] = useState<number>(0);
+    const [newRoomType, setNewRoomType] = useState<number | ''>('');
     const [newRoomFloorId, setNewRoomFloorId] = useState<number>(0);
+    const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
+    const [configModalTab, setConfigModalTab] = useState<'structure' | 'types'>('structure');
+    
+    // Room Type Form states
+    const [rtName, setRtName] = useState<string>('');
+    const [rtPriceAdult, setRtPriceAdult] = useState<number>(15.00);
+    const [rtPriceChild, setRtPriceChild] = useState<number>(8.00);
+    const [rtCapAdult, setRtCapAdult] = useState<number>(2);
+    const [rtCapChild, setRtCapChild] = useState<number>(2);
+    const [editingRtId, setEditingRtId] = useState<number | null>(null);
+    const [isSavingRt, setIsSavingRt] = useState<boolean>(false);
 
     // Form inputs: Check-In / Reservation Guest
     const [guestIdent, setGuestIdent] = useState<string>('');
@@ -144,11 +175,17 @@ const PanelHotel: React.FC = () => {
     const [guestEmail, setGuestEmail] = useState<string>('');
     const [guestPhone, setGuestPhone] = useState<string>('');
     const [guestAddress, setGuestAddress] = useState<string>('');
+    const [guestNationality, setGuestNationality] = useState<string>('');
+    const [guestOriginCity, setGuestOriginCity] = useState<string>('');
     const [checkInAdults, setCheckInAdults] = useState<number>(1);
     const [checkInChildren, setCheckInChildren] = useState<number>(0);
+    const [childrenOver2, setChildrenOver2] = useState<number>(0);
+    const [childrenUnder2, setChildrenUnder2] = useState<number>(0);
+    const [checkInDateOverride, setCheckInDateOverride] = useState<string>('');
+    const [checkInTimeOverride, setCheckInTimeOverride] = useState<string>('');
     const [plannedCheckOutDate, setPlannedCheckOutDate] = useState<string>('');
     const [reservationCheckInDate, setReservationCheckInDate] = useState<string>('');
-    const [depositAmount, setDepositAmount] = useState<number>(0);
+    const [depositAmount, setDepositAmount] = useState<number | string>(0);
     const [depositPaymentMethod, setDepositPaymentMethod] = useState<string>('cash');
     const [notes, setNotes] = useState<string>('');
 
@@ -161,6 +198,9 @@ const PanelHotel: React.FC = () => {
     const [billingEmail, setBillingEmail] = useState<string>('');
     const [billingPhone, setBillingPhone] = useState<string>('');
     const [billingAddress, setBillingAddress] = useState<string>('');
+    const [checkOutDateOverride, setCheckOutDateOverride] = useState<string>('');
+    const [checkOutTimeOverride, setCheckOutTimeOverride] = useState<string>('');
+    const [checkoutNotes, setCheckoutNotes] = useState<string>('');
 
     // SRI config settings
     const [sriIsActive, setSriIsActive] = useState<boolean>(false);
@@ -194,6 +234,7 @@ const PanelHotel: React.FC = () => {
             const settingsRes = await fetch(`${API_BASE}/api/reservations/hotel-settings/?_=${t}`, { headers });
             const resRes = await fetch(`${API_BASE}/api/reservations/?_=${t}`, { headers });
             const alertsRes = await fetch(`${API_BASE}/api/reservations/today-alerts/?_=${t}`, { headers });
+            const roomTypesRes = await fetch(`${API_BASE}/api/rooms/room-types/?_=${t}`, { headers });
 
             if (floorsRes.ok && roomsRes.ok) {
                 const floorsJson = await floorsRes.json();
@@ -215,6 +256,15 @@ const PanelHotel: React.FC = () => {
                 toast('Error al cargar datos del hotel', 'error');
             }
 
+            if (roomTypesRes.ok) {
+                const roomTypesJson = await roomTypesRes.json();
+                const roomTypesData: RoomType[] = Array.isArray(roomTypesJson) ? roomTypesJson : (roomTypesJson.results ?? []);
+                setRoomTypes(roomTypesData);
+                if (roomTypesData.length > 0) {
+                    setNewRoomType(roomTypesData[0].id);
+                }
+            }
+
             if (settingsRes.ok) {
                 const settingsJson = await settingsRes.json();
                 setHotelSettings(settingsJson);
@@ -223,6 +273,12 @@ const PanelHotel: React.FC = () => {
             if (alertsRes.ok) {
                 const alertsJson = await alertsRes.json();
                 setTodayAlerts(alertsJson);
+            }
+
+            const shiftRes = await fetch(`${API_BASE}/api/reports/shifts/current/?_=${t}`, { headers });
+            if (shiftRes.ok) {
+                const shiftJson = await shiftRes.json();
+                setIsShiftActive(!!(shiftJson && shiftJson.shift));
             }
         } catch (error) {
             console.error(error);
@@ -333,6 +389,8 @@ const PanelHotel: React.FC = () => {
                 setGuestPhone(data.phone || '');
                 setGuestAddress(data.address || '');
                 setGuestIdentType(data.identification_type);
+                setGuestNationality(data.nationality || '');
+                setGuestOriginCity(data.origin_city || '');
                 toast('Huésped encontrado', 'success');
             } else {
                 toast('Huésped nuevo detectado', 'info');
@@ -373,6 +431,8 @@ const PanelHotel: React.FC = () => {
             toast('Escribe el nombre del piso', 'error');
             return;
         }
+        if (isSavingFloor) return;
+        setIsSavingFloor(true);
         try {
             const headers = {
                 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
@@ -393,6 +453,8 @@ const PanelHotel: React.FC = () => {
         } catch (err) {
             console.error(err);
             toast('Error de red al crear piso', 'error');
+        } finally {
+            setIsSavingFloor(false);
         }
     };
 
@@ -408,6 +470,8 @@ const PanelHotel: React.FC = () => {
             toast('Primero crea un piso', 'error');
             return;
         }
+        if (isSavingRoom) return;
+        setIsSavingRoom(true);
         try {
             const headers = {
                 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
@@ -416,10 +480,7 @@ const PanelHotel: React.FC = () => {
             const payload = {
                 floor: floorId,
                 room_number: newRoomNumber,
-                room_type: newRoomType,
-                price_per_night: newRoomPrice,
-                adult_capacity: newRoomAdults,
-                child_capacity: newRoomChildren
+                room_type: newRoomType
             };
             const res = await fetch(`${API_BASE}/api/rooms/rooms/`, {
                 method: 'POST',
@@ -429,8 +490,7 @@ const PanelHotel: React.FC = () => {
             if (res.ok) {
                 toast('Habitación agregada', 'success');
                 setNewRoomNumber('');
-                setNewRoomPrice(50.0);
-                loadHotelData();
+                await loadHotelData();
             } else {
                 const errData = await res.json();
                 toast(`Error: ${JSON.stringify(errData)}`, 'error');
@@ -438,6 +498,85 @@ const PanelHotel: React.FC = () => {
         } catch (err) {
             console.error(err);
             toast('Error de red al crear habitación', 'error');
+        } finally {
+            setIsSavingRoom(false);
+        }
+    };
+
+    // Handle Save/Edit Room Type
+    const handleSaveRoomType = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!rtName.trim()) {
+            toast('El nombre del tipo es requerido', 'error');
+            return;
+        }
+        if (isSavingRt) return;
+        setIsSavingRt(true);
+        try {
+            const headers = {
+                'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+                'Content-Type': 'application/json'
+            };
+            const payload = {
+                name: rtName.trim(),
+                price_per_adult: rtPriceAdult,
+                price_per_child: rtPriceChild,
+                adult_capacity: rtCapAdult,
+                child_capacity: rtCapChild
+            };
+            
+            const url = editingRtId 
+                ? `${API_BASE}/api/rooms/room-types/${editingRtId}/`
+                : `${API_BASE}/api/rooms/room-types/`;
+            const method = editingRtId ? 'PUT' : 'POST';
+            
+            const res = await fetch(url, {
+                method,
+                headers,
+                body: JSON.stringify(payload)
+            });
+            
+            if (res.ok) {
+                toast(editingRtId ? 'Tipo de habitación actualizado' : 'Tipo de habitación creado', 'success');
+                setRtName('');
+                setRtPriceAdult(15.00);
+                setRtPriceChild(8.00);
+                setRtCapAdult(2);
+                setRtCapChild(2);
+                setEditingRtId(null);
+                await loadHotelData();
+            } else {
+                const err = await res.json();
+                toast(`Error: ${JSON.stringify(err)}`, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            toast('Error de red al guardar tipo de habitación', 'error');
+        } finally {
+            setIsSavingRt(false);
+        }
+    };
+
+    const handleDeleteRoomType = async (id: number) => {
+        if (!window.confirm('¿Está seguro de que desea eliminar este tipo de habitación? Esta acción puede fallar si está asignado a habitaciones existentes.')) return;
+        try {
+            const headers = {
+                'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+                'Content-Type': 'application/json'
+            };
+            const res = await fetch(`${API_BASE}/api/rooms/room-types/${id}/`, {
+                method: 'DELETE',
+                headers
+            });
+            if (res.ok) {
+                toast('Tipo de habitación eliminado', 'success');
+                await loadHotelData();
+            } else {
+                toast('Error al eliminar. Verifique que no esté asignado a ninguna habitación.', 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            toast('Error de red al eliminar tipo de habitación', 'error');
         }
     };
 
@@ -452,11 +591,15 @@ const PanelHotel: React.FC = () => {
             };
             
             const checkOutDateTime = `${plannedCheckOutDate}T${hotelSettings.default_checkout_time}:00`;
+            const checkInDateTime = `${checkInDateOverride}T${checkInTimeOverride}:00`;
 
             const payload = {
                 room: selectedRoom.id,
                 number_of_adults: checkInAdults,
-                number_of_children: checkInChildren,
+                number_of_children: childrenOver2 + childrenUnder2,
+                children_over_2: childrenOver2,
+                children_under_2: childrenUnder2,
+                check_in_date: checkInDateTime,
                 planned_check_out: checkOutDateTime,
                 notes: notes,
                 guest_data: {
@@ -465,7 +608,9 @@ const PanelHotel: React.FC = () => {
                     name: guestName,
                     email: guestEmail,
                     phone: guestPhone,
-                    address: guestAddress
+                    address: guestAddress,
+                    nationality: guestNationality,
+                    origin_city: guestOriginCity
                 }
             };
 
@@ -531,8 +676,10 @@ const PanelHotel: React.FC = () => {
                 check_in_date: checkInDateTime,
                 planned_check_out: checkOutDateTime,
                 number_of_adults: checkInAdults,
-                number_of_children: checkInChildren,
-                deposit_amount: depositAmount,
+                number_of_children: childrenOver2 + childrenUnder2,
+                children_over_2: childrenOver2,
+                children_under_2: childrenUnder2,
+                deposit_amount: depositAmount === '' ? 0 : Number(depositAmount),
                 payment_method: depositPaymentMethod,
                 notes: notes,
                 guest_data: {
@@ -541,7 +688,9 @@ const PanelHotel: React.FC = () => {
                     name: guestName,
                     email: guestEmail,
                     phone: guestPhone,
-                    address: guestAddress
+                    address: guestAddress,
+                    nationality: guestNationality,
+                    origin_city: guestOriginCity
                 }
             };
 
@@ -571,8 +720,17 @@ const PanelHotel: React.FC = () => {
         setGuestEmail('');
         setGuestPhone('');
         setGuestAddress('');
+        setGuestNationality('');
+        setGuestOriginCity('');
         setCheckInAdults(1);
         setCheckInChildren(0);
+        setChildrenOver2(0);
+        setChildrenUnder2(0);
+        setCheckInDateOverride(getLocalISODate());
+        setCheckInTimeOverride(new Date().toTimeString().slice(0, 5));
+        setCheckOutDateOverride(getLocalISODate());
+        setCheckOutTimeOverride(new Date().toTimeString().slice(0, 5));
+        setCheckoutNotes('');
         setPlannedCheckOutDate('');
         setReservationCheckInDate('');
         setDepositAmount(0);
@@ -582,6 +740,10 @@ const PanelHotel: React.FC = () => {
 
     // Action Room Click
     const handleRoomClick = async (room: Room) => {
+        if (!isShiftActive) {
+            toast('Debe abrir un turno de caja para poder operar las habitaciones (reservar, registrar entrada o procesar salida).', 'error');
+            return;
+        }
         clearForms();
         setSelectedRoom(room);
         if (room.status === 'available') {
@@ -606,6 +768,9 @@ const PanelHotel: React.FC = () => {
                     if (data.length > 0) {
                         const activeRes = data[0];
                         setActiveReservation(activeRes);
+                        setCheckOutDateOverride(getLocalISODate());
+                        setCheckOutTimeOverride(new Date().toTimeString().slice(0, 5));
+                        setCheckoutNotes(activeRes.checkout_notes || '');
                         
                         setBillingIdentType(activeRes.guest_details.identification_type);
                         setBillingIdent(activeRes.guest_details.identification);
@@ -745,9 +910,12 @@ const PanelHotel: React.FC = () => {
                 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
                 'Content-Type': 'application/json'
             };
+            const checkOutDateTime = `${checkOutDateOverride}T${checkOutTimeOverride}:00`;
             const payload = {
                 payment_method: paymentMethod,
                 process_sri: processSRI,
+                check_out_date: checkOutDateTime,
+                checkout_notes: checkoutNotes,
                 billing_data: processSRI ? {
                     identification_type: billingIdentType,
                     identification: billingIdent,
@@ -828,7 +996,7 @@ const PanelHotel: React.FC = () => {
         if (calendarFloorFilter !== 'all' && room.floor !== parseInt(calendarFloorFilter)) {
             return false;
         }
-        if (calendarRoomTypeFilter !== 'all' && room.room_type !== calendarRoomTypeFilter) {
+        if (calendarRoomTypeFilter !== 'all' && String(room.room_type) !== calendarRoomTypeFilter) {
             return false;
         }
         if (calendarRoomSearch && !room.room_number.includes(calendarRoomSearch)) {
@@ -872,6 +1040,75 @@ const PanelHotel: React.FC = () => {
         return res.status === statusFilter && matchesSearch;
     });
 
+    const getDynamicNightsAndTotal = () => {
+        if (!activeReservation) return { nights: 1, total: 0, pricePerNight: 0 };
+        
+        const checkIn = new Date(activeReservation.check_in_date);
+        const checkOut = checkOutDateOverride && checkOutTimeOverride
+            ? new Date(`${checkOutDateOverride}T${checkOutTimeOverride}:00`)
+            : new Date();
+            
+        const checkInDateOnly = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+        const checkOutDateOnly = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+        
+        let nights = Math.round((checkOutDateOnly.getTime() - checkInDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+        if (nights <= 0) nights = 1;
+        
+        const typeObj = roomTypes.find(t => t.id === selectedRoom?.room_type);
+        const pricePerAdult = typeObj ? Number(typeObj.price_per_adult) : 15.00;
+        const pricePerChild = typeObj ? Number(typeObj.price_per_child) : 8.00;
+        
+        const resChildrenOver2 = activeReservation.children_over_2 || 0;
+        const resChildrenUnder2 = activeReservation.children_under_2 || 0;
+        const totalChildren = resChildrenOver2 + resChildrenUnder2;
+        const adults = activeReservation.number_of_adults || 1;
+        
+        let pricePerNight = 0;
+        if (typeObj && (typeObj.name.toLowerCase() === 'matrimonial' || typeObj.name.toLowerCase().includes('matri')) && adults === 1 && totalChildren === 0) {
+            pricePerNight = 25.00;
+        } else {
+            pricePerNight = (adults * pricePerAdult) + (resChildrenOver2 * pricePerChild);
+        }
+        
+        const total = pricePerNight * nights;
+        return { nights, total, pricePerNight };
+    };
+
+    const calculateNewBookingPrice = (
+        room: Room | null,
+        adultsNum: number,
+        childOver2Num: number,
+        inDateStr: string,
+        outDateStr: string
+    ) => {
+        if (!room) return { nights: 1, total: 0, pricePerNight: 0 };
+        
+        const inDate = inDateStr ? new Date(inDateStr) : new Date();
+        const outDate = outDateStr ? new Date(outDateStr) : new Date();
+        
+        const inDateOnly = new Date(inDate.getFullYear(), inDate.getMonth(), inDate.getDate());
+        const outDateOnly = new Date(outDate.getFullYear(), outDate.getMonth(), outDate.getDate());
+        
+        let nights = Math.round((outDateOnly.getTime() - inDateOnly.getTime()) / (1000 * 60 * 60 * 24));
+        if (nights <= 0) nights = 1;
+        
+        const typeObj = roomTypes.find(t => t.id === room.room_type);
+        const pricePerAdult = typeObj ? Number(typeObj.price_per_adult) : 15.00;
+        const pricePerChild = typeObj ? Number(typeObj.price_per_child) : 8.00;
+        
+        let pricePerNight = 0;
+        if (typeObj && (typeObj.name.toLowerCase() === 'matrimonial' || typeObj.name.toLowerCase().includes('matri')) && adultsNum === 1 && childOver2Num === 0) {
+            pricePerNight = 25.00;
+        } else {
+            pricePerNight = (adultsNum * pricePerAdult) + (childOver2Num * pricePerChild);
+        }
+        
+        return {
+            nights,
+            pricePerNight,
+            total: pricePerNight * nights
+        };
+    };
 
     return (
         <div className="page-container p-6 bg-slate-50 min-h-screen text-slate-800">
@@ -887,20 +1124,50 @@ const PanelHotel: React.FC = () => {
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button 
-                        onClick={() => setShowHotelSettingsModal(true)} 
+                        onClick={() => {
+                            if (!isShiftActive) {
+                                toast('Debe abrir un turno de caja para cambiar los ajustes del hotel.', 'error');
+                                return;
+                            }
+                            setShowHotelSettingsModal(true);
+                        }} 
                         className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-sm transition-all text-xs"
                     >
                         <i className="bi bi-gear-fill text-slate-500"></i> Ajustes Hotel
                     </button>
                     <button 
-                        onClick={() => setShowSRIConfigModal(true)} 
+                        onClick={() => {
+                            if (!isShiftActive) {
+                                toast('Debe abrir un turno de caja para configurar credenciales SRI.', 'error');
+                                return;
+                            }
+                            setShowSRIConfigModal(true);
+                        }} 
                         className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-sm transition-all text-xs"
                     >
                         <i className="bi bi-shield-fill-check text-emerald-600"></i> Credenciales SRI
                     </button>
                     <button 
                         onClick={() => {
+                            if (!isShiftActive) {
+                                toast('Debe abrir un turno de caja para configurar tarifas.', 'error');
+                                return;
+                            }
+                            setConfigModalTab('types');
+                            setShowConfigModal(true);
+                        }} 
+                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-sm transition-all text-xs"
+                    >
+                        <i className="bi bi-currency-dollar text-indigo-600"></i> Configurar Tarifas
+                    </button>
+                    <button 
+                        onClick={() => {
+                            if (!isShiftActive) {
+                                toast('Debe abrir un turno de caja para agregar pisos y habitaciones.', 'error');
+                                return;
+                            }
                             if (floors.length > 0) setNewRoomFloorId(floors[0].id);
+                            setConfigModalTab('structure');
                             setShowConfigModal(true);
                         }} 
                         className="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-semibold shadow-sm transition-all text-xs"
@@ -908,7 +1175,13 @@ const PanelHotel: React.FC = () => {
                         <i className="bi bi-plus-circle-fill"></i> Pisos & Habitaciones
                     </button>
                     <button 
-                        onClick={() => setShowQRScannerModal(true)} 
+                        onClick={() => {
+                            if (!isShiftActive) {
+                                toast('Debe abrir un turno de caja para procesar ingresos por QR.', 'error');
+                                return;
+                            }
+                            setShowQRScannerModal(true);
+                        }} 
                         className="bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-yellow-600 text-black px-4 py-2 rounded-xl flex items-center gap-2 font-black shadow-sm transition-all text-xs"
                     >
                         <i className="bi bi-qr-code-scan"></i> Escanear QR Check-In
@@ -966,7 +1239,7 @@ const PanelHotel: React.FC = () => {
                 >
                     <i className="bi bi-calendar3-event-fill mr-1.5"></i> Gestión de Reservaciones
                 </button>
-                <button
+                 <button
                     onClick={() => setActiveViewTab('calendario')}
                     className={`px-5 py-2.5 font-bold text-xs transition-all border-b-2 rounded-t-xl ${
                         activeViewTab === 'calendario' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -974,11 +1247,41 @@ const PanelHotel: React.FC = () => {
                 >
                     <i className="bi bi-calendar-range-fill mr-1.5"></i> Calendario de Ocupación
                 </button>
+                <button
+                    onClick={() => setActiveViewTab('turnos')}
+                    className={`px-5 py-2.5 font-bold text-xs transition-all border-b-2 rounded-t-xl ${
+                        activeViewTab === 'turnos' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    <i className="bi bi-wallet2 mr-1.5"></i> Turnos de Caja
+                </button>
+                <button
+                    onClick={() => setActiveViewTab('reportes')}
+                    className={`px-5 py-2.5 font-bold text-xs transition-all border-b-2 rounded-t-xl ${
+                        activeViewTab === 'reportes' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
+                    }`}
+                >
+                    <i className="bi bi-bar-chart-line-fill mr-1.5"></i> Reportes y Estadísticas
+                </button>
             </div>
 
             {/* View Render */}
             {activeViewTab === 'croquis' && (
                 <div>
+                    {!isShiftActive && (
+                        <div className="bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-xl text-xs font-semibold mb-6 flex justify-between items-center animate-in slide-in-from-top-3 duration-200 shadow-sm">
+                            <div className="flex items-center gap-2">
+                                <i className="bi bi-exclamation-triangle-fill text-amber-600 text-base"></i>
+                                <span>No tiene un turno de caja abierto. Debe abrir un turno para registrar reservas con depósito o procesar check-outs.</span>
+                            </div>
+                            <button 
+                                onClick={() => setActiveViewTab('turnos')} 
+                                className="bg-amber-600 hover:bg-amber-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold transition shadow-sm border-none cursor-pointer"
+                            >
+                                Abrir Turno de Caja
+                            </button>
+                        </div>
+                    )}
                     {floors.length === 0 ? (
                         <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center shadow-sm">
                             <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-200">
@@ -1130,9 +1433,25 @@ const PanelHotel: React.FC = () => {
                                         <tr key={res.id} className="hover:bg-slate-50/50 transition duration-150">
                                             <td className="p-4 font-mono font-bold text-slate-900">{res.reservation_code}</td>
                                             <td className="p-4 font-medium text-slate-800">Hab {res.room_details?.room_number} <span className="block text-[10px] text-slate-400 font-normal">{res.room_details?.room_type_display}</span></td>
-                                            <td className="p-4 font-medium text-slate-800">{res.guest_details?.name}</td>
-                                            <td className="p-4">{new Date(res.check_in_date).toLocaleDateString()}</td>
-                                            <td className="p-4">{(res.planned_check_out || res.check_out_date) ? new Date(res.planned_check_out || res.check_out_date!).toLocaleDateString() : 'N/A'}</td>
+                                            <td className="p-4 font-medium text-slate-800">
+                                                {res.guest_details?.name}
+                                                <span className="block text-[10px] text-slate-400 font-normal">{res.guest_details?.nationality || 'N/A'} • Procedente de: {res.guest_details?.origin_city || 'N/A'}</span>
+                                            </td>
+                                            <td className="p-4">
+                                                {new Date(res.check_in_date).toLocaleDateString()}
+                                                <span className="block text-[10px] text-slate-400 font-normal">Ingreso por: {res.checked_in_by || 'Sistema'}</span>
+                                            </td>
+                                            <td className="p-4">
+                                                {(res.planned_check_out || res.check_out_date) ? new Date(res.planned_check_out || res.check_out_date!).toLocaleDateString() : 'N/A'}
+                                                {res.checked_out_by ? (
+                                                    <span className="block text-[10px] text-slate-400 font-normal">Salida por: {res.checked_out_by}</span>
+                                                ) : (
+                                                    <span className="block text-[10px] text-slate-450 font-normal">Planeada</span>
+                                                )}
+                                                {res.checkout_notes && (
+                                                    <span className="block text-[10px] text-amber-700 italic max-w-xs truncate" title={res.checkout_notes}>Salida: {res.checkout_notes}</span>
+                                                )}
+                                            </td>
                                             <td className="p-4 font-bold text-slate-900">${res.total_estimated || res.total_amount}</td>
                                             <td className="p-4">
                                                 {Number(res.deposit_amount) > 0 ? (
@@ -1236,10 +1555,9 @@ const PanelHotel: React.FC = () => {
                                 className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
                             >
                                 <option value="all">Todos los Tipos</option>
-                                <option value="single">Simple (Single)</option>
-                                <option value="double">Doble (Double)</option>
-                                <option value="suite">Suite</option>
-                                <option value="matrimonial">Matrimonial</option>
+                                {roomTypes.map(t => (
+                                    <option key={t.id} value={String(t.id)}>{t.name}</option>
+                                ))}
                             </select>
                         </div>
                         <div>
@@ -1329,6 +1647,14 @@ const PanelHotel: React.FC = () => {
                         </table>
                     </div>
                 </div>
+            )}
+
+            {activeViewTab === 'turnos' && (
+                <ShiftManager onShiftActive={setIsShiftActive} />
+            )}
+
+            {activeViewTab === 'reportes' && (
+                <Reportes />
             )}
 
             {/* Modal Check-In Form (styled with glass backdrop and system color inputs) */}
@@ -1429,7 +1755,7 @@ const PanelHotel: React.FC = () => {
                                         />
                                     </div>
                                 </div>
-                                <div>
+                                <div className="mb-3">
                                     <label className="block text-[10px] font-bold text-slate-500 mb-1">Dirección</label>
                                     <input 
                                         type="text" 
@@ -1438,6 +1764,28 @@ const PanelHotel: React.FC = () => {
                                         onChange={e => setGuestAddress(e.target.value)}
                                         className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                     />
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Nacionalidad</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ecuatoriano, Colombiano, etc..." 
+                                            value={guestNationality}
+                                            onChange={e => setGuestNationality(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">De qué parte viaja (Procedencia)</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ciudad o país..." 
+                                            value={guestOriginCity}
+                                            onChange={e => setGuestOriginCity(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -1452,7 +1800,31 @@ const PanelHotel: React.FC = () => {
                                     </div>
                                 )}
                                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-1.5"><i className="bi bi-clock-fill text-slate-500 mr-1"></i> Detalles de Estadía</h4>
-                                <div className="mb-4">
+                                
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha de Check-In</label>
+                                        <input 
+                                            type="date" 
+                                            value={checkInDateOverride}
+                                            onChange={e => setCheckInDateOverride(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Hora de Check-In</label>
+                                        <input 
+                                            type="time" 
+                                            value={checkInTimeOverride}
+                                            onChange={e => setCheckInTimeOverride(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="mb-3">
                                     <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha Programada de Salida</label>
                                     <input 
                                         type="date" 
@@ -1465,8 +1837,7 @@ const PanelHotel: React.FC = () => {
                                     />
                                 </div>
 
-
-                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="grid grid-cols-3 gap-3 mb-4">
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">Adultos (Máx {selectedRoom.adult_capacity})</label>
                                         <input 
@@ -1480,13 +1851,31 @@ const PanelHotel: React.FC = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños (Máx {selectedRoom.child_capacity})</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños mayores a 2 años ($8)</label>
                                         <input 
                                             type="number" 
                                             min="0" 
-                                            max={selectedRoom.child_capacity}
-                                            value={checkInChildren}
-                                            onChange={e => setCheckInChildren(parseInt(e.target.value))}
+                                            value={childrenOver2}
+                                            onChange={e => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setChildrenOver2(val);
+                                                setCheckInChildren(val + childrenUnder2);
+                                            }}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños ≤ 2a ($0)</label>
+                                        <input 
+                                            type="number" 
+                                            min="0" 
+                                            value={childrenUnder2}
+                                            onChange={e => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setChildrenUnder2(val);
+                                                setCheckInChildren(childrenOver2 + val);
+                                            }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             required
                                         />
@@ -1494,15 +1883,39 @@ const PanelHotel: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Observaciones</label>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Observaciones de Ingreso</label>
                                     <textarea 
                                         rows={2}
-                                        placeholder="Comentarios adicionales..."
+                                        placeholder="Comentarios adicionales al check-in..."
                                         value={notes}
                                         onChange={e => setNotes(e.target.value)}
                                         className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                     />
                                 </div>
+
+                                {selectedRoom && plannedCheckOutDate && (
+                                    (() => {
+                                        const { nights, pricePerNight, total } = calculateNewBookingPrice(
+                                            selectedRoom, 
+                                            checkInAdults, 
+                                            childrenOver2, 
+                                            checkInDateOverride || getLocalISODate(), 
+                                            plannedCheckOutDate
+                                        );
+                                        return (
+                                            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 mt-3 mb-2 flex justify-between items-center">
+                                                <div>
+                                                    <span className="block font-bold">Resumen de Tarifa:</span>
+                                                    <span className="text-[10px] text-indigo-750 block">Calculado para {nights} noche(s)</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="block font-mono text-[10px] text-indigo-750">${pricePerNight.toFixed(2)} / noche</span>
+                                                    <strong className="text-sm font-mono text-indigo-900">${total.toFixed(2)}</strong>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
+                                )}
                             </div>
 
                             <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-xl text-sm font-bold shadow-md transition">
@@ -1621,6 +2034,28 @@ const PanelHotel: React.FC = () => {
                                         className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                     />
                                 </div>
+                                <div className="grid grid-cols-2 gap-3 mt-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Nacionalidad</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ecuatoriano, Colombiano, etc..." 
+                                            value={guestNationality}
+                                            onChange={e => setGuestNationality(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Procedencia</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Ciudad o país..." 
+                                            value={guestOriginCity}
+                                            onChange={e => setGuestOriginCity(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                        />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Booking dates */}
@@ -1651,7 +2086,7 @@ const PanelHotel: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="grid grid-cols-3 gap-3 mb-4">
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">Adultos (Máx {selectedRoom.adult_capacity})</label>
                                         <input 
@@ -1665,13 +2100,31 @@ const PanelHotel: React.FC = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños (Máx {selectedRoom.child_capacity})</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños mayores a 2 años ($8)</label>
                                         <input 
                                             type="number" 
                                             min="0" 
-                                            max={selectedRoom.child_capacity}
-                                            value={checkInChildren}
-                                            onChange={e => setCheckInChildren(parseInt(e.target.value))}
+                                            value={childrenOver2}
+                                            onChange={e => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setChildrenOver2(val);
+                                                setCheckInChildren(val + childrenUnder2);
+                                            }}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños ≤ 2a ($0)</label>
+                                        <input 
+                                            type="number" 
+                                            min="0" 
+                                            value={childrenUnder2}
+                                            onChange={e => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                setChildrenUnder2(val);
+                                                setCheckInChildren(childrenOver2 + val);
+                                            }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             required
                                         />
@@ -1690,7 +2143,10 @@ const PanelHotel: React.FC = () => {
                                             step="0.01"
                                             min="0"
                                             value={depositAmount}
-                                            onChange={e => setDepositAmount(parseFloat(e.target.value) || 0)}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                setDepositAmount(val === '' ? '' : parseFloat(val));
+                                            }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                         />
                                     </div>
@@ -1698,7 +2154,6 @@ const PanelHotel: React.FC = () => {
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">Método de Pago</label>
                                         <select 
                                             value={depositPaymentMethod}
-                                            disabled={depositAmount <= 0}
                                             onChange={e => setDepositPaymentMethod(e.target.value)}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
                                         >
@@ -1719,6 +2174,30 @@ const PanelHotel: React.FC = () => {
                                         className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                     />
                                 </div>
+
+                                {selectedRoom && reservationCheckInDate && plannedCheckOutDate && (
+                                    (() => {
+                                        const { nights, pricePerNight, total } = calculateNewBookingPrice(
+                                            selectedRoom, 
+                                            checkInAdults, 
+                                            childrenOver2, 
+                                            reservationCheckInDate, 
+                                            plannedCheckOutDate
+                                        );
+                                        return (
+                                            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 mt-3 mb-2 flex justify-between items-center">
+                                                <div>
+                                                    <span className="block font-bold">Resumen de Tarifa:</span>
+                                                    <span className="text-[10px] text-indigo-750 block">Calculado para {nights} noche(s)</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="block font-mono text-[10px] text-indigo-750">${pricePerNight.toFixed(2)} / noche</span>
+                                                    <strong className="text-sm font-mono text-indigo-900">${total.toFixed(2)}</strong>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
+                                )}
                             </div>
 
                             <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-xl text-sm font-bold shadow-md transition">
@@ -1760,26 +2239,60 @@ const PanelHotel: React.FC = () => {
                             <div className="p-6 max-h-[80vh] overflow-y-auto space-y-5">
                                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-4 text-xs">
                                     <div><span className="text-slate-500 block">Huésped Principal:</span> <strong className="text-slate-800 text-sm block mt-0.5">{activeReservation.guest_details.name}</strong></div>
-                                    <div><span className="text-slate-500 block">Check-in inicial:</span> <strong className="text-slate-800 text-sm block mt-0.5">{new Date(activeReservation.check_in_date).toLocaleString()}</strong></div>
-                                    <div><span className="text-slate-500 block">Tarifa por Noche:</span> <strong className="text-slate-800 text-sm block mt-0.5">${selectedRoom.price_per_night}</strong></div>
-                                    <div><span className="text-slate-500 block">Noches calculadas:</span> <strong className="text-slate-800 text-sm block mt-0.5">{activeReservation.nights_count} noche(s)</strong></div>
+                                    <div><span className="text-slate-500 block">Check-in inicial:</span> <strong className="text-slate-800 text-sm block mt-0.5">{new Date(activeReservation.check_in_date).toLocaleString()} ({activeReservation.checked_in_by || 'Sistema'})</strong></div>
+                                    <div><span className="text-slate-500 block">Tarifa por Noche (Calculada):</span> <strong className="text-slate-800 text-sm block mt-0.5">${getDynamicNightsAndTotal().pricePerNight.toFixed(2)}</strong></div>
+                                    <div><span className="text-slate-500 block">Noches calculadas:</span> <strong className="text-slate-800 text-sm block mt-0.5">{getDynamicNightsAndTotal().nights} noche(s)</strong></div>
                                     <div className="col-span-2 grid grid-cols-2 border-t border-slate-200 pt-3 mt-1">
                                         <div><span className="text-slate-500 block">Depósito previo:</span> <strong className="text-cyan-700 text-sm block mt-0.5">${Number(activeReservation.deposit_amount).toFixed(2)}</strong></div>
-                                        <div><span className="text-slate-500 block">Total Estimado:</span> <strong className="text-slate-800 text-sm block mt-0.5">${Number(activeReservation.total_estimated).toFixed(2)}</strong></div>
+                                        <div><span className="text-slate-500 block">Total Estimado:</span> <strong className="text-slate-800 text-sm block mt-0.5">${getDynamicNightsAndTotal().total.toFixed(2)}</strong></div>
                                     </div>
                                     <div className="col-span-2 border-t border-slate-200 pt-3 text-right">
-                                        {Number(activeReservation.total_estimated) < Number(activeReservation.deposit_amount) ? (
+                                        {getDynamicNightsAndTotal().total < Number(activeReservation.deposit_amount) ? (
                                             <>
                                                 <span className="text-amber-600 text-[10px] font-bold tracking-widest block uppercase">Reembolso / Saldo a Devolver</span>
-                                                <strong className="text-2xl font-black text-amber-600">${Math.abs(Number(activeReservation.total_estimated) - Number(activeReservation.deposit_amount)).toFixed(2)}</strong>
+                                                <strong className="text-2xl font-black text-amber-600">${Math.abs(getDynamicNightsAndTotal().total - Number(activeReservation.deposit_amount)).toFixed(2)}</strong>
                                             </>
                                         ) : (
                                             <>
                                                 <span className="text-slate-400 text-[10px] font-bold tracking-widest block uppercase">Saldo Pendiente a Cobrar</span>
-                                                <strong className="text-2xl font-black text-slate-900">${(Number(activeReservation.total_estimated) - Number(activeReservation.deposit_amount)).toFixed(2)}</strong>
+                                                <strong className="text-2xl font-black text-slate-900">${(getDynamicNightsAndTotal().total - Number(activeReservation.deposit_amount)).toFixed(2)}</strong>
                                             </>
                                         )}
                                     </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha de Check-Out</label>
+                                        <input 
+                                            type="date" 
+                                            value={checkOutDateOverride}
+                                            onChange={e => setCheckOutDateOverride(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Hora de Check-Out</label>
+                                        <input 
+                                            type="time" 
+                                            value={checkOutTimeOverride}
+                                            onChange={e => setCheckOutTimeOverride(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            required
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Observaciones de Salida (p.ej. toalla, etc.)</label>
+                                    <textarea 
+                                        rows={2}
+                                        placeholder="Se entregó toallas, control de TV, etc..."
+                                        value={checkoutNotes}
+                                        onChange={e => setCheckoutNotes(e.target.value)}
+                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                    />
                                 </div>
 
                                 <div>
@@ -1984,119 +2497,261 @@ const PanelHotel: React.FC = () => {
 
             {/* Modal: Infrastructure Config */}
             {showConfigModal && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-150 text-slate-800">
                         <div className="px-6 py-5 bg-slate-900 text-white flex justify-between items-center">
-                            <h3 className="font-bold text-lg">Configurar Estructura</h3>
+                            <h3 className="font-bold text-lg text-white">Configurar Estructura del Hotel</h3>
                             <button onClick={() => setShowConfigModal(false)} className="text-white/80 hover:text-white"><i className="bi bi-x-lg"></i></button>
                         </div>
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[75vh] overflow-y-auto">
-                            {/* Create Floor */}
-                            <form onSubmit={handleCreateFloor} className="border-r border-slate-200 pr-0 md:pr-6 space-y-4">
-                                <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                    <i className="bi bi-layers-fill text-slate-600"></i> Agregar Piso
-                                </h4>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Nombre del Piso</label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="Ej: Piso 1" 
-                                        value={newFloorName} 
-                                        onChange={e => setNewFloorName(e.target.value)}
-                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-850" 
-                                        required
-                                    />
-                                </div>
-                                <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white p-2.5 rounded-xl text-xs font-bold shadow-sm transition">
-                                    Guardar Piso
-                                </button>
-                            </form>
+                        
+                        {/* Tab Switcher */}
+                        <div className="flex border-b border-slate-200 bg-slate-50">
+                            <button 
+                                onClick={() => setConfigModalTab('structure')} 
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    configModalTab === 'structure' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                Pisos y Habitaciones
+                            </button>
+                            <button 
+                                onClick={() => setConfigModalTab('types')} 
+                                className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-all border-b-2 ${
+                                    configModalTab === 'types' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                Configurar Tipos de Habitación
+                            </button>
+                        </div>
 
-                            {/* Create Room */}
-                            <form onSubmit={handleCreateRoom} className="space-y-4">
-                                <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
-                                    <i className="bi bi-door-closed-fill text-slate-600"></i> Agregar Habitación
-                                </h4>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Piso</label>
-                                    {floors.length === 0 ? (
-                                        <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
-                                            ⚠️ Crea un piso primero a la izquierda.
-                                        </p>
-                                    ) : (
-                                        <select 
-                                            value={newRoomFloorId || floors[0]?.id || ''} 
-                                            onChange={e => setNewRoomFloorId(Number(e.target.value))}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
-                                        >
-                                            {floors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                        </select>
-                                    )}
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
+                        {configModalTab === 'structure' ? (
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto">
+                                {/* Create Floor */}
+                                <form onSubmit={handleCreateFloor} className="border-r border-slate-200 pr-0 md:pr-6 space-y-4">
+                                    <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
+                                        <i className="bi bi-layers-fill text-slate-600"></i> Agregar Piso
+                                    </h4>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Número de Hab</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Nombre del Piso</label>
                                         <input 
                                             type="text" 
-                                            placeholder="101" 
-                                            value={newRoomNumber}
-                                            onChange={e => setNewRoomNumber(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            placeholder="Ej: Piso 1" 
+                                            value={newFloorName} 
+                                            onChange={e => setNewFloorName(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-850" 
                                             required
                                         />
+                                    </div>
+                                    <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white p-2.5 rounded-xl text-xs font-bold shadow-sm transition">
+                                        Guardar Piso
+                                    </button>
+                                </form>
+
+                                {/* Create Room */}
+                                <form onSubmit={handleCreateRoom} className="space-y-4">
+                                    <h4 className="font-bold text-slate-900 mb-2 flex items-center gap-2">
+                                        <i className="bi bi-door-closed-fill text-slate-600"></i> Agregar Habitación
+                                    </h4>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Piso</label>
+                                        {floors.length === 0 ? (
+                                            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                                                ⚠️ Crea un piso primero a la izquierda.
+                                            </p>
+                                        ) : (
+                                            <select 
+                                                value={newRoomFloorId || floors[0]?.id || ''} 
+                                                onChange={e => setNewRoomFloorId(Number(e.target.value))}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
+                                            >
+                                                {floors.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                            </select>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="col-span-2">
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Número de Habitación</label>
+                                            <input 
+                                                type="text" 
+                                                placeholder="101" 
+                                                value={newRoomNumber}
+                                                onChange={e => setNewRoomNumber(e.target.value)}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                required
+                                            />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Precio por Noche</label>
-                                        <input 
-                                            type="number" 
-                                            step="0.01" 
-                                            value={newRoomPrice}
-                                            onChange={e => setNewRoomPrice(parseFloat(e.target.value))}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                            required
-                                        />
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Tipo de Habitación</label>
+                                        {roomTypes.length === 0 ? (
+                                            <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-250 p-2 rounded-lg">
+                                                No hay tipos definidos. Créelos en la pestaña superior.
+                                            </p>
+                                        ) : (
+                                            <select 
+                                                value={newRoomType} 
+                                                onChange={e => setNewRoomType(Number(e.target.value))}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
+                                                required
+                                            >
+                                                <option value="">-- Seleccionar Tipo --</option>
+                                                {roomTypes.map(t => (
+                                                    <option key={t.id} value={t.id}>
+                                                        {t.name} (Ad: ${Number(t.price_per_adult).toFixed(2)} / Ni: ${Number(t.price_per_child).toFixed(2)})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        )}
                                     </div>
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Tipo</label>
-                                    <select 
-                                        value={newRoomType} 
-                                        onChange={e => setNewRoomType(e.target.value as any)}
-                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
+                                    <button 
+                                        type="submit" 
+                                        disabled={roomTypes.length === 0}
+                                        className="w-full bg-slate-900 hover:bg-slate-800 text-white p-2.5 rounded-xl text-xs font-bold shadow-md transition disabled:opacity-50"
                                     >
-                                        <option value="single">Simple</option>
-                                        <option value="double">Doble</option>
-                                        <option value="suite">Suite</option>
-                                        <option value="matrimonial">Matrimonial</option>
-                                    </select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
+                                        Agregar Habitación
+                                    </button>
+                                </form>
+                            </div>
+                        ) : (
+                            /* Config Modal Tab: Room Types list and creation form */
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto">
+                                {/* Left column: Room Type form */}
+                                <form onSubmit={handleSaveRoomType} className="border-r border-slate-200 pr-0 md:pr-6 space-y-3.5">
+                                    <h4 className="font-bold text-slate-900 flex items-center gap-2 text-xs uppercase tracking-wider">
+                                        {editingRtId ? 'Editar Tipo' : 'Crear Tipo de Habitación'}
+                                    </h4>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Capacidad Adultos</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Nombre del Tipo</label>
                                         <input 
-                                            type="number" 
-                                            value={newRoomAdults}
-                                            onChange={e => setNewRoomAdults(parseInt(e.target.value))}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            type="text" 
+                                            placeholder="Ej: Suite Deluxe" 
+                                            value={rtName} 
+                                            onChange={e => setRtName(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-850" 
                                             required
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Capacidad Niños</label>
-                                        <input 
-                                            type="number" 
-                                            value={newRoomChildren}
-                                            onChange={e => setNewRoomChildren(parseInt(e.target.value))}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                            required
-                                        />
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Precio por Adulto ($)</label>
+                                            <input 
+                                                type="number" 
+                                                step="0.01" 
+                                                min="0"
+                                                value={rtPriceAdult} 
+                                                onChange={e => setRtPriceAdult(parseFloat(e.target.value) || 0)}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-850" 
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Precio por Niño ($)</label>
+                                            <input 
+                                                type="number" 
+                                                step="0.01" 
+                                                min="0"
+                                                value={rtPriceChild} 
+                                                onChange={e => setRtPriceChild(parseFloat(e.target.value) || 0)}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-850" 
+                                                required
+                                            />
+                                        </div>
                                     </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Capacidad Adultos</label>
+                                            <input 
+                                                type="number" 
+                                                min="1"
+                                                value={rtCapAdult} 
+                                                onChange={e => setRtCapAdult(parseInt(e.target.value) || 1)}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-855" 
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Capacidad Niños</label>
+                                            <input 
+                                                type="number" 
+                                                min="0"
+                                                value={rtCapChild} 
+                                                onChange={e => setRtCapChild(parseInt(e.target.value) || 0)}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-855" 
+                                                required
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 pt-1.5">
+                                        <button type="submit" disabled={isSavingRt} className="flex-1 bg-slate-900 hover:bg-slate-800 text-white p-2.5 rounded-xl text-xs font-bold shadow-sm transition disabled:opacity-50">
+                                            {isSavingRt ? 'Guardando...' : editingRtId ? 'Actualizar' : 'Guardar Tipo'}
+                                        </button>
+                                        {editingRtId && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    setEditingRtId(null);
+                                                    setRtName('');
+                                                    setRtPriceAdult(15.00);
+                                                    setRtPriceChild(8.00);
+                                                    setRtCapAdult(2);
+                                                    setRtCapChild(2);
+                                                }}
+                                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 p-2.5 rounded-xl text-xs font-bold transition"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        )}
+                                    </div>
+                                </form>
+
+                                {/* Right column: List of Room Types */}
+                                <div className="space-y-3">
+                                    <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider mb-2">Tipos Guardados</h4>
+                                    {roomTypes.length === 0 ? (
+                                        <p className="text-xs text-slate-400 italic">No hay tipos de habitación configurados.</p>
+                                    ) : (
+                                        <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                                            {roomTypes.map(t => (
+                                                <div key={t.id} className="p-3 border border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100/50 transition flex justify-between items-center text-xs">
+                                                    <div>
+                                                        <strong className="text-slate-800 font-bold block">{t.name}</strong>
+                                                        <span className="text-[10px] text-slate-500 block mt-0.5">
+                                                            Capacidad: {t.adult_capacity} Ad / {t.child_capacity} Ni
+                                                        </span>
+                                                        <span className="text-[10px] text-indigo-650 font-semibold block mt-0.5">
+                                                            Tarifa: ${Number(t.price_per_adult).toFixed(2)} Ad / ${Number(t.price_per_child).toFixed(2)} Ni
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex gap-1.5">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setEditingRtId(t.id);
+                                                                setRtName(t.name);
+                                                                setRtPriceAdult(Number(t.price_per_adult));
+                                                                setRtPriceChild(Number(t.price_per_child));
+                                                                setRtCapAdult(t.adult_capacity);
+                                                                setRtCapChild(t.child_capacity);
+                                                            }}
+                                                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-2.5 py-1.5 rounded-lg text-[10px] font-bold shadow-sm transition"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => handleDeleteRoomType(t.id)}
+                                                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition"
+                                                        >
+                                                            Eliminar
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white p-2.5 rounded-xl text-xs font-bold shadow-md transition">
-                                    Agregar Habitación
-                                </button>
-                            </form>
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

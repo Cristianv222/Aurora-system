@@ -12,7 +12,9 @@ from decimal import Decimal
 import requests
 import json
 import logging
+from django.db import transaction
 from django.db.models import Q
+from apps.reports.models import Shift
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
         check_in_date = request.data.get('check_in_date')
         planned_check_out = request.data.get('planned_check_out')
         number_of_adults = int(request.data.get('number_of_adults', 1))
-        number_of_children = int(request.data.get('number_of_children', 0))
+        children_over_2 = int(request.data.get('children_over_2', 0))
+        children_under_2 = int(request.data.get('children_under_2', 0))
+        number_of_children = children_over_2 + children_under_2
         deposit_amount = Decimal(request.data.get('deposit_amount', 0.0))
         payment_method = request.data.get('payment_method', 'cash')
         notes = request.data.get('notes', '')
@@ -69,7 +73,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'name': guest_data.get('name', ''),
                 'email': guest_data.get('email', ''),
                 'phone': guest_data.get('phone', ''),
-                'address': guest_data.get('address', '')
+                'address': guest_data.get('address', ''),
+                'nationality': guest_data.get('nationality', ''),
+                'origin_city': guest_data.get('origin_city', '')
             }
         )
 
@@ -79,6 +85,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
             guest.email = guest_data.get('email', guest.email)
             guest.phone = guest_data.get('phone', guest.phone)
             guest.address = guest_data.get('address', guest.address)
+            guest.nationality = guest_data.get('nationality', guest.nationality)
+            guest.origin_city = guest_data.get('origin_city', guest.origin_city)
             guest.save()
 
         # Registrar reservación
@@ -89,26 +97,40 @@ class ReservationViewSet(viewsets.ModelViewSet):
             'planned_check_out': planned_check_out,
             'number_of_adults': number_of_adults,
             'number_of_children': number_of_children,
+            'children_over_2': children_over_2,
+            'children_under_2': children_under_2,
             'deposit_amount': deposit_amount,
             'deposit_paid': deposit_amount > 0,
             'notes': notes,
             'status': 'reserved'
         }
 
+        # Check active shift if there's a deposit
+        active_shift = None
+        if deposit_amount > 0:
+            user_id = getattr(request, 'user_id', None)
+            if not user_id:
+                return Response({'error': 'No se detectó un usuario autenticado.'}, status=status.HTTP_401_UNAUTHORIZED)
+            active_shift = Shift.objects.filter(user_id=user_id, status='open').first()
+            if not active_shift:
+                return Response({'error': 'Debe abrir un turno de caja para poder registrar pagos/depósitos.'}, status=status.HTTP_400_BAD_REQUEST)
+
         serializer = self.get_serializer(data=reservation_data)
         if serializer.is_valid():
-            res = serializer.save()
+            with transaction.atomic():
+                res = serializer.save()
 
-            if deposit_amount > 0:
-                Payment.objects.create(
-                    reservation=res,
-                    amount=deposit_amount,
-                    payment_method=payment_method,
-                    is_deposit=True,
-                    sri_status='DRAFT'
-                )
+                if deposit_amount > 0:
+                    Payment.objects.create(
+                        reservation=res,
+                        shift=active_shift,
+                        amount=deposit_amount,
+                        payment_method=payment_method,
+                        is_deposit=True,
+                        sri_status='DRAFT'
+                    )
 
-            return Response(ReservationSerializer(res).data, status=status.HTTP_201_CREATED)
+                return Response(ReservationSerializer(res).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=False, methods=['post'], url_path='check-in')
@@ -118,6 +140,8 @@ class ReservationViewSet(viewsets.ModelViewSet):
         O si se proporciona un reservation_id, realiza el check-in de una reserva ya existente.
         """
         reservation_id = request.data.get('reservation_id')
+        check_in_date = request.data.get('check_in_date')
+        
         if reservation_id:
             try:
                 res = Reservation.objects.get(id=reservation_id)
@@ -132,7 +156,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 return Response({'error': f'La habitación {room.room_number} no está disponible (Estado actual: {room.get_status_display()}).'}, status=status.HTTP_400_BAD_REQUEST)
 
             res.status = 'active'
-            res.check_in_date = timezone.now()
+            if check_in_date:
+                res.check_in_date = check_in_date
+            else:
+                res.check_in_date = timezone.now()
+            res.checked_in_by = getattr(request, 'username', 'Sistema')
             res.save()
 
             room.status = 'occupied'
@@ -142,7 +170,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
         room_id = request.data.get('room')
         guest_data = request.data.get('guest_data', {})
         number_of_adults = int(request.data.get('number_of_adults', 1))
-        number_of_children = int(request.data.get('number_of_children', 0))
+        children_over_2 = int(request.data.get('children_over_2', 0))
+        children_under_2 = int(request.data.get('children_under_2', 0))
+        number_of_children = children_over_2 + children_under_2
         planned_check_out = request.data.get('planned_check_out')
         notes = request.data.get('notes', '')
 
@@ -171,7 +201,9 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'name': guest_data.get('name', ''),
                 'email': guest_data.get('email', ''),
                 'phone': guest_data.get('phone', ''),
-                'address': guest_data.get('address', '')
+                'address': guest_data.get('address', ''),
+                'nationality': guest_data.get('nationality', ''),
+                'origin_city': guest_data.get('origin_city', '')
             }
         )
 
@@ -181,16 +213,21 @@ class ReservationViewSet(viewsets.ModelViewSet):
             guest.email = guest_data.get('email', guest.email)
             guest.phone = guest_data.get('phone', guest.phone)
             guest.address = guest_data.get('address', guest.address)
+            guest.nationality = guest_data.get('nationality', guest.nationality)
+            guest.origin_city = guest_data.get('origin_city', guest.origin_city)
             guest.save()
 
         # Crear reservación activa
         reservation_data = {
             'room': room.id,
             'guest': guest.id,
-            'check_in_date': timezone.now(),
+            'check_in_date': check_in_date if check_in_date else timezone.now(),
             'planned_check_out': planned_check_out,
             'number_of_adults': number_of_adults,
             'number_of_children': number_of_children,
+            'children_over_2': children_over_2,
+            'children_under_2': children_under_2,
+            'checked_in_by': getattr(request, 'username', 'Sistema'),
             'notes': notes,
             'status': 'active'
         }
@@ -212,42 +249,69 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if reservation.status != 'active':
             return Response({'error': 'La reserva no está activa o ya se le hizo check-out.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # Check active shift
+        user_id = getattr(request, 'user_id', None)
+        if not user_id:
+            return Response({'error': 'No se detectó un usuario autenticado.'}, status=status.HTTP_401_UNAUTHORIZED)
+        active_shift = Shift.objects.filter(user_id=user_id, status='open').first()
+        if not active_shift:
+            return Response({'error': 'Debe abrir un turno de caja para poder procesar la salida (check-out) y recibir pagos.'}, status=status.HTTP_400_BAD_REQUEST)
+
         payment_method = request.data.get('payment_method', 'cash')
         process_sri = request.data.get('process_sri', False)
         billing_data = request.data.get('billing_data', {})
+        checkout_notes = request.data.get('checkout_notes', '')
 
         # Calcular costo total de la estadía
         check_in = reservation.check_in_date
+        check_out_param = request.data.get('check_out_date')
         check_out = timezone.now()
-        delta = check_out - check_in
-        nights = delta.days
+        if check_out_param:
+            try:
+                from django.utils.dateparse import parse_datetime
+                parsed = parse_datetime(check_out_param)
+                if parsed:
+                    if timezone.is_naive(parsed):
+                        parsed = timezone.make_aware(parsed)
+                    check_out = parsed
+            except Exception as e:
+                logger.error(f"Error parsing check_out_date: {e}")
+
+        # Hotel nights calculated by local dates
+        check_in_local = timezone.localtime(check_in).date()
+        check_out_local = timezone.localtime(check_out).date()
+        nights = (check_out_local - check_in_local).days
         if nights <= 0:
             nights = 1  # Cobrar mínimo 1 noche
         
-        total_amount = Decimal(nights) * reservation.room.price_per_night
+        total_amount = Decimal(nights) * reservation.price_per_night_calculated
         
         remaining_amount = total_amount - reservation.deposit_amount
         if remaining_amount < 0:
             remaining_amount = Decimal('0.0')
 
-        reservation.total_amount = total_amount
-        reservation.check_out_date = check_out
-        reservation.status = 'checked_out'
-        reservation.save()
+        with transaction.atomic():
+            reservation.total_amount = total_amount
+            reservation.check_out_date = check_out
+            reservation.checked_out_by = getattr(request, 'username', 'Sistema')
+            reservation.checkout_notes = checkout_notes
+            reservation.status = 'checked_out'
+            reservation.save()
 
-        # Cambiar estado de la habitación a limpieza
-        room = reservation.room
-        room.status = 'cleaning'
-        room.save()
+            # Cambiar estado de la habitación a limpieza
+            room = reservation.room
+            room.status = 'cleaning'
+            room.save()
 
-        # Registrar Pago
-        payment = Payment.objects.create(
-            reservation=reservation,
-            amount=remaining_amount,
-            payment_method=payment_method,
-            is_deposit=False,
-            sri_status='DRAFT'
-        )
+            # Registrar Pago
+            payment = Payment.objects.create(
+                reservation=reservation,
+                shift=active_shift,
+                amount=remaining_amount,
+                payment_method=payment_method,
+                is_deposit=False,
+                sri_status='DRAFT'
+            )
 
         # Si requiere facturación electrónica SRI
         if process_sri:
@@ -274,7 +338,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
                 'main_code': f'HOSP-{room.room_number}',
                 'description': f'Servicio de Hospedaje Habitación {room.room_number} - {nights} Noches',
                 'quantity': float(nights),
-                'unit_price': float(room.price_per_night),
+                'unit_price': float(reservation.price_per_night_calculated),
                 'discount': float(reservation.deposit_amount)
             }
 

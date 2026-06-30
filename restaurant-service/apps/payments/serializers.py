@@ -216,8 +216,8 @@ class PaymentCreateSerializer(serializers.Serializer):
         from apps.orders.models import Order
         try:
             order = Order.objects.get(id=value)
-            # Validar que la orden no esté ya pagada
-            if order.payment_status == 'paid':
+            # Validar que la orden no esté ya pagada (solo si ya tiene pagos completados/pendientes)
+            if order.payment_status == 'paid' and order.payments.filter(status__in=['completed', 'pending']).exists():
                 raise serializers.ValidationError('Esta orden ya está pagada')
             return value
         except Order.DoesNotExist:
@@ -312,6 +312,9 @@ class PaymentCreateSerializer(serializers.Serializer):
             cash_register_id=validated_data.get('cash_register_id'),
             status='pending'
         )
+        
+        # Completar el pago automáticamente
+        payment.mark_as_completed()
         
         return payment
 

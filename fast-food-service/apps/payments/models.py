@@ -494,10 +494,10 @@ class Payment(models.Model):
     
     @staticmethod
     def generate_payment_number():
-        """Genera un número de pago único"""
+        """Genera un número de pago único (máx 20 caracteres)"""
         from datetime import datetime
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        random_suffix = str(uuid.uuid4().hex[:4]).upper()
+        timestamp = datetime.now().strftime('%y%m%d%H%M%S')
+        random_suffix = str(uuid.uuid4().hex[:3]).upper()
         return f'PAY-{timestamp}-{random_suffix}'
     
     def mark_as_completed(self):
@@ -697,10 +697,10 @@ class Refund(models.Model):
     
     @staticmethod
     def generate_refund_number():
-        """Genera un número de reembolso único"""
+        """Genera un número de reembolso único (máx 20 caracteres)"""
         from datetime import datetime
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        random_suffix = str(uuid.uuid4().hex[:4]).upper()
+        timestamp = datetime.now().strftime('%y%m%d%H%M%S')
+        random_suffix = str(uuid.uuid4().hex[:3]).upper()
         return f'REF-{timestamp}-{random_suffix}'
     
     def mark_as_completed(self):

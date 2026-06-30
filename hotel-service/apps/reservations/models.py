@@ -3,6 +3,7 @@ from apps.rooms.models import Room
 from apps.guests.models import Guest
 import string
 import random
+from decimal import Decimal
 
 def generate_reservation_code():
     chars = string.ascii_uppercase + string.digits
@@ -27,6 +28,11 @@ class Reservation(models.Model):
     planned_check_out = models.DateTimeField(null=True, blank=True, verbose_name="Fecha/Hora Salida Planeada")
     number_of_adults = models.PositiveIntegerField(default=1, verbose_name="Número de Adultos")
     number_of_children = models.PositiveIntegerField(default=0, verbose_name="Número de Niños")
+    children_over_2 = models.PositiveIntegerField(default=0, verbose_name="Niños mayores de 2 años")
+    children_under_2 = models.PositiveIntegerField(default=0, verbose_name="Niños menores de 2 años")
+    checked_in_by = models.CharField(max_length=150, null=True, blank=True, verbose_name="Check-in por")
+    checked_out_by = models.CharField(max_length=150, null=True, blank=True, verbose_name="Check-out por")
+    checkout_notes = models.TextField(blank=True, null=True, verbose_name="Notas de Check-out")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Monto Total")
     deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Monto Depósito")
     deposit_paid = models.BooleanField(default=False, verbose_name="¿Depósito Pagado?")
@@ -43,6 +49,26 @@ class Reservation(models.Model):
 
     def __str__(self):
         return f"Reserva #{self.id} - Hab {self.room.room_number} ({self.guest.name})"
+
+    @property
+    def price_per_night_calculated(self):
+        if not self.room or not self.room.room_type:
+            return Decimal('0.00')
+            
+        room_type = self.room.room_type
+        price_per_adult = Decimal(str(room_type.price_per_adult))
+        price_per_child = Decimal(str(room_type.price_per_child))
+        
+        # Exception rule: Matrimonial with exactly 1 adult and no children = $25.00
+        if (room_type.name.lower() == 'matrimonial' or 'matri' in room_type.name.lower()) and \
+           self.number_of_adults == 1 and \
+           ((self.children_over_2 or 0) + (self.children_under_2 or 0) == 0):
+            return Decimal('25.00')
+            
+        adults = Decimal(self.number_of_adults or 0)
+        children = Decimal(self.children_over_2 or 0)
+        
+        return (adults * price_per_adult) + (children * price_per_child)
 
     def save(self, *args, **kwargs):
         if not self.reservation_code:
@@ -65,6 +91,7 @@ class Payment(models.Model):
     ]
 
     reservation = models.ForeignKey(Reservation, on_delete=models.CASCADE, related_name="payments", verbose_name="Reservación")
+    shift = models.ForeignKey('reports.Shift', on_delete=models.PROTECT, null=True, blank=True, related_name="payments", verbose_name="Turno")
     amount = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Monto de Pago")
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash', verbose_name="Método de Pago")
     is_deposit = models.BooleanField(default=False, verbose_name="¿Es Depósito?")

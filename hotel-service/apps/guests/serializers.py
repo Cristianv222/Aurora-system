@@ -9,5 +9,6 @@ class GuestSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'identification_type', 'identification_type_display',
             'identification', 'name', 'email', 'phone', 'address',
+            'nationality', 'origin_city',
             'created_at', 'updated_at'
         ]
