@@ -16,7 +16,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    restart: always
     mem_limit: 2g
     cpus: '1.0'
 
@@ -31,8 +31,8 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
-    mem_limit: 128m
-    cpus: '0.5'
+    mem_limit: 512m
+    cpus: '1.0'
 
   auth-service:
     build: ./auth-service
@@ -54,7 +54,7 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_service_db
       - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000
       - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
       - DEBUG=False
     expose:
@@ -91,7 +91,7 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fast_food_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000/auth
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000
       - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
       - DEBUG=False
     expose:
@@ -110,6 +110,12 @@ services:
   restaurant-service:
     build: ./restaurant-service
     container_name: aurora_restaurant_service
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: >
       sh -c "
         echo 'Waiting for postgres...'
