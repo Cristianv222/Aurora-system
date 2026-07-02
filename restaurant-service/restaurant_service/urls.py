@@ -19,6 +19,7 @@ urlpatterns = [
     path('restaurant/api/hardware/', include('apps.printer.urls')),
     path('restaurant/api/customers/', include('apps.customers.urls')),
     path('restaurant/api/reports/', include('apps.reports.urls')),
+    path('restaurant/api/inventory/', include('apps.inventory.urls')),
 ]
 
 from django.conf import settings

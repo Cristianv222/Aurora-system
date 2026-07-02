@@ -205,6 +205,7 @@ class OrderViewSet(viewsets.ModelViewSet):
                 logger.error(f"[PAYMENT_DEBUG] ❌ Error creando pago parcial para orden {order.order_number}: {str(e)}")
                 logger.error(traceback.format_exc())
     
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         """Crea una nueva orden"""
         serializer = self.get_serializer(data=request.data)

@@ -5,6 +5,8 @@ import Categorias from './Categorias';
 import Extras from './Extras';
 import Combos from './Combos';
 import Tamanos from './Tamanos';
+import MateriaPrima from './MateriaPrima';
+import ReportesInventario from './ReportesInventario';
 import { getCleanImageUrl } from '../../utils/image';
 import { Product as BaseProduct, Category } from '../../types';
 
@@ -201,6 +203,8 @@ const Inventario: React.FC = () => {
         { key: 'combos', label: 'Combos', icon: 'bi-collection' },
         { key: 'extras', label: 'Extras', icon: 'bi-plus-circle' },
         { key: 'sizes', label: 'Tamaños', icon: 'bi-rulers' },
+        { key: 'raw_materials', label: 'Materia Prima', icon: 'bi-box' },
+        { key: 'reportes', label: 'Reportes', icon: 'bi-journal-text' },
     ];
 
     return (
@@ -235,6 +239,8 @@ const Inventario: React.FC = () => {
                 {activeTab === 'extras' && <Extras />}
                 {activeTab === 'combos' && <Combos />}
                 {activeTab === 'sizes' && <Tamanos />}
+                {activeTab === 'raw_materials' && <MateriaPrima />}
+                {activeTab === 'reportes' && <ReportesInventario />}
 
                 {/* Productos */}
                 {activeTab === 'products' && (

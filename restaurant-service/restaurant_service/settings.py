@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
+    'channels',
     # Apps del servicio
     'apps.menu',
     'apps.tables',
@@ -35,6 +36,7 @@ INSTALLED_APPS = [
     'apps.printer',
     'apps.customers',
     'apps.reports',
+    'apps.inventory',
 ]
 
 MIDDLEWARE = [
@@ -179,16 +181,28 @@ BASE_URL = os.getenv('BASE_URL', 'http://localhost:8005')
 HARDWARE_SERVICE_TOKEN = os.getenv('HARDWARE_SERVICE_TOKEN', '4ab1eb1da612019e57b1803e83185649564f12ae')
 
 # ============================================
-# CACHE
+# CACHE & CHANNELS (WEBSOCKETS)
 # ============================================
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
         'LOCATION': os.getenv('REDIS_URL', 'redis://redis:6379/1'),
+        'TIMEOUT': 300, # 5 minutos para evitar saturación de Redis
     } if not DEBUG else {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'unique-snowflake',
     }
+}
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [os.getenv('REDIS_URL', 'redis://redis:6379/2')],
+            "capacity": 1500,
+            "expiry": 60, # Los mensajes en el canal expiran muy rápido (60s) para evitar saturar memoria
+        },
+    },
 }
 
 # ============================================

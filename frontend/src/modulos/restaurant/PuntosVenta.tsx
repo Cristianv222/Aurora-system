@@ -17,6 +17,7 @@ interface CartItem {
     image?: string;
     note: string;
     is_paid?: boolean;
+    saved_quantity?: number;
 }
 
 interface SentItemRound {
@@ -70,6 +71,8 @@ const PuntosVenta: React.FC = () => {
     const [products, setProducts] = useState<Product[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
     const [tables, setTables] = useState<Table[]>([]);
+    const [rawMaterials, setRawMaterials] = useState<any[]>([]);
+    const [dailyInventory, setDailyInventory] = useState<any[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [processingOrder, setProcessingOrder] = useState<boolean>(false);
     const [screenWidth, setScreenWidth] = useState<number>(window.innerWidth);
@@ -130,27 +133,23 @@ const PuntosVenta: React.FC = () => {
 
         const fetchData = async () => {
             const fetchProducts = async () => {
-                const cached = localStorage.getItem('restaurant_products');
-                if (cached) {
-                    if (isMounted) setProducts(JSON.parse(cached));
-                    return;
+                try {
+                    const res = await api.get('/api/restaurant/menu/products/');
+                    const data = res.data.results || res.data || [];
+                    if (isMounted) setProducts(data);
+                } catch (error) {
+                    console.error('Error fetching products:', error);
                 }
-                const res = await api.get('/api/restaurant/menu/products/');
-                const data = res.data.results || res.data || [];
-                localStorage.setItem('restaurant_products', JSON.stringify(data));
-                if (isMounted) setProducts(data);
             };
 
             const fetchCategories = async () => {
-                const cached = localStorage.getItem('restaurant_categories');
-                if (cached) {
-                    if (isMounted) setCategories(JSON.parse(cached));
-                    return;
+                try {
+                    const res = await api.get('/api/restaurant/menu/categories/');
+                    const data = res.data.results || res.data || [];
+                    if (isMounted) setCategories(data);
+                } catch (error) {
+                    console.error('Error fetching categories:', error);
                 }
-                const res = await api.get('/api/restaurant/menu/categories/');
-                const data = res.data.results || res.data || [];
-                localStorage.setItem('restaurant_categories', JSON.stringify(data));
-                if (isMounted) setCategories(data);
             };
 
             const fetchTables = async () => {
@@ -189,10 +188,26 @@ const PuntosVenta: React.FC = () => {
                 }
             };
 
+            const fetchInventory = async () => {
+                try {
+                    const [rmRes, diRes] = await Promise.all([
+                        api.get('/api/restaurant/inventory/raw-materials/'),
+                        api.get('/api/restaurant/inventory/daily-inventory/')
+                    ]);
+                    if (isMounted) {
+                        setRawMaterials(rmRes.data.results || rmRes.data || []);
+                        setDailyInventory(diRes.data.results || diRes.data || []);
+                    }
+                } catch (err) {
+                    console.warn('Error cargando inventario', err);
+                }
+            };
+
             const pReady = fetchProducts().catch(err => console.error('Error cargando productos:', err));
             const cReady = fetchCategories().catch(err => console.error('Error cargando categorías:', err));
+            const iReady = fetchInventory();
 
-            await Promise.all([pReady, cReady]);
+            await Promise.all([pReady, cReady, iReady]);
 
             if (isMounted) {
                 setLoading(false);
@@ -212,6 +227,61 @@ const PuntosVenta: React.FC = () => {
 
         return () => {
             isMounted = false;
+        };
+    }, []);
+
+    // =====================================
+    // 4.5 WEBSOCKET PARA INVENTARIO EN TIEMPO REAL
+    // =====================================
+    useEffect(() => {
+        let ws: WebSocket;
+        let isMounted = true;
+
+        const connectWebSocket = () => {
+            let wsUrl = import.meta.env.VITE_RESTAURANT_SERVICE || window.location.origin;
+            wsUrl = wsUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+            // Si la URL termina en un path base, extraemos el dominio
+            try {
+                const urlObj = new URL(wsUrl);
+                wsUrl = `${urlObj.protocol}//${urlObj.host}`;
+            } catch (e) {}
+            
+            ws = new WebSocket(`${wsUrl}/ws/inventory/`);
+            
+            ws.onopen = () => {
+                console.log('✅ Conectado al WebSocket de Inventario');
+            };
+
+            ws.onmessage = async (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'inventory_update' && isMounted) {
+                        console.log('🔄 Actualización de inventario recibida (Tiempo Real)');
+                        const [rmRes, diRes] = await Promise.all([
+                            api.get('/api/restaurant/inventory/raw-materials/'),
+                            api.get('/api/restaurant/inventory/daily-inventory/')
+                        ]);
+                        setRawMaterials(rmRes.data.results || rmRes.data || []);
+                        setDailyInventory(diRes.data.results || diRes.data || []);
+                    }
+                } catch (err) {
+                    console.error('Error procesando mensaje WS', err);
+                }
+            };
+
+            ws.onclose = () => {
+                console.warn('⚠️ WebSocket desconectado. Reconectando en 5s...');
+                if (isMounted) {
+                    setTimeout(connectWebSocket, 5000);
+                }
+            };
+        };
+
+        connectWebSocket();
+
+        return () => {
+            isMounted = false;
+            if (ws) ws.close();
         };
     }, []);
 
@@ -252,7 +322,8 @@ const PuntosVenta: React.FC = () => {
                                 price: parseFloat(item.unit_price),
                                 quantity: item.quantity,
                                 note: item.notes || '',
-                                is_paid: item.is_paid || false
+                                is_paid: item.is_paid || false,
+                                saved_quantity: item.quantity
                             })));
                         }
                     }
@@ -291,8 +362,46 @@ const PuntosVenta: React.FC = () => {
     // =====================================
     // 5. LÓGICA DEL CARRITO
     // =====================================
+    const checkInventoryBeforeAdd = (product_id: string, delta: number, currentCart: CartItem[]) => {
+        const usages = rawMaterials.reduce((acc: any[], rm) => {
+            const recipeItems = rm.recipe_items || [];
+            const item = recipeItems.find((r: any) => r.product === product_id);
+            if (item) {
+                acc.push({ rm_id: rm.id, rm_name: rm.name, qty_used: parseFloat(item.quantity_used) });
+            }
+            return acc;
+        }, []);
+
+        if (usages.length === 0) return true;
+
+        for (const usage of usages) {
+            const daily = dailyInventory.find(d => d.raw_material === usage.rm_id);
+            const rm = rawMaterials.find(r => r.id === usage.rm_id);
+            const currentStock = daily ? parseFloat(daily.current_balance) : parseFloat(rm?.stock || '0');
+
+            let pendingConsumption = 0;
+            currentCart.forEach(cartItem => {
+                const pendingQty = cartItem.quantity - (cartItem.saved_quantity || 0);
+                if (pendingQty > 0) {
+                    const r = rawMaterials.find(rmat => rmat.id === usage.rm_id);
+                    const usageInCartItem = (r?.recipe_items || []).find((ri: any) => ri.product === cartItem.product_id);
+                    if (usageInCartItem) {
+                        pendingConsumption += parseFloat(usageInCartItem.quantity_used) * pendingQty;
+                    }
+                }
+            });
+
+            if (pendingConsumption + (usage.qty_used * delta) > currentStock) {
+                alert(`No hay suficiente inventario de ${usage.rm_name}. Stock disponible: ${currentStock}`);
+                return false;
+            }
+        }
+        return true;
+    };
+
     const addToCart = useCallback((product: Product) => {
         setCart(prevCart => {
+            if (!checkInventoryBeforeAdd(product.id, 1, prevCart)) return prevCart;
             const existingItemIndex = prevCart.findIndex(item => item.product_id === product.id && !item.is_paid);
             if (existingItemIndex >= 0) {
                 const newCart = [...prevCart];
@@ -312,7 +421,7 @@ const PuntosVenta: React.FC = () => {
                 }];
             }
         });
-    }, []);
+    }, [rawMaterials, dailyInventory]);
 
     const removeFromCart = useCallback((productId: string) => {
         setCart(prevCart => prevCart.filter(item => {
@@ -323,6 +432,7 @@ const PuntosVenta: React.FC = () => {
 
     const updateQuantity = useCallback((productId: string, delta: number) => {
         setCart(prevCart => {
+            if (delta > 0 && !checkInventoryBeforeAdd(productId, delta, prevCart)) return prevCart;
             return prevCart.map(item => {
                 if (item.product_id === productId && !item.is_paid) {
                     const newQuantity = Math.max(1, item.quantity + delta);
@@ -331,7 +441,7 @@ const PuntosVenta: React.FC = () => {
                 return item;
             });
         });
-    }, []);
+    }, [rawMaterials, dailyInventory]);
 
     const handleAddNote = (productId: string) => {
         const item = cart.find(item => item.product_id === productId);
