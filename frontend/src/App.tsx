@@ -1,4 +1,5 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
+import Modal from './comun/Modal';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import Login from './modulos/login/Login';
@@ -103,6 +104,62 @@ const Dashboard: React.FC = () => (
     <p>Seleccione una opción del menú lateral para comenzar.</p>
   </div>
 );
+
+function AppContent(): JSX.Element {
+  const context = useContext(AuthContext);
+  const [showNotice, setShowNotice] = useState(false);
+
+  useEffect(() => {
+    if (context?.user && !sessionStorage.getItem('aurora_notice_seen')) {
+      setShowNotice(true);
+    }
+  }, [context?.user]);
+
+  const handleCloseNotice = () => {
+    sessionStorage.setItem('aurora_notice_seen', '1');
+    setShowNotice(false);
+  };
+
+  return (
+    <Modal isOpen={showNotice} onClose={handleCloseNotice} title="Novedades del Sistema">
+      <div className="space-y-4 text-sm text-slate-700">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <i className="bi bi-exclamation-triangle-fill text-amber-500 text-lg mt-0.5 shrink-0"></i>
+            <div>
+              <p className="font-bold text-amber-800 mb-1">Posibles intermitencias</p>
+              <p className="text-amber-700 text-xs leading-relaxed">El sistema puede presentar comportamientos inesperados o lentitud ocasional durante los proximos dias. Si experimenta algun problema, por favor cierre sesion, vuelva a ingresar e intente de nuevo.</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <i className="bi bi-building-fill text-blue-500 text-lg mt-0.5 shrink-0"></i>
+            <div>
+              <p className="font-bold text-blue-800 mb-1">Nuevo modulo — Hotel Aurora</p>
+              <p className="text-blue-700 text-xs leading-relaxed">Se ha incorporado el modulo de gestion hotelera con reservas, habitaciones y turnos de caja. Al ser una funcionalidad nueva, puede requerir ajustes adicionales.</p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <i className="bi bi-headset text-slate-500 text-lg mt-0.5 shrink-0"></i>
+            <div>
+              <p className="font-bold text-slate-700 mb-1">Tiene algun problema?</p>
+              <p className="text-slate-600 text-xs leading-relaxed">Comuniquese con soporte tecnico de FronteraTech. Estamos disponibles para ayudarle.</p>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={handleCloseNotice}
+          className="w-full py-2.5 bg-slate-900 hover:bg-slate-700 text-white font-semibold text-sm rounded-xl transition-colors"
+        >
+          Entendido
+        </button>
+      </div>
+    </Modal>
+  );
+}
 
 function App(): JSX.Element {
   return (
@@ -230,6 +287,7 @@ function App(): JSX.Element {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>
+      <AppContent />
     </AuthProvider>
   );
 }

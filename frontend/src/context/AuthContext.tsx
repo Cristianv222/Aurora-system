@@ -67,6 +67,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('refresh_token');
+    sessionStorage.removeItem('aurora_notice_seen');
     setUser(null);
   };
 
