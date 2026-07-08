@@ -558,7 +558,7 @@ const Reportes: React.FC = () => {
                                 <div className="flex gap-2">
                                     <button
                                         onClick={() => generateHotelShiftPDF(selectedShift)}
-                                        className="flex-1 bg-indigo-650 hover:bg-indigo-750 text-white font-bold py-2.5 rounded-xl text-center shadow-md transition flex justify-center items-center gap-1.5"
+                                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-center shadow-md transition flex justify-center items-center gap-1.5"
                                     >
                                         <i className="bi bi-file-earmark-pdf-fill"></i> Descargar Reporte PDF
                                     </button>

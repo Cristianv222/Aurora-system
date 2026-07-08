@@ -51,10 +51,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
         number_of_children = children_over_2 + children_under_2
         deposit_amount = Decimal(request.data.get('deposit_amount', 0.0))
         payment_method = request.data.get('payment_method', 'cash')
+        price_per_night = request.data.get('price_per_night')
         notes = request.data.get('notes', '')
 
-        if not room_id or not check_in_date or not planned_check_out:
-            return Response({'error': 'Habitación, check_in_date y planned_check_out son requeridos.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not room_id or not check_in_date:
+            return Response({'error': 'Habitación y check_in_date son requeridos.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             room = Room.objects.get(id=room_id)
@@ -101,6 +102,7 @@ class ReservationViewSet(viewsets.ModelViewSet):
             'children_under_2': children_under_2,
             'deposit_amount': deposit_amount,
             'deposit_paid': deposit_amount > 0,
+            'price_per_night': price_per_night,
             'notes': notes,
             'status': 'reserved'
         }
@@ -139,6 +141,13 @@ class ReservationViewSet(viewsets.ModelViewSet):
         Registra una reserva / Check-in para una habitación disponible.
         O si se proporciona un reservation_id, realiza el check-in de una reserva ya existente.
         """
+        user_id = getattr(request, 'user_id', None)
+        if not user_id:
+            return Response({'error': 'No se detectó un usuario autenticado.'}, status=status.HTTP_401_UNAUTHORIZED)
+        active_shift = Shift.objects.filter(user_id=user_id, status='open').first()
+        if not active_shift:
+            return Response({'error': 'Debe abrir un turno de caja para poder registrar el ingreso (check-in) y recibir pagos.'}, status=status.HTTP_400_BAD_REQUEST)
+
         reservation_id = request.data.get('reservation_id')
         check_in_date = request.data.get('check_in_date')
         
@@ -155,16 +164,50 @@ class ReservationViewSet(viewsets.ModelViewSet):
             if room.status != 'available':
                 return Response({'error': f'La habitación {room.room_number} no está disponible (Estado actual: {room.get_status_display()}).'}, status=status.HTTP_400_BAD_REQUEST)
 
+            payment_method = request.data.get('payment_method', 'cash')
+            price_per_night = request.data.get('price_per_night')
+
             res.status = 'active'
             if check_in_date:
                 res.check_in_date = check_in_date
             else:
                 res.check_in_date = timezone.now()
-            res.checked_in_by = getattr(request, 'username', 'Sistema')
-            res.save()
+            res.checked_in_by = active_shift.user_name
+            if price_per_night is not None:
+                res.price_per_night = Decimal(str(price_per_night))
+            
+            # Calcular noches y monto total
+            check_in_dt = res.check_in_date
+            planned_out = res.planned_check_out
+            nights = 1
+            if check_in_dt and planned_out:
+                in_local = timezone.localtime(check_in_dt).date()
+                out_local = timezone.localtime(planned_out).date()
+                nights = (out_local - in_local).days
+                if nights <= 0:
+                    nights = 1
+            
+            total_amount = Decimal(nights) * res.price_per_night_calculated
+            remaining_amount = total_amount - res.deposit_amount
+            if remaining_amount < 0:
+                remaining_amount = Decimal('0.0')
 
-            room.status = 'occupied'
-            room.save()
+            with transaction.atomic():
+                res.total_amount = total_amount
+                res.save()
+
+                if remaining_amount > 0:
+                    Payment.objects.create(
+                        reservation=res,
+                        shift=active_shift,
+                        amount=remaining_amount,
+                        payment_method=payment_method,
+                        is_deposit=False,
+                        sri_status='DRAFT'
+                    )
+
+                room.status = 'occupied'
+                room.save()
             return Response(ReservationSerializer(res).data, status=status.HTTP_200_OK)
 
         room_id = request.data.get('room')
@@ -175,11 +218,11 @@ class ReservationViewSet(viewsets.ModelViewSet):
         number_of_children = children_over_2 + children_under_2
         planned_check_out = request.data.get('planned_check_out')
         notes = request.data.get('notes', '')
+        payment_method = request.data.get('payment_method', 'cash')
+        price_per_night = request.data.get('price_per_night')
 
         if not room_id:
             return Response({'error': 'Habitación es requerida.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not planned_check_out:
-            return Response({'error': 'Fecha/Hora Salida Planeada es requerida para el check-in.'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             room = Room.objects.get(id=room_id)
@@ -222,22 +265,50 @@ class ReservationViewSet(viewsets.ModelViewSet):
             'room': room.id,
             'guest': guest.id,
             'check_in_date': check_in_date if check_in_date else timezone.now(),
-            'planned_check_out': planned_check_out,
+            'planned_check_out': planned_check_out if planned_check_out else None,
             'number_of_adults': number_of_adults,
             'number_of_children': number_of_children,
             'children_over_2': children_over_2,
             'children_under_2': children_under_2,
-            'checked_in_by': getattr(request, 'username', 'Sistema'),
+            'checked_in_by': active_shift.user_name,
+            'price_per_night': price_per_night,
             'notes': notes,
             'status': 'active'
         }
         
         serializer = self.get_serializer(data=reservation_data)
         if serializer.is_valid():
-            res = serializer.save()
-            room.status = 'occupied'
-            room.save()
-            return Response(ReservationSerializer(res).data, status=status.HTTP_201_CREATED)
+            with transaction.atomic():
+                res = serializer.save()
+                
+                # Calcular noches y costo total
+                check_in_dt = res.check_in_date
+                planned_out = res.planned_check_out
+                nights = 1
+                if check_in_dt and planned_out:
+                    in_local = timezone.localtime(check_in_dt).date()
+                    out_local = timezone.localtime(planned_out).date()
+                    nights = (out_local - in_local).days
+                    if nights <= 0:
+                        nights = 1
+                
+                total_amount = Decimal(nights) * res.price_per_night_calculated
+                res.total_amount = total_amount
+                res.save()
+
+                # Crear Pago
+                Payment.objects.create(
+                    reservation=res,
+                    shift=active_shift,
+                    amount=total_amount,
+                    payment_method=payment_method,
+                    is_deposit=False,
+                    sri_status='DRAFT'
+                )
+
+                room.status = 'occupied'
+                room.save()
+                return Response(ReservationSerializer(res).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], url_path='check-out')
@@ -284,34 +355,57 @@ class ReservationViewSet(viewsets.ModelViewSet):
         if nights <= 0:
             nights = 1  # Cobrar mínimo 1 noche
         
-        total_amount = Decimal(nights) * reservation.price_per_night_calculated
+        total_amount_override = request.data.get('total_amount')
+        if total_amount_override is not None and total_amount_override != '':
+            try:
+                total_amount = Decimal(str(total_amount_override))
+            except Exception as e:
+                logger.error(f"Error parsing total_amount override: {e}")
+                total_amount = Decimal(nights) * reservation.price_per_night_calculated
+        else:
+            total_amount = Decimal(nights) * reservation.price_per_night_calculated
         
-        remaining_amount = total_amount - reservation.deposit_amount
-        if remaining_amount < 0:
-            remaining_amount = Decimal('0.0')
-
         with transaction.atomic():
-            reservation.total_amount = total_amount
             reservation.check_out_date = check_out
-            reservation.checked_out_by = getattr(request, 'username', 'Sistema')
+            reservation.checked_out_by = active_shift.user_name
             reservation.checkout_notes = checkout_notes
             reservation.status = 'checked_out'
+            
+            # Calculate difference based on all payments (check-in + deposits)
+            paid_amount = sum(p.amount for p in reservation.payments.all())
+            if paid_amount == 0 and reservation.deposit_amount > 0:
+                paid_amount = reservation.deposit_amount
+            difference = total_amount - paid_amount
+            
+            reservation.total_amount = total_amount
             reservation.save()
+
+            if difference != 0:
+                # Create a payment (positive for charge, negative for refund)
+                payment = Payment.objects.create(
+                    reservation=reservation,
+                    shift=active_shift,
+                    amount=difference,
+                    payment_method=payment_method,
+                    is_deposit=False,
+                    sri_status='DRAFT'
+                )
+            else:
+                payment = Payment.objects.filter(reservation=reservation, is_deposit=False).first()
+                if not payment:
+                    payment = Payment.objects.create(
+                        reservation=reservation,
+                        shift=active_shift,
+                        amount=Decimal('0.0'),
+                        payment_method=payment_method,
+                        is_deposit=False,
+                        sri_status='DRAFT'
+                    )
 
             # Cambiar estado de la habitación a limpieza
             room = reservation.room
             room.status = 'cleaning'
             room.save()
-
-            # Registrar Pago
-            payment = Payment.objects.create(
-                reservation=reservation,
-                shift=active_shift,
-                amount=remaining_amount,
-                payment_method=payment_method,
-                is_deposit=False,
-                sri_status='DRAFT'
-            )
 
         # Si requiere facturación electrónica SRI
         if process_sri:

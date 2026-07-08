@@ -24,6 +24,8 @@ class ReservationSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     nights_count = serializers.SerializerMethodField()
     total_estimated = serializers.SerializerMethodField()
+    checked_in_by = serializers.SerializerMethodField()
+    checked_out_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Reservation
@@ -31,11 +33,24 @@ class ReservationSerializer(serializers.ModelSerializer):
             'id', 'room', 'room_details', 'guest', 'guest_details', 
             'check_in_date', 'check_out_date', 'planned_check_out',
             'number_of_adults', 'number_of_children', 'children_over_2', 'children_under_2',
-            'checked_in_by', 'checked_out_by', 'checkout_notes', 'total_amount', 
+            'checked_in_by', 'checked_out_by', 'checkout_notes', 'price_per_night', 'total_amount', 
             'deposit_amount', 'deposit_paid', 'reservation_code', 'notes',
             'status', 'status_display', 'payments', 'nights_count', 'total_estimated',
             'created_at', 'updated_at'
         ]
+
+    def get_checked_in_by(self, obj):
+        payment = obj.payments.filter(is_deposit=False).first()
+        if payment and payment.shift:
+            return payment.shift.user_name
+        return obj.checked_in_by or 'Sistema'
+
+    def get_checked_out_by(self, obj):
+        if obj.status == 'checked_out':
+            payment = obj.payments.filter(is_deposit=False).last()
+            if payment and payment.shift:
+                return payment.shift.user_name
+        return obj.checked_out_by or 'Sistema'
 
     def get_nights_count(self, obj):
         check_in = obj.check_in_date

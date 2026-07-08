@@ -33,6 +33,7 @@ class Reservation(models.Model):
     checked_in_by = models.CharField(max_length=150, null=True, blank=True, verbose_name="Check-in por")
     checked_out_by = models.CharField(max_length=150, null=True, blank=True, verbose_name="Check-out por")
     checkout_notes = models.TextField(blank=True, null=True, verbose_name="Notas de Check-out")
+    price_per_night = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, verbose_name="Precio por Noche (Manual)")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Monto Total")
     deposit_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.0, verbose_name="Monto Depósito")
     deposit_paid = models.BooleanField(default=False, verbose_name="¿Depósito Pagado?")
@@ -52,6 +53,9 @@ class Reservation(models.Model):
 
     @property
     def price_per_night_calculated(self):
+        if self.price_per_night is not None:
+            return self.price_per_night
+            
         if not self.room or not self.room.room_type:
             return Decimal('0.00')
             

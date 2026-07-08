@@ -3,6 +3,7 @@ import { showToast } from '../../utils/toast';
 import '../../App.css';
 import ShiftManager from './ShiftManager';
 import Reportes from './Reportes';
+import { CustomDatePicker, CustomTimePicker } from '../../components/CustomDateTimePicker';
 
 const toast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     const mappedType = (type === 'warning' ? 'info' : type) as 'success' | 'error' | 'info';
@@ -110,6 +111,7 @@ const PanelHotel: React.FC = () => {
 
     const [activeViewTab, setActiveViewTab] = useState<'croquis' | 'reservas' | 'calendario' | 'turnos' | 'reportes'>('croquis');
     const [isShiftActive, setIsShiftActive] = useState<boolean>(true);
+    const [activeShift, setActiveShift] = useState<any>(null);
     const [floors, setFloors] = useState<Floor[]>([]);
     const [rooms, setRooms] = useState<Room[]>([]);
     const [activeFloorTab, setActiveFloorTab] = useState<number | null>(null);
@@ -126,6 +128,9 @@ const PanelHotel: React.FC = () => {
     const [calendarRoomTypeFilter, setCalendarRoomTypeFilter] = useState<string>('all');
     const [calendarRoomSearch, setCalendarRoomSearch] = useState<string>('');
     const [calendarGuestSearch, setCalendarGuestSearch] = useState<string>('');
+    const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+    const [showDayReservationsModal, setShowDayReservationsModal] = useState<boolean>(false);
+    const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date | null>(null);
 
     // Modals control
     const [showConfigModal, setShowConfigModal] = useState<boolean>(false);
@@ -184,13 +189,20 @@ const PanelHotel: React.FC = () => {
     const [checkInDateOverride, setCheckInDateOverride] = useState<string>('');
     const [checkInTimeOverride, setCheckInTimeOverride] = useState<string>('');
     const [plannedCheckOutDate, setPlannedCheckOutDate] = useState<string>('');
+    const [checkInPaymentMethod, setCheckInPaymentMethod] = useState<string>('cash');
+    const [pricePerNightOverride, setPricePerNightOverride] = useState<number | string>('');
     const [reservationCheckInDate, setReservationCheckInDate] = useState<string>('');
     const [depositAmount, setDepositAmount] = useState<number | string>(0);
     const [depositPaymentMethod, setDepositPaymentMethod] = useState<string>('cash');
     const [notes, setNotes] = useState<string>('');
+    const [showCheckInConfirm, setShowCheckInConfirm] = useState<boolean>(false);
 
     // Form inputs: Check-Out
     const [paymentMethod, setPaymentMethod] = useState<string>('cash');
+    const [checkoutTotalOverride, setCheckoutTotalOverride] = useState<string>('');
+    const [showRefundSection, setShowRefundSection] = useState<boolean>(false);
+    const [refundAmount, setRefundAmount] = useState<string>('');
+    const [refundReason, setRefundReason] = useState<string>('');
     const [processSRI, setProcessSRI] = useState<boolean>(false);
     const [billingIdentType, setBillingIdentType] = useState<string>('05');
     const [billingIdent, setBillingIdent] = useState<string>('');
@@ -279,6 +291,7 @@ const PanelHotel: React.FC = () => {
             if (shiftRes.ok) {
                 const shiftJson = await shiftRes.json();
                 setIsShiftActive(!!(shiftJson && shiftJson.shift));
+                setActiveShift(shiftJson?.shift || null);
             }
         } catch (error) {
             console.error(error);
@@ -292,6 +305,22 @@ const PanelHotel: React.FC = () => {
         loadHotelData();
         loadSRIConfig();
     }, []);
+
+    useEffect(() => {
+        if (selectedRoom) {
+            const typeObj = roomTypes.find(t => t.id === selectedRoom.room_type);
+            const pricePerAdult = typeObj ? Number(typeObj.price_per_adult) : 15.00;
+            const pricePerChild = typeObj ? Number(typeObj.price_per_child) : 8.00;
+            
+            let calcPrice = (checkInAdults * pricePerAdult) + (childrenOver2 * pricePerChild);
+            if (typeObj && (typeObj.name.toLowerCase() === 'matrimonial' || typeObj.name.toLowerCase().includes('matri')) && checkInAdults === 1 && childrenOver2 === 0) {
+                calcPrice = 25.00;
+            }
+            setPricePerNightOverride(calcPrice);
+        } else {
+            setPricePerNightOverride('');
+        }
+    }, [selectedRoom, checkInAdults, childrenOver2, roomTypes]);
 
     // Load SRI Config
     const loadSRIConfig = async () => {
@@ -580,9 +609,14 @@ const PanelHotel: React.FC = () => {
         }
     };
 
-    // Handle Check-in Action
-    const handleCheckIn = async (e: React.FormEvent) => {
+    // Intercept Check-In and show Confirmation Dialog
+    const handleCheckIn = (e: React.FormEvent) => {
         e.preventDefault();
+        setShowCheckInConfirm(true);
+    };
+
+    // Actual Check-in submit
+    const submitCheckIn = async () => {
         if (!selectedRoom) return;
         try {
             const headers = {
@@ -590,7 +624,7 @@ const PanelHotel: React.FC = () => {
                 'Content-Type': 'application/json'
             };
             
-            const checkOutDateTime = `${plannedCheckOutDate}T${hotelSettings.default_checkout_time}:00`;
+            const checkOutDateTime = plannedCheckOutDate ? `${plannedCheckOutDate}T${hotelSettings.default_checkout_time}:00` : null;
             const checkInDateTime = `${checkInDateOverride}T${checkInTimeOverride}:00`;
 
             const payload = {
@@ -602,6 +636,8 @@ const PanelHotel: React.FC = () => {
                 check_in_date: checkInDateTime,
                 planned_check_out: checkOutDateTime,
                 notes: notes,
+                payment_method: checkInPaymentMethod,
+                price_per_night: pricePerNightOverride ? Number(pricePerNightOverride) : null,
                 guest_data: {
                     identification_type: guestIdentType,
                     identification: guestIdent,
@@ -623,6 +659,7 @@ const PanelHotel: React.FC = () => {
             if (res.ok) {
                 toast('Check-in registrado con éxito', 'success');
                 setShowCheckInModal(false);
+                setShowCheckInConfirm(false);
                 clearForms();
                 loadHotelData();
             } else {
@@ -630,6 +667,7 @@ const PanelHotel: React.FC = () => {
                 toast(data.error || data.non_field_errors?.[0] || 'Error al registrar check-in', 'error');
             }
         } catch (err) {
+            console.error("Error submitting check-in:", err);
             toast('Fallo en la conexión', 'error');
         }
     };
@@ -637,6 +675,17 @@ const PanelHotel: React.FC = () => {
     // Handle Check-in of a Reserved Booking
     const handleCheckInReserved = async (resId: number) => {
         try {
+            const paymentMethodInput = window.prompt("Ingrese el método de pago para el ingreso (cash: Efectivo, card: Tarjeta, transfer: Transferencia):", "cash");
+            if (paymentMethodInput === null) return;
+            const cleanPM = paymentMethodInput.trim().toLowerCase();
+            const pMethod = ['cash', 'card', 'transfer'].includes(cleanPM) ? cleanPM : 'cash';
+
+            const priceInput = window.prompt("Precio por noche para esta estadía (Deje en blanco para mantener la tarifa actual):", "");
+            const payload: any = { reservation_id: resId, payment_method: pMethod };
+            if (priceInput && !isNaN(Number(priceInput))) {
+                payload.price_per_night = Number(priceInput);
+            }
+
             const headers = {
                 'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
                 'Content-Type': 'application/json'
@@ -644,7 +693,7 @@ const PanelHotel: React.FC = () => {
             const res = await fetch(`${API_BASE}/api/reservations/check-in/`, {
                 method: 'POST',
                 headers,
-                body: JSON.stringify({ reservation_id: resId })
+                body: JSON.stringify(payload)
             });
             if (res.ok) {
                 toast('Check-in realizado con éxito', 'success');
@@ -669,7 +718,7 @@ const PanelHotel: React.FC = () => {
             };
 
             const checkInDateTime = `${reservationCheckInDate}T${hotelSettings.default_checkin_time}:00`;
-            const checkOutDateTime = `${plannedCheckOutDate}T${hotelSettings.default_checkout_time}:00`;
+            const checkOutDateTime = plannedCheckOutDate ? `${plannedCheckOutDate}T${hotelSettings.default_checkout_time}:00` : null;
 
             const payload = {
                 room: selectedRoom.id,
@@ -681,6 +730,7 @@ const PanelHotel: React.FC = () => {
                 children_under_2: childrenUnder2,
                 deposit_amount: depositAmount === '' ? 0 : Number(depositAmount),
                 payment_method: depositPaymentMethod,
+                price_per_night: pricePerNightOverride ? Number(pricePerNightOverride) : null,
                 notes: notes,
                 guest_data: {
                     identification_type: guestIdentType,
@@ -735,7 +785,13 @@ const PanelHotel: React.FC = () => {
         setReservationCheckInDate('');
         setDepositAmount(0);
         setDepositPaymentMethod('cash');
+        setCheckInPaymentMethod('cash');
         setNotes('');
+        setShowCheckInConfirm(false);
+        setCheckoutTotalOverride('');
+        setShowRefundSection(false);
+        setRefundAmount('');
+        setRefundReason('');
     };
 
     // Action Room Click
@@ -778,6 +834,13 @@ const PanelHotel: React.FC = () => {
                         setBillingEmail(activeRes.guest_details.email || '');
                         setBillingPhone(activeRes.guest_details.phone || '');
                         setBillingAddress(activeRes.guest_details.address || '');
+
+                        const mainPayment = activeRes.payments?.find((p: any) => !p.is_deposit);
+                        if (mainPayment) {
+                            setPaymentMethod(mainPayment.payment_method);
+                        } else {
+                            setPaymentMethod('cash');
+                        }
 
                         setShowCheckOutModal(true);
                     } else {
@@ -916,6 +979,7 @@ const PanelHotel: React.FC = () => {
                 process_sri: processSRI,
                 check_out_date: checkOutDateTime,
                 checkout_notes: checkoutNotes,
+                total_amount: checkoutTotalOverride,
                 billing_data: processSRI ? {
                     identification_type: billingIdentType,
                     identification: billingIdent,
@@ -1063,11 +1127,13 @@ const PanelHotel: React.FC = () => {
         const totalChildren = resChildrenOver2 + resChildrenUnder2;
         const adults = activeReservation.number_of_adults || 1;
         
-        let pricePerNight = 0;
-        if (typeObj && (typeObj.name.toLowerCase() === 'matrimonial' || typeObj.name.toLowerCase().includes('matri')) && adults === 1 && totalChildren === 0) {
-            pricePerNight = 25.00;
-        } else {
-            pricePerNight = (adults * pricePerAdult) + (resChildrenOver2 * pricePerChild);
+        let pricePerNight = activeReservation.price_per_night ? Number(activeReservation.price_per_night) : 0;
+        if (pricePerNight === 0) {
+            if (typeObj && (typeObj.name.toLowerCase() === 'matrimonial' || typeObj.name.toLowerCase().includes('matri')) && adults === 1 && totalChildren === 0) {
+                pricePerNight = 25.00;
+            } else {
+                pricePerNight = (adults * pricePerAdult) + (resChildrenOver2 * pricePerChild);
+            }
         }
         
         const total = pricePerNight * nights;
@@ -1237,7 +1303,7 @@ const PanelHotel: React.FC = () => {
                         activeViewTab === 'reservas' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                 >
-                    <i className="bi bi-calendar3-event-fill mr-1.5"></i> Gestión de Reservaciones
+                    <i className="bi bi-calendar3-event-fill mr-1.5"></i> Ocupación de Habitaciones
                 </button>
                  <button
                     onClick={() => setActiveViewTab('calendario')}
@@ -1245,7 +1311,7 @@ const PanelHotel: React.FC = () => {
                         activeViewTab === 'calendario' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                 >
-                    <i className="bi bi-calendar-range-fill mr-1.5"></i> Calendario de Ocupación
+                    <i className="bi bi-calendar-range-fill mr-1.5"></i> Calendario de Reservas
                 </button>
                 <button
                     onClick={() => setActiveViewTab('turnos')}
@@ -1253,7 +1319,7 @@ const PanelHotel: React.FC = () => {
                         activeViewTab === 'turnos' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700'
                     }`}
                 >
-                    <i className="bi bi-wallet2 mr-1.5"></i> Turnos de Caja
+                    <i className="bi bi-wallet2 mr-1.5"></i> Turnos de Recepcionistas
                 </button>
                 <button
                     onClick={() => setActiveViewTab('reportes')}
@@ -1516,138 +1582,296 @@ const PanelHotel: React.FC = () => {
                 </div>
             )}
 
-            {activeViewTab === 'calendario' && (
-                <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                        <div>
-                            <h3 className="text-lg font-bold text-slate-900">Calendario Visual de Reservas</h3>
-                            <p className="text-xs text-slate-500">Muestra la ocupación diaria detallada de las habitaciones.</p>
-                        </div>
-                        <div className="flex gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-full sm:w-auto justify-between">
-                            <button onClick={() => changeCalendarWeek(-1)} className="hover:bg-white text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition"><i className="bi bi-chevron-left"></i> Anterior</button>
-                            <span className="font-bold px-4 py-1.5 text-xs text-slate-800 flex items-center">
-                                {calendarStart.toLocaleDateString('es-ES', { month: 'short', day: 'numeric' })} — {new Date(new Date(calendarStart).setDate(calendarStart.getDate() + 6)).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', year: 'numeric' })}
-                            </span>
-                            <button onClick={() => changeCalendarWeek(1)} className="hover:bg-white text-slate-700 font-bold px-3 py-1.5 rounded-lg text-xs transition">Siguiente <i className="bi bi-chevron-right"></i></button>
-                        </div>
-                    </div>
+            {activeViewTab === 'calendario' && (() => {
+                // Calendar calculations
+                const getDaysInMonth = (monthDate: Date) => {
+                    const year = monthDate.getFullYear();
+                    const month = monthDate.getMonth();
+                    
+                    const firstDay = new Date(year, month, 1);
+                    const startDayOfWeek = firstDay.getDay(); 
+                    
+                    const days = [];
+                    const prevMonth = new Date(year, month, 0);
+                    const prevMonthDays = prevMonth.getDate();
+                    
+                    // Previous month pad
+                    for (let i = startDayOfWeek - 1; i >= 0; i--) {
+                        days.push(new Date(year, month - 1, prevMonthDays - i));
+                    }
+                    
+                    // Current month days
+                    const totalDays = new Date(year, month + 1, 0).getDate();
+                    for (let i = 1; i <= totalDays; i++) {
+                        days.push(new Date(year, month, i));
+                    }
+                    
+                    // Next month pad
+                    const remaining = 42 - days.length;
+                    for (let i = 1; i <= remaining; i++) {
+                        days.push(new Date(year, month + 1, i));
+                    }
+                    
+                    return days;
+                };
 
-                    {/* Filtros de Calendario para Escala Masiva */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Filtrar por Piso</label>
-                            <select
-                                value={calendarFloorFilter}
-                                onChange={e => setCalendarFloorFilter(e.target.value)}
-                                className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
-                            >
-                                <option value="all">Todos los Pisos</option>
-                                {floors.map(f => (
-                                    <option key={f.id} value={f.id}>{f.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de Habitación</label>
-                            <select
-                                value={calendarRoomTypeFilter}
-                                onChange={e => setCalendarRoomTypeFilter(e.target.value)}
-                                className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
-                            >
-                                <option value="all">Todos los Tipos</option>
-                                {roomTypes.map(t => (
-                                    <option key={t.id} value={String(t.id)}>{t.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Número de Habitación</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    placeholder="Buscar hab..."
-                                    value={calendarRoomSearch}
-                                    onChange={e => setCalendarRoomSearch(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
-                                />
-                                <i className="bi bi-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Huésped o Código</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    placeholder="Nombre o código..."
-                                    value={calendarGuestSearch}
-                                    onChange={e => setCalendarGuestSearch(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 text-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm"
-                                />
-                                <i className="bi bi-person-fill absolute left-3 top-2.5 text-slate-400 text-xs"></i>
-                            </div>
-                        </div>
-                    </div>
+                const getReservationsForDate = (date: Date) => {
+                    return reservations.filter(res => {
+                        if (res.status === 'cancelled') return false;
+                        
+                        if (calendarFloorFilter !== 'all' && res.room_details?.floor !== calendarFloorFilter) return false;
+                        if (calendarRoomTypeFilter !== 'all' && String(res.room_details?.room_type) !== calendarRoomTypeFilter) return false;
+                        if (calendarRoomSearch.trim() !== '' && !res.room_details?.room_number.toLowerCase().includes(calendarRoomSearch.toLowerCase())) return false;
+                        if (calendarGuestSearch.trim() !== '' && !res.guest_details?.name.toLowerCase().includes(calendarGuestSearch.toLowerCase()) && !res.reservation_code.toLowerCase().includes(calendarGuestSearch.toLowerCase())) return false;
 
-                    {/* Timeline representation layout for optimal clarity */}
-                    <div className="overflow-x-auto rounded-xl border border-slate-200">
-                        <table className="w-full text-center text-xs divide-y divide-slate-200 min-w-[800px] table-fixed">
-                            <thead>
-                                <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                                    <th className="p-3 text-left w-48 font-semibold uppercase tracking-wider">Habitación</th>
-                                    {getCalendarDays().map((day, idx) => (
-                                        <th key={idx} className="p-3 border-l border-slate-200 w-32">
-                                            <span className="block capitalize text-[10px] text-slate-400 font-normal">{day.toLocaleDateString('es-ES', { weekday: 'short' })}</span>
-                                            <span className="block text-slate-800 text-sm font-extrabold mt-0.5">{day.getDate()}</span>
-                                        </th>
+                        const checkIn = new Date(res.check_in_date);
+                        
+                        let checkOut;
+                        if (res.planned_check_out || res.check_out_date) {
+                            checkOut = new Date(res.planned_check_out || res.check_out_date);
+                        } else {
+                            // If checkout date is open/NA, represent it as 1 day from check-in for visualization
+                            checkOut = new Date(checkIn.getTime() + 24 * 60 * 60 * 1000);
+                        }
+                        
+                        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                        const start = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+                        const end = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+                        
+                        return d >= start && d < end;
+                    });
+                };
+
+                const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                const days = getDaysInMonth(calendarMonth);
+                const today = new Date();
+
+                return (
+                    <div className="space-y-6">
+                        {/* Filters bar */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Filtrar por Piso</label>
+                                <select
+                                    value={calendarFloorFilter}
+                                    onChange={e => setCalendarFloorFilter(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-slate-455 shadow-sm"
+                                >
+                                    <option value="all">Todos los Pisos</option>
+                                    {floors.map(f => (
+                                        <option key={f.id} value={f.id}>{f.name}</option>
                                     ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200 bg-white">
-                                {rooms.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={8} className="p-8 text-slate-400 italic">Cargue habitaciones para visualizar el calendario.</td>
-                                    </tr>
-                                ) : filteredCalendarRooms.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={8} className="p-8 text-slate-400 italic">No se encontraron habitaciones con los filtros aplicados.</td>
-                                    </tr>
-                                ) : (
-                                    filteredCalendarRooms.map(room => (
-                                        <tr key={room.id} className="hover:bg-slate-50/50 transition">
-                                            <td className="p-4 text-left font-bold text-slate-800 border-r border-slate-200 bg-slate-50/30">
-                                                <div className="font-extrabold text-sm text-slate-900">Hab {room.room_number}</div>
-                                                <span className="text-[10px] text-slate-500 font-medium">{room.room_type_display}</span>
-                                            </td>
-                                            {getCalendarDays().map((day, idx) => {
-                                                const res = getReservationForRoomAndDate(room.id, day);
-                                                return (
-                                                    <td key={idx} className="p-2 border-l border-slate-250 min-h-[56px] relative align-middle">
-                                                        {res ? (
-                                                            <div 
-                                                                className={`p-2 rounded-xl text-center font-bold text-[10px] shadow-sm select-none truncate ${
-                                                                    res.status === 'active' 
-                                                                        ? 'bg-rose-100 text-rose-800 border border-rose-300' 
-                                                                        : 'bg-cyan-100 text-cyan-800 border border-cyan-300'
-                                                                }`}
-                                                                title={`Cliente: ${res.guest_details.name}\nCódigo: ${res.reservation_code}\nFechas: ${new Date(res.check_in_date).toLocaleDateString()} al ${new Date(res.planned_check_out || res.check_out_date!).toLocaleDateString()}`}
-                                                            >
-                                                                <span className="block truncate font-extrabold">{res.guest_details.name}</span>
-                                                                <span className="block font-mono text-[9px] opacity-75">{res.reservation_code}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-emerald-600 font-bold text-[10px] bg-emerald-50 border border-emerald-250 px-2 py-1 rounded-lg">Libre</span>
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Tipo de Habitación</label>
+                                <select
+                                    value={calendarRoomTypeFilter}
+                                    onChange={e => setCalendarRoomTypeFilter(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-slate-455 shadow-sm"
+                                >
+                                    <option value="all">Todos los Tipos</option>
+                                    {roomTypes.map(t => (
+                                        <option key={t.id} value={String(t.id)}>{t.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Número de Habitación</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar hab..."
+                                        value={calendarRoomSearch}
+                                        onChange={e => setCalendarRoomSearch(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-slate-455 shadow-sm"
+                                    />
+                                    <i className="bi bi-search absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Huésped o Código</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Nombre o código..."
+                                        value={calendarGuestSearch}
+                                        onChange={e => setCalendarGuestSearch(e.target.value)}
+                                        className="w-full bg-slate-50 border border-slate-200 text-slate-700 rounded-xl pl-8 pr-3 py-2 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-slate-455 shadow-sm"
+                                    />
+                                    <i className="bi bi-person-fill absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Interactive Main Panels */}
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            {/* Calendar Panel */}
+                            <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col">
+                                <div className="flex justify-between items-center mb-6">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                            <i className="bi bi-calendar3 text-indigo-650"></i> Calendario de Ocupación
+                                        </h3>
+                                        <p className="text-xs text-slate-500">Visualiza de forma mensual las reservas activas y programadas.</p>
+                                    </div>
+                                    <div className="flex gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200 items-center">
+                                        <button 
+                                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))} 
+                                            className="hover:bg-white text-slate-700 font-extrabold px-3 py-1.5 rounded-lg text-xs transition shadow-sm"
+                                        >
+                                            <i className="bi bi-chevron-left"></i> Anterior
+                                        </button>
+                                        <span className="font-extrabold px-4 text-xs text-slate-800 capitalize">
+                                            {calendarMonth.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                                        </span>
+                                        <button 
+                                            onClick={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))} 
+                                            className="hover:bg-white text-slate-700 font-extrabold px-3 py-1.5 rounded-lg text-xs transition shadow-sm"
+                                        >
+                                            Siguiente <i className="bi bi-chevron-right"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Calendar Monthly Grid */}
+                                <div className="grid grid-cols-7 gap-1 text-center font-bold text-xs text-slate-400 mb-2">
+                                    {weekdays.map((w, idx) => (
+                                        <div key={idx} className="py-2 border-b border-slate-100">{w}</div>
+                                    ))}
+                                </div>
+                                <div className="grid grid-cols-7 gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1.5">
+                                    {days.map((day, idx) => {
+                                        const isCurrentMonth = day.getMonth() === calendarMonth.getMonth();
+                                        const isToday = day.getDate() === today.getDate() && day.getMonth() === today.getMonth() && day.getFullYear() === today.getFullYear();
+                                        const dateRes = getReservationsForDate(day);
+                                        const hasActive = dateRes.some(r => r.status === 'active');
+                                        const hasReserved = dateRes.some(r => r.status === 'reserved');
+                                        const cellBg = !isCurrentMonth 
+                                            ? 'bg-slate-50 border-slate-100 opacity-25'
+                                            : dateRes.length === 0
+                                                ? 'bg-white border-slate-200'
+                                                : hasActive && hasReserved
+                                                    ? 'bg-indigo-50/70 border-indigo-250 hover:border-indigo-400 cursor-pointer shadow-sm text-indigo-950 font-bold'
+                                                    : hasActive
+                                                        ? 'bg-rose-50/70 border-rose-250 hover:border-rose-400 cursor-pointer shadow-sm text-rose-950 font-bold'
+                                                        : 'bg-cyan-50/70 border-cyan-250 hover:border-cyan-400 cursor-pointer shadow-sm text-cyan-950 font-bold';
+
+                                        return (
+                                            <div 
+                                                key={idx} 
+                                                onClick={() => {
+                                                    if (dateRes.length > 0) {
+                                                        setSelectedCalendarDate(day);
+                                                        setShowDayReservationsModal(true);
+                                                    }
+                                                }}
+                                                className={`min-h-[90px] rounded-xl border p-2 flex flex-col justify-between transition hover:scale-[1.01] ${cellBg}`}
+                                            >
+                                                <div className="flex justify-between items-start">
+                                                    <span className={`text-[11px] font-black w-6 h-6 flex items-center justify-center rounded-full ${
+                                                        isToday ? 'bg-indigo-600 text-white shadow' : 'text-slate-700'
+                                                    }`}>
+                                                        {day.getDate()}
+                                                    </span>
+                                                    {dateRes.length > 0 && (
+                                                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-900 text-white">
+                                                            {dateRes.length}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {/* Clean visual indicators of rooms inside the cell */}
+                                                <div className="space-y-1 mt-1 overflow-y-auto max-h-16 pr-0.5 scrollbar-thin">
+                                                    {dateRes.map(res => (
+                                                        <div
+                                                            key={res.id}
+                                                            className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold truncate ${
+                                                                res.status === 'active'
+                                                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                                                    : 'bg-cyan-100 text-cyan-800 border border-cyan-200'
+                                                            }`}
+                                                        >
+                                                            Hab {res.room_details?.room_number}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Timeline/Upcoming Column */}
+                            <div className="lg:col-span-1 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+                                <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[10px] border-b border-slate-100 pb-2.5 flex items-center gap-1.5">
+                                    <i className="bi bi-bell-fill text-amber-500"></i> Próximas Estadías ({
+                                        reservations.filter(r => r.status === 'reserved' || r.status === 'active').length
+                                    })
+                                </h4>
+                                <div className="space-y-3 max-h-[520px] overflow-y-auto pr-1">
+                                    {(() => {
+                                        const upcoming = reservations
+                                            .filter(r => r.status === 'reserved' || r.status === 'active')
+                                            .sort((a, b) => new Date(a.check_in_date).getTime() - new Date(b.check_in_date).getTime());
+
+                                        if (upcoming.length === 0) {
+                                            return (
+                                                <div className="text-center py-10 text-slate-400 italic text-[11px] border border-dashed border-slate-200 rounded-xl bg-slate-50">
+                                                    Sin reservaciones próximas
+                                                </div>
+                                            );
+                                        }
+
+                                        return upcoming.slice(0, 10).map(res => (
+                                            <div 
+                                                key={res.id} 
+                                                onClick={() => {
+                                                    setActiveReservation(res);
+                                                    if (res.status === 'active') {
+                                                        setShowCheckOutModal(true);
+                                                    } else {
+                                                        setShowReserveModal(true);
+                                                    }
+                                                }}
+                                                className="bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm hover:border-slate-350 cursor-pointer transition space-y-2 text-xs"
+                                            >
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <strong className="text-slate-900 text-xs block">Hab {res.room_details?.room_number}</strong>
+                                                        <span className="text-[10px] text-slate-500">{res.room_details?.room_type_display}</span>
+                                                    </div>
+                                                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${
+                                                        res.status === 'active' 
+                                                            ? 'bg-rose-50 border-rose-250 text-rose-800' 
+                                                            : 'bg-cyan-50 border-cyan-250 text-cyan-800'
+                                                    }`}>
+                                                        {res.status_display}
+                                                    </span>
+                                                </div>
+                                                
+                                                <div className="text-[11px] text-slate-700">
+                                                    <div className="flex items-center gap-1 font-bold text-slate-800">
+                                                        <i className="bi bi-person"></i> {res.guest_details?.name}
+                                                    </div>
+                                                    <div className="flex items-center gap-1 mt-1 text-slate-500">
+                                                        <i className="bi bi-calendar3"></i> 
+                                                        {new Date(res.check_in_date).toLocaleDateString()} — {
+                                                            res.planned_check_out || res.check_out_date
+                                                                ? new Date(res.planned_check_out || res.check_out_date).toLocaleDateString()
+                                                                : 'N/A (Salida abierta)'
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             {activeViewTab === 'turnos' && (
                 <ShiftManager onShiftActive={setIsShiftActive} />
@@ -1662,7 +1886,7 @@ const PanelHotel: React.FC = () => {
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <form onSubmit={handleCheckIn} className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">
                         <div className="px-6 py-5 bg-slate-900 text-white flex justify-between items-center">
-                            <h3 className="font-bold text-lg">Ingreso Inmediato (Check-In) — Hab {selectedRoom.room_number}</h3>
+                            <h3 className="font-bold text-lg">Ingreso Inmediato (Check-In) — Hab {selectedRoom.room_number} ({roomTypes.find(t => t.id === selectedRoom.room_type)?.name || ''})</h3>
                             <button type="button" onClick={() => setShowCheckInModal(false)} className="text-white/80 hover:text-white"><i className="bi bi-x-lg"></i></button>
                         </div>
                         <div className="p-6 max-h-[80vh] overflow-y-auto space-y-5">
@@ -1804,37 +2028,43 @@ const PanelHotel: React.FC = () => {
                                 <div className="grid grid-cols-2 gap-3 mb-3">
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha de Check-In</label>
-                                        <input 
-                                            type="date" 
+                                        <CustomDatePicker 
                                             value={checkInDateOverride}
-                                            onChange={e => setCheckInDateOverride(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            onChange={setCheckInDateOverride}
                                             required
                                         />
                                     </div>
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">Hora de Check-In</label>
-                                        <input 
-                                            type="time" 
+                                        <CustomTimePicker 
                                             value={checkInTimeOverride}
-                                            onChange={e => setCheckInTimeOverride(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            onChange={setCheckInTimeOverride}
                                             required
                                         />
                                     </div>
                                 </div>
 
-                                <div className="mb-3">
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha Programada de Salida</label>
-                                    <input 
-                                        type="date" 
-                                        value={plannedCheckOutDate}
-                                        min={getLocalISODate()}
-                                        max={nextReservation ? nextReservation.check_in_date.split('T')[0] : undefined}
-                                        onChange={e => setPlannedCheckOutDate(e.target.value)}
-                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                        required
-                                    />
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha Programada de Salida (Opcional)</label>
+                                        <CustomDatePicker 
+                                            value={plannedCheckOutDate}
+                                            min={getLocalISODate()}
+                                            max={nextReservation ? nextReservation.check_in_date.split('T')[0] : undefined}
+                                            onChange={setPlannedCheckOutDate}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Precio por Noche ($)</label>
+                                        <input 
+                                            type="number"
+                                            step="0.01" 
+                                            value={pricePerNightOverride}
+                                            onChange={e => setPricePerNightOverride(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800 font-bold" 
+                                            required
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-3 gap-3 mb-4">
@@ -1851,30 +2081,36 @@ const PanelHotel: React.FC = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños mayores a 2 años ($8)</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños mayores a 2 años ($8) (Máx {selectedRoom.child_capacity - childrenUnder2})</label>
                                         <input 
                                             type="number" 
                                             min="0" 
+                                            max={selectedRoom.child_capacity - childrenUnder2}
                                             value={childrenOver2}
                                             onChange={e => {
                                                 const val = parseInt(e.target.value) || 0;
-                                                setChildrenOver2(val);
-                                                setCheckInChildren(val + childrenUnder2);
+                                                const maxAllowed = selectedRoom.child_capacity - childrenUnder2;
+                                                const clampedVal = Math.min(val, maxAllowed >= 0 ? maxAllowed : 0);
+                                                setChildrenOver2(clampedVal);
+                                                setCheckInChildren(clampedVal + childrenUnder2);
                                             }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             required
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños ≤ 2a ($0)</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños ≤ 2a ($0) (Máx {selectedRoom.child_capacity - childrenOver2})</label>
                                         <input 
                                             type="number" 
                                             min="0" 
+                                            max={selectedRoom.child_capacity - childrenOver2}
                                             value={childrenUnder2}
                                             onChange={e => {
                                                 const val = parseInt(e.target.value) || 0;
-                                                setChildrenUnder2(val);
-                                                setCheckInChildren(childrenOver2 + val);
+                                                const maxAllowed = selectedRoom.child_capacity - childrenOver2;
+                                                const clampedVal = Math.min(val, maxAllowed >= 0 ? maxAllowed : 0);
+                                                setChildrenUnder2(clampedVal);
+                                                setCheckInChildren(childrenOver2 + clampedVal);
                                             }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             required
@@ -1893,15 +2129,30 @@ const PanelHotel: React.FC = () => {
                                     />
                                 </div>
 
+                                <div className="mb-3">
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Método de Pago</label>
+                                    <select 
+                                        value={checkInPaymentMethod} 
+                                        onChange={e => setCheckInPaymentMethod(e.target.value)}
+                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
+                                    >
+                                        <option value="cash">Efectivo</option>
+                                        <option value="card">Tarjeta de Crédito/Débito</option>
+                                        <option value="transfer">Transferencia Bancaria</option>
+                                    </select>
+                                </div>
+
                                 {selectedRoom && plannedCheckOutDate && (
                                     (() => {
-                                        const { nights, pricePerNight, total } = calculateNewBookingPrice(
+                                        const { nights } = calculateNewBookingPrice(
                                             selectedRoom, 
                                             checkInAdults, 
                                             childrenOver2, 
                                             checkInDateOverride || getLocalISODate(), 
                                             plannedCheckOutDate
                                         );
+                                        const pricePerNightVal = Number(pricePerNightOverride) || 0;
+                                        const totalVal = pricePerNightVal * nights;
                                         return (
                                             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 mt-3 mb-2 flex justify-between items-center">
                                                 <div>
@@ -1909,8 +2160,8 @@ const PanelHotel: React.FC = () => {
                                                     <span className="text-[10px] text-indigo-750 block">Calculado para {nights} noche(s)</span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="block font-mono text-[10px] text-indigo-750">${pricePerNight.toFixed(2)} / noche</span>
-                                                    <strong className="text-sm font-mono text-indigo-900">${total.toFixed(2)}</strong>
+                                                    <span className="block font-mono text-[10px] text-indigo-750">${pricePerNightVal.toFixed(2)} / noche</span>
+                                                    <strong className="text-sm font-mono text-indigo-900">${totalVal.toFixed(2)}</strong>
                                                 </div>
                                             </div>
                                         );
@@ -1926,12 +2177,103 @@ const PanelHotel: React.FC = () => {
                 </div>
             )}
 
+            {/* Modal: Check-In Confirmation Dialog */}
+            {showCheckInConfirm && selectedRoom && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden text-slate-800 animate-in zoom-in-95 duration-150">
+                        <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                            <h3 className="font-bold text-xs uppercase tracking-wider"><i className="bi bi-shield-fill-check text-emerald-450 mr-1.5"></i> Confirmar Ingreso (Check-In)</h3>
+                            <button type="button" onClick={() => setShowCheckInConfirm(false)} className="text-white/80 hover:text-white"><i className="bi bi-x-lg"></i></button>
+                        </div>
+                        
+                        <div className="p-6 space-y-4">
+                            <p className="text-xs text-slate-500 font-medium">
+                                Por favor, verifique que los detalles de facturación y estadía sean correctos antes de registrar el ingreso:
+                            </p>
+
+                            <div className="bg-slate-50 border border-slate-150 rounded-2xl p-4 space-y-3 text-xs">
+                                <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                                    <span className="text-slate-450 font-medium">Habitación:</span>
+                                    <strong className="text-slate-800 font-bold">Hab {selectedRoom.room_number} ({roomTypes.find(t => t.id === selectedRoom.room_type)?.name || ''})</strong>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                                    <span className="text-slate-450 font-medium">Huésped:</span>
+                                    <strong className="text-slate-800 font-bold">{guestName || 'Sin Nombre'}</strong>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                                    <span className="text-slate-450 font-medium">Identificación:</span>
+                                    <strong className="text-slate-800 font-mono font-bold">{guestIdent}</strong>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                                    <span className="text-slate-450 font-medium">Precio por Noche:</span>
+                                    <strong className="text-slate-900 font-mono font-extrabold">${Number(pricePerNightOverride).toFixed(2)}</strong>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                                    <span className="text-slate-450 font-medium">Noches:</span>
+                                    <strong className="text-slate-800 font-bold">
+                                        {(() => {
+                                            const { nights } = calculateNewBookingPrice(
+                                                selectedRoom, 
+                                                checkInAdults, 
+                                                childrenOver2, 
+                                                checkInDateOverride || getLocalISODate(), 
+                                                plannedCheckOutDate
+                                            );
+                                            return `${nights} noche(s)`;
+                                        })()}
+                                    </strong>
+                                </div>
+                                <div className="flex justify-between border-b border-slate-200/60 pb-2">
+                                    <span className="text-slate-450 font-medium">Método de Pago:</span>
+                                    <strong className="text-slate-800 font-bold">
+                                        {checkInPaymentMethod === 'cash' ? 'Efectivo' : checkInPaymentMethod === 'card' ? 'Tarjeta' : 'Transferencia Bancaria'}
+                                    </strong>
+                                </div>
+                                <div className="flex justify-between pt-1">
+                                    <span className="text-slate-500 font-semibold">Total a Cobrar:</span>
+                                    <strong className="text-indigo-750 font-mono font-black text-sm">
+                                        {(() => {
+                                            const { nights } = calculateNewBookingPrice(
+                                                selectedRoom, 
+                                                checkInAdults, 
+                                                childrenOver2, 
+                                                checkInDateOverride || getLocalISODate(), 
+                                                plannedCheckOutDate
+                                            );
+                                            const pricePerNightVal = Number(pricePerNightOverride) || 0;
+                                            return `$${(pricePerNightVal * nights).toFixed(2)}`;
+                                        })()}
+                                    </strong>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={submitCheckIn}
+                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition"
+                                >
+                                    Confirmar e Ingresar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCheckInConfirm(false)}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition"
+                                >
+                                    Modificar Datos
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Modal: Reserve (Booking Future) Form */}
             {showReserveModal && selectedRoom && (
                 <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                     <form onSubmit={handleReserve} className="bg-white border border-slate-200 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">
                         <div className="px-6 py-5 bg-slate-900 text-white flex justify-between items-center">
-                            <h3 className="font-bold text-lg">Nueva Reserva Anticipada — Hab {selectedRoom.room_number}</h3>
+                            <h3 className="font-bold text-lg">Nueva Reserva Anticipada — Hab {selectedRoom.room_number} ({roomTypes.find(t => t.id === selectedRoom.room_type)?.name || ''})</h3>
                             <button type="button" onClick={() => setShowReserveModal(false)} className="text-white/80 hover:text-white"><i className="bi bi-x-lg"></i></button>
                         </div>
                         <div className="p-6 max-h-[80vh] overflow-y-auto space-y-5">
@@ -2061,26 +2403,32 @@ const PanelHotel: React.FC = () => {
                             {/* Booking dates */}
                             <div>
                                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 border-b border-slate-100 pb-1.5"><i className="bi bi-clock-fill text-slate-500 mr-1"></i> Período de Reserva</h4>
-                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="grid grid-cols-3 gap-2 mb-4">
                                     <div>
                                         <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha Ingreso</label>
-                                        <input 
-                                            type="date" 
+                                        <CustomDatePicker 
                                             value={reservationCheckInDate}
                                             min={getLocalISODate()}
-                                            onChange={e => setReservationCheckInDate(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            onChange={setReservationCheckInDate}
                                             required
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha Salida</label>
-                                        <input 
-                                            type="date" 
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha Salida (Opcional)</label>
+                                        <CustomDatePicker 
                                             value={plannedCheckOutDate}
                                             min={reservationCheckInDate || getLocalISODate()}
-                                            onChange={e => setPlannedCheckOutDate(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                            onChange={setPlannedCheckOutDate}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Precio por Noche ($)</label>
+                                        <input 
+                                            type="number"
+                                            step="0.01" 
+                                            value={pricePerNightOverride}
+                                            onChange={e => setPricePerNightOverride(e.target.value)}
+                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800 font-bold" 
                                             required
                                         />
                                     </div>
@@ -2100,30 +2448,36 @@ const PanelHotel: React.FC = () => {
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños mayores a 2 años ($8)</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños mayores a 2 años ($8) (Máx {selectedRoom.child_capacity - childrenUnder2})</label>
                                         <input 
                                             type="number" 
                                             min="0" 
+                                            max={selectedRoom.child_capacity - childrenUnder2}
                                             value={childrenOver2}
                                             onChange={e => {
                                                 const val = parseInt(e.target.value) || 0;
-                                                setChildrenOver2(val);
-                                                setCheckInChildren(val + childrenUnder2);
+                                                const maxAllowed = selectedRoom.child_capacity - childrenUnder2;
+                                                const clampedVal = Math.min(val, maxAllowed >= 0 ? maxAllowed : 0);
+                                                setChildrenOver2(clampedVal);
+                                                setCheckInChildren(clampedVal + childrenUnder2);
                                             }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             required
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños ≤ 2a ($0)</label>
+                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Niños ≤ 2a ($0) (Máx {selectedRoom.child_capacity - childrenOver2})</label>
                                         <input 
                                             type="number" 
                                             min="0" 
+                                            max={selectedRoom.child_capacity - childrenOver2}
                                             value={childrenUnder2}
                                             onChange={e => {
                                                 const val = parseInt(e.target.value) || 0;
-                                                setChildrenUnder2(val);
-                                                setCheckInChildren(childrenOver2 + val);
+                                                const maxAllowed = selectedRoom.child_capacity - childrenOver2;
+                                                const clampedVal = Math.min(val, maxAllowed >= 0 ? maxAllowed : 0);
+                                                setChildrenUnder2(clampedVal);
+                                                setCheckInChildren(childrenOver2 + clampedVal);
                                             }}
                                             className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             required
@@ -2177,13 +2531,15 @@ const PanelHotel: React.FC = () => {
 
                                 {selectedRoom && reservationCheckInDate && plannedCheckOutDate && (
                                     (() => {
-                                        const { nights, pricePerNight, total } = calculateNewBookingPrice(
+                                        const { nights } = calculateNewBookingPrice(
                                             selectedRoom, 
                                             checkInAdults, 
                                             childrenOver2, 
                                             reservationCheckInDate, 
                                             plannedCheckOutDate
                                         );
+                                        const pricePerNightVal = Number(pricePerNightOverride) || 0;
+                                        const totalVal = pricePerNightVal * nights;
                                         return (
                                             <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 mt-3 mb-2 flex justify-between items-center">
                                                 <div>
@@ -2191,8 +2547,8 @@ const PanelHotel: React.FC = () => {
                                                     <span className="text-[10px] text-indigo-750 block">Calculado para {nights} noche(s)</span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="block font-mono text-[10px] text-indigo-750">${pricePerNight.toFixed(2)} / noche</span>
-                                                    <strong className="text-sm font-mono text-indigo-900">${total.toFixed(2)}</strong>
+                                                    <span className="block font-mono text-[10px] text-indigo-750">${pricePerNightVal.toFixed(2)} / noche</span>
+                                                    <strong className="text-sm font-mono text-indigo-900">${totalVal.toFixed(2)}</strong>
                                                 </div>
                                             </div>
                                         );
@@ -2228,7 +2584,7 @@ const PanelHotel: React.FC = () => {
                                 </div>
                                 <h4 className="font-bold text-slate-800">Procesando Factura Electrónica SRI</h4>
                                 <span className={`text-[11px] font-bold px-3 py-1 rounded-full border ${
-                                    wsStatusCode === 'AUTHORIZED' ? 'bg-emerald-50 border-emerald-250 text-emerald-800' :
+                                        wsStatusCode === 'AUTHORIZED' ? 'bg-emerald-50 border-emerald-250 text-emerald-800' :
                                     wsStatusCode === 'REJECTED' ? 'bg-rose-50 border-rose-250 text-rose-800' : 'bg-slate-100 border-slate-200 text-slate-700'
                                 }`}>
                                     {wsStatusCode || 'ENVIANDO'}
@@ -2237,187 +2593,367 @@ const PanelHotel: React.FC = () => {
                             </div>
                         ) : (
                             <div className="p-6 max-h-[80vh] overflow-y-auto space-y-5">
-                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-4 text-xs">
-                                    <div><span className="text-slate-500 block">Huésped Principal:</span> <strong className="text-slate-800 text-sm block mt-0.5">{activeReservation.guest_details.name}</strong></div>
-                                    <div><span className="text-slate-500 block">Check-in inicial:</span> <strong className="text-slate-800 text-sm block mt-0.5">{new Date(activeReservation.check_in_date).toLocaleString()} ({activeReservation.checked_in_by || 'Sistema'})</strong></div>
-                                    <div><span className="text-slate-500 block">Tarifa por Noche (Calculada):</span> <strong className="text-slate-800 text-sm block mt-0.5">${getDynamicNightsAndTotal().pricePerNight.toFixed(2)}</strong></div>
-                                    <div><span className="text-slate-500 block">Noches calculadas:</span> <strong className="text-slate-800 text-sm block mt-0.5">{getDynamicNightsAndTotal().nights} noche(s)</strong></div>
-                                    <div className="col-span-2 grid grid-cols-2 border-t border-slate-200 pt-3 mt-1">
-                                        <div><span className="text-slate-500 block">Depósito previo:</span> <strong className="text-cyan-700 text-sm block mt-0.5">${Number(activeReservation.deposit_amount).toFixed(2)}</strong></div>
-                                        <div><span className="text-slate-500 block">Total Estimado:</span> <strong className="text-slate-800 text-sm block mt-0.5">${getDynamicNightsAndTotal().total.toFixed(2)}</strong></div>
-                                    </div>
-                                    <div className="col-span-2 border-t border-slate-200 pt-3 text-right">
-                                        {getDynamicNightsAndTotal().total < Number(activeReservation.deposit_amount) ? (
-                                            <>
-                                                <span className="text-amber-600 text-[10px] font-bold tracking-widest block uppercase">Reembolso / Saldo a Devolver</span>
-                                                <strong className="text-2xl font-black text-amber-600">${Math.abs(getDynamicNightsAndTotal().total - Number(activeReservation.deposit_amount)).toFixed(2)}</strong>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <span className="text-slate-400 text-[10px] font-bold tracking-widest block uppercase">Saldo Pendiente a Cobrar</span>
-                                                <strong className="text-2xl font-black text-slate-900">${(getDynamicNightsAndTotal().total - Number(activeReservation.deposit_amount)).toFixed(2)}</strong>
-                                            </>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha de Check-Out</label>
-                                        <input 
-                                            type="date" 
-                                            value={checkOutDateOverride}
-                                            onChange={e => setCheckOutDateOverride(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Hora de Check-Out</label>
-                                        <input 
-                                            type="time" 
-                                            value={checkOutTimeOverride}
-                                            onChange={e => setCheckOutTimeOverride(e.target.value)}
-                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                            required
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Observaciones de Salida (p.ej. toalla, etc.)</label>
-                                    <textarea 
-                                        rows={2}
-                                        placeholder="Se entregó toallas, control de TV, etc..."
-                                        value={checkoutNotes}
-                                        onChange={e => setCheckoutNotes(e.target.value)}
-                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Método de Pago para el Saldo</label>
-                                    <select 
-                                        value={paymentMethod} 
-                                        onChange={e => setPaymentMethod(e.target.value)}
-                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
-                                    >
-                                        <option value="cash">Efectivo</option>
-                                        <option value="card">Tarjeta de Crédito/Débito</option>
-                                        <option value="transfer">Transferencia Bancaria</option>
-                                    </select>
-                                </div>
-
-                                {/* Toggle SRI invoicing */}
-                                <div className="flex items-center justify-between border-y border-slate-200 py-3">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
-                                            <i className="bi bi-receipt-cutoff text-lg"></i>
-                                        </div>
-                                        <div>
-                                            <span className="text-xs font-bold text-slate-700 block">Emitir Factura Electrónica (SRI)</span>
-                                            <span className="text-[10px] text-slate-500 block">Conectar al portal de SRI FactuExpress</span>
-                                        </div>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={processSRI} 
-                                            onChange={e => setProcessSRI(e.target.checked)}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900"></div>
-                                    </label>
-                                </div>
-
-                                {/* SRI billing fields conditionally shown */}
-                                {processSRI && (
-                                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 animate-in slide-in-from-top-4 duration-150">
-                                        <h4 className="text-xs font-bold text-slate-950 uppercase tracking-wider flex items-center gap-1.5"><i className="bi bi-person-badge-fill text-slate-500"></i> Datos de Emisión</h4>
-                                        
-                                        <div className="grid grid-cols-3 gap-3">
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Tipo ID</label>
-                                                <select 
-                                                    value={billingIdentType} 
-                                                    onChange={e => setBillingIdentType(e.target.value)}
-                                                    className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-850"
-                                                >
-                                                    <option value="05">Cédula</option>
-                                                    <option value="04">RUC</option>
-                                                    <option value="06">Pasaporte</option>
-                                                    <option value="08">ID Exterior</option>
-                                                </select>
-                                            </div>
-                                            <div className="col-span-2">
-                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">N. Identificación</label>
-                                                <div className="flex gap-1.5">
-                                                    <input 
-                                                        type="text" 
-                                                        value={billingIdent}
-                                                        onChange={e => setBillingIdent(e.target.value)}
-                                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                                        required
-                                                    />
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={searchBillingGuest}
-                                                        className="bg-slate-100 hover:bg-slate-200 border border-slate-300 px-3.5 rounded-xl text-slate-700 text-xs font-bold"
-                                                    >
-                                                        Buscar
-                                                    </button>
+                                {showRefundSection ? (
+                                    /* Dedicated Refund Sub-View */
+                                    <div className="space-y-4">
+                                        <div className="bg-emerald-50 border border-emerald-250 rounded-2xl p-4 space-y-3 text-xs text-emerald-950 animate-in fade-in duration-200">
+                                            <h4 className="font-bold text-emerald-900 flex items-center gap-1.5 text-sm"><i className="bi bi-cash-coin text-emerald-600 text-base"></i> Registrar Devolución de Dinero</h4>
+                                            
+                                            <div className="grid grid-cols-2 gap-3 pt-1 text-slate-700">
+                                                <div>
+                                                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Check-In Registrado Por</span>
+                                                    <strong className="text-slate-800 font-bold text-xs">{activeReservation.checked_in_by || 'Sistema'}</strong>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-400 block text-[10px] font-bold uppercase">Devolución Procesada Por</span>
+                                                    <strong className="text-slate-800 font-bold text-xs">{activeShift ? activeShift.user_name : 'Recepcionista en Turno'}</strong>
+                                                </div>
+                                                <div className="col-span-2 border-t border-emerald-200/50 pt-2 mt-1 flex justify-between items-center">
+                                                    <span className="text-slate-500 font-medium">Total pagado por el huésped al ingresar:</span>
+                                                    <strong className="text-emerald-800 font-mono text-sm font-extrabold">${(() => {
+                                                        const payments = activeReservation.payments || [];
+                                                        return payments.reduce((acc: number, p: any) => acc + Number(p.amount), 0).toFixed(2);
+                                                    })()}</strong>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Razón Social / Nombre</label>
-                                            <input 
-                                                type="text" 
-                                                value={billingName}
-                                                onChange={e => setBillingName(e.target.value)}
-                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
-                                                required
-                                            />
-                                        </div>
-
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Email Destinatario</label>
-                                                <input 
-                                                    type="email" 
-                                                    value={billingEmail}
-                                                    onChange={e => setBillingEmail(e.target.value)}
-                                                    className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Monto a Devolver ($)</label>
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0.01"
+                                                    max={(() => {
+                                                        const payments = activeReservation.payments || [];
+                                                        return payments.reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+                                                    })()}
+                                                    value={refundAmount}
+                                                    onChange={e => setRefundAmount(e.target.value)}
+                                                    className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800 font-bold"
                                                     required
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Teléfono</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={billingPhone}
-                                                    onChange={e => setBillingPhone(e.target.value)}
-                                                    className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Método de Devolución</label>
+                                                <select
+                                                    value={paymentMethod}
+                                                    onChange={e => setPaymentMethod(e.target.value)}
+                                                    className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-800"
+                                                >
+                                                    <option value="cash">Efectivo</option>
+                                                    <option value="card">Tarjeta de Crédito/Débito</option>
+                                                    <option value="transfer">Transferencia Bancaria</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Motivo de la Devolución (Obligatorio)</label>
+                                            <textarea
+                                                rows={2}
+                                                placeholder="Ej. Huésped cancela estadía por motivos personales..."
+                                                value={refundReason}
+                                                onChange={e => setRefundReason(e.target.value)}
+                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div className="flex gap-2 pt-2 border-t border-slate-100">
+                                            <button
+                                                type="button"
+                                                onClick={async () => {
+                                                    if (!refundAmount || Number(refundAmount) <= 0) {
+                                                        toast('Por favor ingrese un monto válido a devolver', 'error');
+                                                        return;
+                                                    }
+                                                    if (!refundReason.trim()) {
+                                                        toast('Por favor ingrese el motivo del reembolso', 'error');
+                                                        return;
+                                                    }
+                                                    const payments = activeReservation.payments || [];
+                                                    const alreadyPaid = payments.reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+                                                    const finalTotal = alreadyPaid - Number(refundAmount);
+                                                    
+                                                    // Add details to notes
+                                                    const fullNotes = `[DEVOLUCIÓN de $${Number(refundAmount).toFixed(2)} por ${activeShift ? activeShift.user_name : 'Recepcionista'}] Motivo: ${refundReason}`;
+                                                    
+                                                    setWsProcessing(true);
+                                                    setWsStatusCode('');
+                                                    setWsStatusMessage('Procesando devolución en caja y liberando habitación...');
+
+                                                    const headers = {
+                                                        'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+                                                        'Content-Type': 'application/json'
+                                                    };
+                                                    const checkOutDateTime = `${checkOutDateOverride}T${checkOutTimeOverride}:00`;
+
+                                                    const res = await fetch(`${API_BASE}/api/reservations/${activeReservation.id}/check-out/`, {
+                                                        method: 'POST',
+                                                        headers,
+                                                        body: JSON.stringify({
+                                                            payment_method: paymentMethod,
+                                                            process_sri: false,
+                                                            check_out_date: checkOutDateTime,
+                                                            checkout_notes: fullNotes,
+                                                            total_amount: finalTotal.toString()
+                                                        })
+                                                    });
+
+                                                    if (res.ok) {
+                                                        toast('Devolución registrada con éxito', 'success');
+                                                        setTimeout(() => {
+                                                            setWsProcessing(false);
+                                                            setShowCheckOutModal(false);
+                                                            loadHotelData();
+                                                        }, 1500);
+                                                    } else {
+                                                        toast('Error al procesar devolución', 'error');
+                                                        setWsProcessing(false);
+                                                    }
+                                                }}
+                                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition"
+                                            >
+                                                Confirmar y Devolver Dinero
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowRefundSection(false);
+                                                    setCheckoutTotalOverride('');
+                                                }}
+                                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs transition"
+                                            >
+                                                Regresar
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    /* Standard Check-Out View */
+                                    <>
+                                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid grid-cols-2 gap-4 text-xs">
+                                            <div><span className="text-slate-500 block">Huésped Principal:</span> <strong className="text-slate-800 text-sm block mt-0.5">{activeReservation.guest_details.name}</strong></div>
+                                            <div><span className="text-slate-500 block">Check-in inicial:</span> <strong className="text-slate-800 text-sm block mt-0.5">{new Date(activeReservation.check_in_date).toLocaleString()} ({activeReservation.checked_in_by || 'Sistema'})</strong></div>
+                                            <div><span className="text-slate-500 block">Tarifa por Noche:</span> <strong className="text-slate-800 text-sm block mt-0.5">${getDynamicNightsAndTotal().pricePerNight.toFixed(2)}</strong></div>
+                                            <div><span className="text-slate-500 block">Noches de estadía:</span> <strong className="text-slate-800 text-sm block mt-0.5">{getDynamicNightsAndTotal().nights} noche(s)</strong></div>
+                                        </div>
+
+                                        {(() => {
+                                            const { total } = getDynamicNightsAndTotal();
+                                            const payments = activeReservation.payments || [];
+                                            const alreadyPaid = payments.reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+                                            const difference = total - alreadyPaid;
+                                            
+                                            return (
+                                                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3 text-xs">
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-500">Monto total real:</span>
+                                                        <span className="font-bold text-slate-800 font-mono">${total.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between">
+                                                        <span className="text-slate-500">Monto ya pagado (Ingreso + Depósitos):</span>
+                                                        <span className="font-bold text-slate-850 font-mono">${alreadyPaid.toFixed(2)}</span>
+                                                    </div>
+                                                    
+                                                    {difference > 0 ? (
+                                                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-900 mt-2 space-y-2">
+                                                            <div className="flex justify-between items-center font-bold">
+                                                                <span>Saldo pendiente a cobrar (Extensión):</span>
+                                                                <span className="font-mono text-sm">${difference.toFixed(2)}</span>
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-amber-800 mb-1">Método de pago del saldo</label>
+                                                                <select
+                                                                    value={paymentMethod}
+                                                                    onChange={e => setPaymentMethod(e.target.value)}
+                                                                    className="w-full border border-amber-300 rounded-lg p-2 text-xs bg-white text-slate-850 font-medium focus:ring-1 focus:ring-amber-500"
+                                                                >
+                                                                    <option value="cash">Efectivo</option>
+                                                                    <option value="card">Tarjeta de Crédito/Débito</option>
+                                                                    <option value="transfer">Transferencia Bancaria</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    ) : difference < 0 ? (
+                                                        <div className="bg-emerald-50 border border-emerald-250 rounded-xl p-3 text-emerald-950 text-center font-bold mt-2 flex flex-col items-center gap-1.5 animate-in fade-in duration-200">
+                                                            <span className="text-emerald-800 text-[11px]"><i className="bi bi-info-circle-fill mr-1"></i> Reembolso de ${Math.abs(difference).toFixed(2)} disponible.</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setShowRefundSection(true);
+                                                                    setRefundAmount(Math.abs(difference).toString());
+                                                                }}
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow"
+                                                            >
+                                                                Procesar Reembolso
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="bg-slate-100 border border-slate-200 rounded-xl p-3 text-slate-700 text-center font-bold mt-2">
+                                                            Estadía al día (Sin saldos pendientes)
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Fecha de Check-Out</label>
+                                                <CustomDatePicker 
+                                                    value={checkOutDateOverride}
+                                                    onChange={setCheckOutDateOverride}
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 mb-1">Hora de Check-Out</label>
+                                                <CustomTimePicker 
+                                                    value={checkOutTimeOverride}
+                                                    onChange={setCheckOutTimeOverride}
+                                                    required
                                                 />
                                             </div>
                                         </div>
 
                                         <div>
-                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Dirección Fiscal</label>
-                                            <input 
-                                                type="text" 
-                                                value={billingAddress}
-                                                onChange={e => setBillingAddress(e.target.value)}
+                                            <label className="block text-[10px] font-bold text-slate-500 mb-1">Observaciones de Salida (p.ej. toalla, etc.)</label>
+                                            <textarea 
+                                                rows={2}
+                                                placeholder="Se entregó toallas, control de TV, etc..."
+                                                value={checkoutNotes}
+                                                onChange={e => setCheckoutNotes(e.target.value)}
                                                 className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
                                             />
                                         </div>
-                                    </div>
-                                )}
 
-                                <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-xl text-sm font-bold shadow-md transition">
-                                    Procesar Checkout
-                                </button>
+                                        {/* Toggle SRI invoicing */}
+                                        <div className="flex items-center justify-between border-y border-slate-200 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
+                                                    <i className="bi bi-receipt-cutoff text-lg"></i>
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-700 block">Emitir Factura Electrónica (SRI)</span>
+                                                    <span className="text-[10px] text-slate-500 block">Conectar al portal de SRI FactuExpress</span>
+                                                </div>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={processSRI} 
+                                                    onChange={e => setProcessSRI(e.target.checked)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-900"></div>
+                                            </label>
+                                        </div>
+
+                                        {/* SRI billing fields conditionally shown */}
+                                        {processSRI && (
+                                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4 animate-in slide-in-from-top-4 duration-150">
+                                                <h4 className="text-xs font-bold text-slate-950 uppercase tracking-wider flex items-center gap-1.5"><i className="bi bi-person-badge-fill text-slate-500"></i> Datos de Emisión</h4>
+                                                
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Tipo ID</label>
+                                                        <select 
+                                                            value={billingIdentType} 
+                                                            onChange={e => setBillingIdentType(e.target.value)}
+                                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs bg-white text-slate-850"
+                                                        >
+                                                            <option value="05">Cédula</option>
+                                                            <option value="04">RUC</option>
+                                                            <option value="06">Pasaporte</option>
+                                                            <option value="08">ID Exterior</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-2">
+                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">N. Identificación</label>
+                                                        <div className="flex gap-1.5">
+                                                            <input 
+                                                                type="text" 
+                                                                value={billingIdent}
+                                                                onChange={e => setBillingIdent(e.target.value)}
+                                                                className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800 font-bold font-mono"
+                                                            />
+                                                            <button 
+                                                                type="button" 
+                                                                onClick={searchBillingGuest}
+                                                                className="bg-slate-900 hover:bg-slate-800 text-white px-3 rounded-xl text-xs font-bold"
+                                                            >
+                                                                Buscar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Razón Social / Nombre Completo</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={billingName}
+                                                        onChange={e => setBillingName(e.target.value)}
+                                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                        required
+                                                    />
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Email Destinatario</label>
+                                                        <input 
+                                                            type="email" 
+                                                            value={billingEmail}
+                                                            onChange={e => setBillingEmail(e.target.value)}
+                                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Teléfono</label>
+                                                        <input 
+                                                            type="text" 
+                                                            value={billingPhone}
+                                                            onChange={e => setBillingPhone(e.target.value)}
+                                                            className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-500 mb-1">Dirección Fiscal</label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={billingAddress}
+                                                        onChange={e => setBillingAddress(e.target.value)}
+                                                        className="w-full border border-slate-350 rounded-xl p-2 text-xs text-slate-800" 
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                            <button type="submit" className="flex-1 bg-slate-900 hover:bg-slate-800 text-white p-3 rounded-xl text-sm font-bold shadow-md transition">
+                                                Procesar Checkout
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => {
+                                                    setShowRefundSection(true);
+                                                    const payments = activeReservation.payments || [];
+                                                    const alreadyPaid = payments.reduce((acc: number, p: any) => acc + Number(p.amount), 0);
+                                                    setRefundAmount(alreadyPaid.toString());
+                                                }}
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-1"
+                                            >
+                                                <i className="bi bi-cash-coin"></i> Devolución
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </form>
@@ -2718,7 +3254,7 @@ const PanelHotel: React.FC = () => {
                                                         <span className="text-[10px] text-slate-500 block mt-0.5">
                                                             Capacidad: {t.adult_capacity} Ad / {t.child_capacity} Ni
                                                         </span>
-                                                        <span className="text-[10px] text-indigo-650 font-semibold block mt-0.5">
+                                                        <span className="text-[10px] text-indigo-600 font-semibold block mt-0.5">
                                                             Tarifa: ${Number(t.price_per_adult).toFixed(2)} Ad / ${Number(t.price_per_child).toFixed(2)} Ni
                                                         </span>
                                                     </div>
@@ -2945,6 +3481,107 @@ const PanelHotel: React.FC = () => {
                                     No se encontró ninguna reserva activa con el código ingresado.
                                 </div>
                             ) : null}
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal de Detalle de Reservas por Día */}
+            {showDayReservationsModal && selectedCalendarDate && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+                    <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-slate-800">
+                        {/* Header */}
+                        <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="font-extrabold text-sm uppercase tracking-wider">Reservaciones Ocupadas</h3>
+                                <span className="text-[10px] text-slate-350 capitalize font-bold">
+                                    {selectedCalendarDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                </span>
+                            </div>
+                            <button 
+                                onClick={() => setShowDayReservationsModal(false)} 
+                                className="text-white/80 hover:text-white"
+                            >
+                                <i className="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3.5">
+                            {(() => {
+                                // Re-evaluate inside render scope
+                                const getReservationsForDate = (date: Date) => {
+                                    return reservations.filter(res => {
+                                        if (res.status === 'cancelled') return false;
+                                        
+                                        if (calendarFloorFilter !== 'all' && res.room_details?.floor !== calendarFloorFilter) return false;
+                                        if (calendarRoomTypeFilter !== 'all' && String(res.room_details?.room_type) !== calendarRoomTypeFilter) return false;
+                                        if (calendarRoomSearch.trim() !== '' && !res.room_details?.room_number.toLowerCase().includes(calendarRoomSearch.toLowerCase())) return false;
+                                        if (calendarGuestSearch.trim() !== '' && !res.guest_details?.name.toLowerCase().includes(calendarGuestSearch.toLowerCase()) && !res.reservation_code.toLowerCase().includes(calendarGuestSearch.toLowerCase())) return false;
+
+                                        const checkIn = new Date(res.check_in_date);
+                                        
+                                        let checkOut;
+                                        if (res.planned_check_out || res.check_out_date) {
+                                            checkOut = new Date(res.planned_check_out || res.check_out_date);
+                                        } else {
+                                            checkOut = new Date(checkIn.getTime() + 24 * 60 * 60 * 1000);
+                                        }
+                                        
+                                        const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+                                        const start = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+                                        const end = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
+                                        
+                                        return d >= start && d < end;
+                                    });
+                                };
+
+                                const dayReservations = getReservationsForDate(selectedCalendarDate);
+                                if (dayReservations.length === 0) {
+                                    return (
+                                        <div className="text-center py-8 text-slate-400 italic text-xs">
+                                            No hay reservas registradas para este día.
+                                        </div>
+                                    );
+                                }
+
+                                return dayReservations.map(res => (
+                                    <div 
+                                        key={res.id}
+                                        onClick={() => {
+                                            setShowDayReservationsModal(false);
+                                            setActiveReservation(res);
+                                            if (res.status === 'active') {
+                                                setShowCheckOutModal(true);
+                                            } else {
+                                                setShowReserveModal(true);
+                                            }
+                                        }}
+                                        className="bg-slate-50 border border-slate-200 rounded-2xl p-4 shadow-sm hover:border-slate-350 cursor-pointer transition-all hover:scale-[1.01] flex justify-between items-center text-xs"
+                                    >
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="font-extrabold text-xs text-slate-900 bg-slate-200/60 px-2 py-0.5 rounded-lg">Hab {res.room_details?.room_number}</span>
+                                                <span className="text-[10px] text-slate-500 font-semibold">{res.room_details?.room_type_display}</span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-700">
+                                                <strong className="text-slate-800 font-black"><i className="bi bi-person mr-0.5"></i> {res.guest_details?.name}</strong>
+                                                <span className="block text-slate-500 mt-0.5 font-mono text-[9px]"><i className="bi bi-key mr-0.5"></i> Código: {res.reservation_code}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="text-right space-y-1.5">
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider block text-center ${
+                                                res.status === 'active' 
+                                                    ? 'bg-rose-50 border-rose-250 text-rose-800' 
+                                                    : 'bg-cyan-50 border-cyan-250 text-cyan-800'
+                                            }`}>
+                                                {res.status_display}
+                                            </span>
+                                            <span className="text-[9px] text-slate-400 block font-semibold">Ver detalles <i className="bi bi-arrow-right"></i></span>
+                                        </div>
+                                    </div>
+                                ));
+                            })()}
                         </div>
                     </div>
                 </div>

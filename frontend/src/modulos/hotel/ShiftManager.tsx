@@ -68,6 +68,9 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
     const [notes, setNotes] = useState<string>('');
     const [error, setError] = useState<string>('');
     const [closedShiftReport, setClosedShiftReport] = useState<ClosedShiftReport | null>(null);
+    const [openingCashInput, setOpeningCashInput] = useState<string | number>('0.00');
+    const [closingCashInput, setClosingCashInput] = useState<string | number>('0.00');
+    const [pastShifts, setPastShifts] = useState<any[]>([]);
 
     // Scheduling state
     const [showSchedulerModal, setShowSchedulerModal] = useState<boolean>(false);
@@ -112,6 +115,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
             const allShifts: Shift[] = allRes.data.results || allRes.data;
             const scheduled = allShifts.filter(s => s.status === 'scheduled');
             setScheduledShifts(scheduled);
+            setPastShifts(allShifts.filter(s => s.status !== 'scheduled'));
         } catch (err: any) {
             console.error('Error loading shift data:', err);
             setError('Error al obtener la información de turnos.');
@@ -133,12 +137,14 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
             const response = await api.post('/api/reports/shifts/', {
                 user_name: nameToUse,
                 opening_notes: notes,
+                opening_cash: Number(openingCashInput) || 0,
                 status: 'open'
             }, { baseURL: '/api/hotel' });
 
             setCurrentShift(response.data);
             onShiftActive(true);
             setEmployeeNameInput('');
+            setOpeningCashInput('0.00');
             setNotes('');
             loadShiftData();
         } catch (err: any) {
@@ -171,7 +177,8 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
 
         try {
             const closeRes = await api.post(`/api/reports/shifts/${currentShift.id}/close/`, {
-                closing_notes: notes
+                closing_notes: notes,
+                closing_cash: Number(closingCashInput) || 0
             }, { baseURL: '/api/hotel' });
 
             // Get Shift Report details
@@ -186,10 +193,21 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
             setCurrentShift(null);
             onShiftActive(false);
             setNotes('');
+            setClosingCashInput('0.00');
             loadShiftData();
         } catch (err: any) {
             console.error('Error closing shift:', err);
             setError(err.response?.data?.error || 'Error al finalizar el turno.');
+        }
+    };
+
+    const handleDownloadShiftPDF = async (shiftId: string) => {
+        try {
+            const reportRes = await api.get(`/api/reports/shifts/${shiftId}/report/`, { baseURL: '/api/hotel' });
+            generateHotelShiftPDF(reportRes.data);
+        } catch (err) {
+            console.error('Error downloading shift PDF:', err);
+            alert('Error al descargar el PDF del reporte del turno.');
         }
     };
 
@@ -333,8 +351,20 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
 
                     <form onSubmit={handleCloseShift} className="space-y-4">
                         <h4 className="font-bold text-slate-950 text-xs uppercase tracking-wider">Finalizar Turno de Recepción</h4>
-                        <div className="flex flex-col md:flex-row gap-3 items-end">
-                            <div className="flex-1 w-full">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Efectivo contado al cerrar caja ($)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-full border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800 font-bold"
+                                    value={closingCashInput}
+                                    onChange={(e) => setClosingCashInput(e.target.value)}
+                                    placeholder="0.00"
+                                    required
+                                />
+                            </div>
+                            <div className="md:col-span-2">
                                 <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Observaciones / Novedades de Turno</label>
                                 <input
                                     type="text"
@@ -344,6 +374,8 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                                     placeholder="Detalles sobre pendientes, toallas entregadas, novedades de relevo..."
                                 />
                             </div>
+                        </div>
+                        <div className="flex justify-end pt-2">
                             <button
                                 type="submit"
                                 className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl px-6 py-2.5 font-bold text-xs shadow-md transition whitespace-nowrap h-[38px] w-full md:w-auto"
@@ -413,37 +445,90 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                 </div>
             ) : (
                 /* OPEN SHIFT OPTIONS */
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[250px]">
-                    <h3 className="text-sm font-black text-slate-900 mb-4 flex items-center gap-2 uppercase tracking-wider">
-                        <i className="bi bi-clock-fill text-indigo-650"></i> Turnos Programados Disponibles para Iniciar
-                    </h3>
-                    <p className="text-xs text-slate-550 mb-4">
-                        Por favor, busque su nombre en la lista de turnos programados a continuación y haga clic en <strong>"Iniciar Turno"</strong> para comenzar a operar.
-                    </p>
-                    {scheduledShifts.length === 0 ? (
-                        <div className="text-center py-12 text-slate-400 italic text-xs border border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                            No hay turnos programados en este momento. Si no tiene un turno asignado, solicite a un administrador que lo programe.
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto pr-1">
-                            {scheduledShifts.map(s => (
-                                <div key={s.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100/50 transition flex justify-between items-center text-xs">
-                                    <div>
-                                        <strong className="text-slate-850 font-bold block text-sm">{s.user_name}</strong>
-                                        <span className="text-[10px] text-slate-500 mt-1 block font-medium">
-                                            Horario Programado: {s.scheduled_start ? new Date(s.scheduled_start).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : ''} - {s.scheduled_end ? new Date(s.scheduled_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => handleOpenScheduledShift(s)}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md transition"
-                                    >
-                                        Iniciar Turno
-                                    </button>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Formulario Apertura Manual */}
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm md:col-span-2 space-y-4">
+                        <h3 className="text-sm font-black text-slate-900 mb-2 flex items-center gap-2 uppercase tracking-wider">
+                            <i className="bi bi-door-open-fill text-indigo-600"></i> Apertura Manual de Turno
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                            Inicie su turno de trabajo registrando el efectivo inicial en caja.
+                        </p>
+                        <form onSubmit={handleOpenShift} className="space-y-4 pt-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Recepcionista</label>
+                                    <input
+                                        type="text"
+                                        placeholder="Nombre del recepcionista"
+                                        className="w-full border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800"
+                                        value={employeeNameInput}
+                                        onChange={(e) => setEmployeeNameInput(e.target.value)}
+                                    />
                                 </div>
-                            ))}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Efectivo Inicial en Caja ($)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className="w-full border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800 font-bold"
+                                        value={openingCashInput}
+                                        onChange={(e) => setOpeningCashInput(e.target.value)}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Observaciones de Apertura</label>
+                                <input
+                                    type="text"
+                                    placeholder="Novedades de apertura, entrega de llaves, etc..."
+                                    className="w-full border border-slate-350 rounded-xl p-2.5 text-xs text-slate-800"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-md transition"
+                            >
+                                Abrir Turno de Trabajo
+                            </button>
+                        </form>
+                    </div>
+
+                    {/* Turnos Programados */}
+                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                        <div>
+                            <h3 className="text-xs font-black text-slate-900 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
+                                <i className="bi bi-calendar3 text-indigo-600"></i> Turnos Programados
+                            </h3>
+                            {scheduledShifts.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400 italic text-[11px] border border-dashed border-slate-200 rounded-xl bg-slate-50">
+                                    Sin programaciones para hoy
+                                </div>
+                            ) : (
+                                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                    {scheduledShifts.map(s => (
+                                        <div key={s.id} className="p-2.5 border border-slate-150 rounded-xl bg-slate-50 flex flex-col justify-between gap-2 text-[11px]">
+                                            <div>
+                                                <strong className="text-slate-800 block font-bold">{s.user_name}</strong>
+                                                <span className="text-[9px] text-slate-500 font-medium">
+                                                    Horario: {s.scheduled_start ? formatTimeOnly(s.scheduled_start) : ''} - {s.scheduled_end ? formatTimeOnly(s.scheduled_end) : ''}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => handleOpenScheduledShift(s)}
+                                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-1.5 rounded-lg font-bold text-[10px] transition text-center"
+                                            >
+                                                Iniciar Turno
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
 
@@ -452,7 +537,7 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mt-6">
                     <div className="flex justify-between items-center mb-4 flex-wrap gap-2 border-b border-slate-100 pb-3">
                         <h3 className="text-sm font-black text-slate-900 flex items-center gap-2 uppercase tracking-wider">
-                            <i className="bi bi-calendar-event-fill text-indigo-650"></i> Planificación y Cronograma de Turnos (Admin)
+                            <i className="bi bi-calendar-event-fill text-indigo-600"></i> Planificación y Cronograma de Turnos (Admin)
                         </h3>
                         <button
                             onClick={() => {
@@ -490,8 +575,8 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                                         <tr key={s.id} className="hover:bg-slate-50/50 transition">
                                             <td className="p-3 font-mono font-bold text-slate-900">{s.shift_number}</td>
                                             <td className="p-3 font-medium">{s.user_name}</td>
-                                            <td className="p-3 font-semibold text-indigo-650">{formatTimeOnly(s.scheduled_start)} Hs</td>
-                                            <td className="p-3 font-semibold text-indigo-650">{formatTimeOnly(s.scheduled_end)} Hs</td>
+                                            <td className="p-3 font-semibold text-indigo-600">{formatTimeOnly(s.scheduled_start)} Hs</td>
+                                            <td className="p-3 font-semibold text-indigo-600">{formatTimeOnly(s.scheduled_end)} Hs</td>
                                             <td className="p-3">
                                                 <span className="px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider bg-amber-50 border-amber-200 text-amber-800">
                                                     Programado
@@ -586,6 +671,62 @@ const ShiftManager: React.FC<ShiftManagerProps> = ({ onShiftActive }) => {
                     </div>
                 </div>
             )}
+            {/* HISTORIAL DE AUDITORÍA DE CAJAS */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mt-6">
+                <h3 className="text-sm font-bold text-slate-900 mb-5 uppercase tracking-wider flex items-center gap-2">
+                    <i className="bi bi-journal-text text-indigo-600"></i> Historial de Auditoría de Cajas (Turnos)
+                </h3>
+                
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-left text-xs divide-y divide-slate-200">
+                        <thead>
+                            <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                                <th className="p-3">Número Turno</th>
+                                <th className="p-3">Recepcionista</th>
+                                <th className="p-3">Fecha Apertura</th>
+                                <th className="p-3">Fecha Cierre</th>
+                                <th className="p-3">Estado</th>
+                                <th className="p-3 text-right">Monto Recaudado</th>
+                                <th className="p-3 text-right">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                            {pastShifts.length === 0 ? (
+                                <tr>
+                                    <td colSpan={7} className="p-8 text-center text-slate-400 italic">No se han registrado turnos.</td>
+                                </tr>
+                            ) : (
+                                pastShifts.map(s => (
+                                    <tr key={s.id} className="hover:bg-slate-50/50 transition">
+                                        <td className="p-3 font-mono font-bold text-slate-900">{s.shift_number}</td>
+                                        <td className="p-3 font-medium">{s.user_name}</td>
+                                        <td className="p-3">{s.opened_at ? new Date(s.opened_at).toLocaleString() : '-'}</td>
+                                        <td className="p-3">{s.closed_at ? new Date(s.closed_at).toLocaleString() : '-'}</td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wider ${
+                                                s.status === 'open' ? 'bg-emerald-50 border-emerald-250 text-emerald-800' : 'bg-slate-100 border-slate-200 text-slate-600'
+                                            }`}>
+                                                {s.status === 'open' ? 'Abierto' : 'Cerrado'}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-right font-bold text-slate-900">${s.status === 'closed' ? Number(s.total_sales).toFixed(2) : Number(s.total_sales_live).toFixed(2)}</td>
+                                        <td className="p-3 text-right">
+                                            {s.status === 'closed' && (
+                                                <button
+                                                    onClick={() => handleDownloadShiftPDF(s.id)}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-2.5 py-1 text-[10px] font-bold shadow-sm transition inline-flex items-center gap-1"
+                                                >
+                                                    <i className="bi bi-file-earmark-pdf-fill"></i> PDF
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };
