@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect } from 'react';
 import Modal from './comun/Modal';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useNavigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from './context/AuthContext';
 import Login from './modulos/login/Login';
 import Diseno from './comun/Diseno';
@@ -97,13 +97,204 @@ const RestaurantRoute: React.FC<RouteProps> = ({ children }) => {
   return <DisenoRestaurant>{children}</DisenoRestaurant>;
 };
 
-// Dashboard simple
-const Dashboard: React.FC = () => (
-  <div className="page-container">
-    <h2>Bienvenido al Panel de Control</h2>
-    <p>Seleccione una opción del menú lateral para comenzar.</p>
-  </div>
-);
+// Dashboard Portal Interactivo
+const Dashboard: React.FC = () => {
+  const context = useContext(AuthContext);
+  const user = context?.user;
+  const navigate = useNavigate();
+
+  // Local state for Notes Board so it is collaborative and persists
+  const [notes, setNotes] = useState<string[]>(() => {
+    const saved = localStorage.getItem('aurora_dashboard_notes');
+    return saved ? JSON.parse(saved) : [
+      "Lavandería entrega sábanas limpias a las 11:00 AM.",
+      "Huésped de la Hab 102 solicitó taxi para mañana a las 7:00 AM.",
+      "Entregar llaves de oficina al administrador al final del turno."
+    ];
+  });
+  const [newNote, setNewNote] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('aurora_dashboard_notes', JSON.stringify(notes));
+  }, [notes]);
+
+  const addNote = () => {
+    if (newNote.trim()) {
+      setNotes([...notes, newNote.trim()]);
+      setNewNote('');
+    }
+  };
+
+  const deleteNote = (index: number) => {
+    setNotes(notes.filter((_, i) => i !== index));
+  };
+
+  const getGreeting = () => {
+    const hr = new Date().getHours();
+    if (hr < 12) return "Buenos días";
+    if (hr < 19) return "Buenas tardes";
+    return "Buenas noches";
+  };
+
+  return (
+    <div className="min-h-[calc(100vh-80px)] flex flex-col justify-between max-w-6xl mx-auto p-6 relative">
+      
+      {/* Main Content Area */}
+      <div className="space-y-8 flex-1">
+        
+        {/* Welcome Header - Open & Clean */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-slate-200 pb-5">
+          <div className="flex items-center gap-4 text-left">
+            {/* Normal logo in original colors */}
+            <img src="/logo-aurora.png" alt="Aurora System" className="h-10 md:h-12 object-contain" />
+            
+            {/* Divider line */}
+            <div className="hidden md:block w-px h-8 bg-slate-300"></div>
+
+            <div className="space-y-0.5">
+              <span className="text-[9px] uppercase font-black tracking-widest text-[#1a2e4a] font-mono">Panel Principal</span>
+              <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight capitalize">
+                {getGreeting()}, {user?.first_name ? `${user.first_name}` : user?.username || 'Usuario'}
+              </h2>
+              <p className="text-slate-500 text-[10px] font-semibold">Aurora System · Centro de control general de operaciones</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Grid: Modules & Sticky Notes */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Left / Center Panel: Modules Access */}
+          <div className="lg:col-span-2 space-y-4 text-left">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <i className="bi bi-grid-fill text-[#1a2e4a]"></i> Módulos y Áreas de Trabajo
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Hotel Park */}
+              <div 
+                onClick={() => navigate('/hotel')}
+                className="bg-white hover:bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all hover:scale-[1.01] flex items-start gap-4 group"
+              >
+                <div className="p-3.5 bg-[#1a2e4a]/5 text-[#1a2e4a] rounded-2xl group-hover:scale-110 group-hover:bg-[#1a2e4a]/10 transition-all">
+                  <i className="bi bi-building-fill text-xl"></i>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-sm text-slate-950">Hotel Park</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Gestión de habitaciones, reservas, ingresos de huéspedes (check-in/out) y turnos de recepcionistas.</p>
+                </div>
+              </div>
+
+              {/* Kroky */}
+              <div 
+                onClick={() => navigate('/fast-food')}
+                className="bg-white hover:bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all hover:scale-[1.01] flex items-start gap-4 group"
+              >
+                <div className="p-3.5 bg-[#1a2e4a]/5 text-[#1a2e4a] rounded-2xl group-hover:scale-110 group-hover:bg-[#1a2e4a]/10 transition-all">
+                  <i className="bi bi-egg-fried text-xl"></i>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-sm text-slate-950">Kroky (Comida Rápida)</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Punto de venta POS de servicio rápido, control de órdenes de comida, inventario e insumos.</p>
+                </div>
+              </div>
+
+              {/* Fortaleza */}
+              <div 
+                onClick={() => navigate('/restaurant')}
+                className="bg-white hover:bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all hover:scale-[1.01] flex items-start gap-4 group"
+              >
+                <div className="p-3.5 bg-[#1a2e4a]/5 text-[#1a2e4a] rounded-2xl group-hover:scale-110 group-hover:bg-[#1a2e4a]/10 transition-all">
+                  <i className="bi bi-shield-fill text-xl"></i>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-sm text-slate-950">Fortaleza (Restaurante)</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Módulo de mesas y meseros para restaurante a la carta, reservas de mesas y facturación integrada.</p>
+                </div>
+              </div>
+
+              {/* Usuarios */}
+              <div 
+                onClick={() => navigate('/users')}
+                className="bg-white hover:bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm hover:shadow-md cursor-pointer transition-all hover:scale-[1.01] flex items-start gap-4 group"
+              >
+                <div className="p-3.5 bg-[#1a2e4a]/5 text-[#1a2e4a] rounded-2xl group-hover:scale-110 group-hover:bg-[#1a2e4a]/10 transition-all">
+                  <i className="bi bi-people-fill text-xl"></i>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-sm text-slate-950">Control de Usuarios</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Configuración de credenciales de acceso, asignación de roles (recepcionista, administrador) y permisos.</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Right Panel: Sticky Notes (Bitácora de Turnos) */}
+          <div className="space-y-4 text-left">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+              <i className="bi bi-journal-text text-[#1a2e4a]"></i> Novedades y Pendientes
+            </h3>
+            
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 shadow-sm space-y-4 flex flex-col justify-between min-h-[300px]">
+              {/* Notes List */}
+              <div className="space-y-2.5 max-h-[250px] overflow-y-auto pr-1">
+                {notes.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400 italic text-[11px] bg-white border border-slate-150 rounded-2xl">
+                    No hay novedades registradas.
+                  </div>
+                ) : (
+                  notes.map((note, index) => (
+                    <div key={index} className="bg-white border border-slate-150 border-l-4 border-l-[#1a2e4a] rounded-2xl p-3.5 shadow-sm flex justify-between items-start gap-2 hover:border-slate-350 transition-all hover:scale-[1.01]">
+                      <div className="space-y-1 text-left">
+                        <p className="text-xs text-slate-700 leading-relaxed font-semibold">{note}</p>
+                        <span className="text-[9px] text-slate-400 block font-medium"><i className="bi bi-clock mr-0.5"></i> Registro de Turno</span>
+                      </div>
+                      <button 
+                        onClick={() => deleteNote(index)}
+                        className="text-slate-350 hover:text-rose-600 text-xs shrink-0 p-0.5 transition-colors"
+                        title="Marcar como Completado"
+                      >
+                        <i className="bi bi-check2-circle text-base"></i>
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Input to add notes */}
+              <div className="border-t border-slate-200 pt-3 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Añadir novedad..."
+                  value={newNote}
+                  onChange={e => setNewNote(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addNote()}
+                  className="flex-1 border border-slate-350 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-slate-900 bg-white text-slate-800"
+                />
+                <button
+                  onClick={addNote}
+                  className="bg-[#1a2e4a] hover:bg-[#243b5e] text-white font-bold px-3.5 py-2 rounded-xl text-xs transition"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Footer Support Info */}
+      <div className="mt-8 border-t border-slate-200 pt-5 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-500 gap-3">
+        <span className="font-semibold">FronteraTech Soporte Técnico: <a href="mailto:soporte@fronteratech.com" className="text-indigo-600 underline">soporte@fronteratech.com</a></span>
+        <span>Aurora System v1.0.0 — Todos los derechos reservados</span>
+      </div>
+
+    </div>
+  );
+};
 
 function AppContent(): JSX.Element {
   const context = useContext(AuthContext);

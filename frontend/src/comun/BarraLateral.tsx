@@ -13,7 +13,10 @@ const BarraLateral: React.FC = () => {
     const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth <= 768);
 
     const isActive = (path: string): string => {
-        return location.pathname === path || location.pathname.startsWith(path) ? 'active' : '';
+        if (path === '/') {
+            return location.pathname === '/' ? 'active' : '';
+        }
+        return location.pathname.startsWith(path) ? 'active' : '';
     };
 
     const toggleSidebar = (): void => {
@@ -25,7 +28,6 @@ const BarraLateral: React.FC = () => {
         { path: '/users',       icon: 'bi-people-fill',      label: 'Usuarios'   },
         { path: '/fast-food',   icon: 'bi-egg-fried',        label: 'Kroky'      },
         { path: '/hotel',       icon: 'bi-building-fill',    label: 'Hotel Park' },
-        { path: '/pool',        icon: 'bi-water',            label: 'P. Caribe'  },
         { path: '/restaurant',  icon: 'bi-shield-fill',      label: 'Fortaleza'  },
     ];
 
@@ -42,24 +44,24 @@ const BarraLateral: React.FC = () => {
             left: 0,
             height: isMobile ? 'calc(100vh - 54px)' : '100vh',
             width: isMobile ? '250px' : (isCollapsed ? '70px' : '250px'),
-            background: '#ffffff',
-            color: '#1a2e4a',
+            background: 'linear-gradient(180deg, #1a2e4a 0%, #111f32 100%)',
+            color: '#ffffff',
             transition: 'width 0.3s ease, transform 0.3s ease',
             zIndex: 1000,
             display: 'flex',
             flexDirection: 'column',
-            boxShadow: '2px 0 10px rgba(26,46,74,0.1)',
+            boxShadow: '2px 0 10px rgba(26,46,74,0.15)',
             overflowX: 'hidden',
-            borderRight: '1.5px solid #dce8f5',
+            borderRight: '1px solid rgba(255,255,255,0.06)',
             transform: isMobile ? (mobileOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)',
         },
         sidebarHeader: {
             padding: '1rem 0.75rem',
-            borderBottom: '1.5px solid rgba(255,255,255,0.1)',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.75rem',
-            background: 'linear-gradient(160deg, #1a2e4a 0%, #243b5e 100%)',
+            background: 'transparent',
         },
         brandContainer: {
             display: 'flex',
@@ -103,7 +105,7 @@ const BarraLateral: React.FC = () => {
             alignItems: 'center',
             gap: '0.75rem',
             padding: isCollapsed ? '0' : '0.6rem 0.75rem',
-            background: 'rgba(255,255,255,0.08)',
+            background: 'rgba(255,255,255,0.06)',
             borderRadius: '8px',
             opacity: isCollapsed ? 0 : 1,
             maxHeight: isCollapsed ? 0 : '60px',
@@ -144,7 +146,7 @@ const BarraLateral: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             padding: '0.7rem 0.75rem',
-            color: '#6b87a8',
+            color: 'rgba(255,255,255,0.65)',
             textDecoration: 'none',
             transition: 'all 0.2s',
             gap: '0.85rem',
@@ -154,10 +156,11 @@ const BarraLateral: React.FC = () => {
             fontWeight: '500',
         },
         navLinkActive: {
-            background: 'linear-gradient(135deg, #1a2e4a 0%, #2c4f7c 100%)',
+            background: 'rgba(255,255,255,0.1)',
             color: '#ffffff',
             fontWeight: '600',
-            boxShadow: '0 4px 12px rgba(26,46,74,0.18)',
+            borderLeft: '4px solid #38bdf8',
+            borderRadius: '0 9px 9px 0',
         },
         navIcon: {
             fontSize: '1.1rem',
@@ -174,15 +177,15 @@ const BarraLateral: React.FC = () => {
         },
         sidebarFooter: {
             padding: '0.75rem 0.5rem',
-            borderTop: '1.5px solid #dce8f5',
+            borderTop: '1px solid rgba(255,255,255,0.08)',
         },
         logoutButton: {
             width: '100%',
             padding: '0.65rem 0.75rem',
-            background: '#fef2f2',
-            border: '1.5px solid #fee2e2',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1.5px solid rgba(239, 68, 68, 0.15)',
             borderRadius: '9px',
-            color: '#dc2626',
+            color: '#fca5a5',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -195,7 +198,7 @@ const BarraLateral: React.FC = () => {
         versionText: {
             textAlign: 'center',
             fontSize: '0.62rem',
-            color: '#6b87a8',
+            color: 'rgba(255,255,255,0.4)',
             marginTop: '0.5rem',
             opacity: isCollapsed ? 0 : 1,
             maxHeight: isCollapsed ? 0 : '18px',
@@ -297,14 +300,18 @@ const BarraLateral: React.FC = () => {
                                     onClick={() => setMobileOpen(false)}
                                     onMouseEnter={(e) => {
                                         if (!active) {
-                                            e.currentTarget.style.background = '#eaf1f9';
-                                            e.currentTarget.style.color = '#1a2e4a';
+                                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                                            e.currentTarget.style.color = '#ffffff';
+                                            const icon = e.currentTarget.querySelector('i');
+                                            if (icon) icon.style.color = '#ffffff';
                                         }
                                     }}
                                     onMouseLeave={(e) => {
                                         if (!active) {
                                             e.currentTarget.style.background = 'transparent';
-                                            e.currentTarget.style.color = '#6b87a8';
+                                            e.currentTarget.style.color = 'rgba(255, 255, 255, 0.65)';
+                                            const icon = e.currentTarget.querySelector('i');
+                                            if (icon) icon.style.color = 'rgba(255, 255, 255, 0.65)';
                                         }
                                     }}
                                 >
@@ -312,7 +319,7 @@ const BarraLateral: React.FC = () => {
                                         className={`bi ${item.icon}`}
                                         style={{
                                             ...styles.navIcon,
-                                            color: active ? '#ffffff' : '#6b87a8',
+                                            color: active ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
                                         }}
                                     ></i>
                                     <span style={styles.navText}>{item.label}</span>
@@ -328,12 +335,14 @@ const BarraLateral: React.FC = () => {
                         onClick={logout}
                         title="Cerrar Sesión"
                         onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#fee2e2';
-                            e.currentTarget.style.borderColor = '#fca5a5';
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.15)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)';
+                            e.currentTarget.style.color = '#fecaca';
                         }}
                         onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#fef2f2';
-                            e.currentTarget.style.borderColor = '#fee2e2';
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.15)';
+                            e.currentTarget.style.color = '#fca5a5';
                         }}
                     >
                         <i className="bi bi-box-arrow-right" style={{ fontSize: '1rem' }}></i>
