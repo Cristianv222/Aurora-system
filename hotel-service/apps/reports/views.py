@@ -240,6 +240,31 @@ class ShiftViewSet(viewsets.ModelViewSet):
         # Payment details
         payment_list = []
         for p in payments:
+            checked_in_by = p.reservation.checked_in_by
+            first_payment = p.reservation.payments.filter(is_deposit=False).first()
+            if first_payment and first_payment.shift:
+                checked_in_by = first_payment.shift.user_name
+            else:
+                checked_in_by = checked_in_by or 'Sistema'
+
+            checked_out_by = p.reservation.checked_out_by
+            if p.reservation.status == 'checked_out':
+                last_payment = p.reservation.payments.filter(is_deposit=False).last()
+                if last_payment and last_payment.shift:
+                    checked_out_by = last_payment.shift.user_name
+            else:
+                checked_out_by = checked_out_by or 'Sistema'
+
+            # Determine type of payment
+            if p.is_deposit:
+                p_type = 'DEPOSIT'
+            elif p.amount < 0:
+                p_type = 'REFUND'
+            elif first_payment and first_payment.id == p.id:
+                p_type = 'CHECKIN'
+            else:
+                p_type = 'EXTENSION'
+
             payment_list.append({
                 'id': p.id,
                 'reservation_code': p.reservation.reservation_code,
@@ -248,7 +273,11 @@ class ShiftViewSet(viewsets.ModelViewSet):
                 'amount': float(p.amount),
                 'payment_method': p.payment_method,
                 'is_deposit': p.is_deposit,
-                'created_at': p.created_at
+                'created_at': p.created_at,
+                'checked_in_by': checked_in_by,
+                'checked_out_by': checked_out_by,
+                'checkout_notes': p.reservation.checkout_notes or '',
+                'payment_type': p_type
             })
             
         # Calculation totals

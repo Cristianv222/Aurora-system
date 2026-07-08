@@ -126,39 +126,111 @@ export const generateHotelShiftPDF = (report: any): void => {
     y += 6;
 
     const payments = report.payments || [];
+    const typeMap: any = {
+        CHECKIN: 'Ingreso',
+        DEPOSIT: 'Depósito',
+        EXTENSION: 'Extensión',
+        REFUND: 'Reembolso'
+    };
+    const methodMap: any = {
+        cash: 'Efectivo',
+        card: 'Tarjeta',
+        transfer: 'Transfer'
+    };
+
     const paymentRows = payments.map((p: any) => {
         const timeStr = p.created_at ? format(new Date(p.created_at), 'HH:mm') : '-';
+        const isRefund = p.payment_type === 'REFUND' || Number(p.amount) < 0;
+        
+        const typeLabel = typeMap[p.payment_type] || 'Movimiento';
+        const methodLabel = methodMap[p.payment_method] || p.payment_method.toUpperCase();
+        
+        const amountLabel = isRefund
+            ? `-$${Math.abs(Number(p.amount)).toFixed(2)}`
+            : `$${Number(p.amount).toFixed(2)}`;
+
         return [
             timeStr,
             `Habitación ${p.room_number}`,
             p.reservation_code,
-            p.guest_name,
-            p.payment_method.toUpperCase(),
-            `$${Number(p.amount).toFixed(2)}`
+            p.guest_name || 'Huésped',
+            typeLabel,
+            methodLabel,
+            amountLabel
         ];
     });
 
     if (paymentRows.length === 0) {
-        paymentRows.push(['-', 'Sin movimientos registrados', '-', '-', '-', '$0.00']);
+        paymentRows.push(['-', 'Sin movimientos registrados', '-', '-', '-', '-', '$0.00']);
     }
 
     (doc as any).autoTable({
         startY: y,
-        head: [['Hora', 'Hab.', 'Código', 'Huésped', 'Método', 'Monto']],
+        head: [['Hora', 'Hab.', 'Código', 'Huésped', 'Tipo', 'Método', 'Monto']],
         body: paymentRows,
         theme: 'plain',
-        styles: { fontSize: 8.5, cellPadding: 3, lineColor: [226, 232, 240], lineWidth: { bottom: 0.1 } },
+        styles: { fontSize: 8.5, cellPadding: 3.5, lineColor: [226, 232, 240], lineWidth: { bottom: 0.1 } },
         headStyles: { fillColor: [248, 250, 252], textColor: [71, 85, 105], fontStyle: 'bold', lineWidth: { bottom: 1 }, lineColor: [203, 213, 225] },
         columnStyles: {
-            0: { cellWidth: 20 },
+            0: { cellWidth: 15 },
             1: { cellWidth: 25 },
-            2: { cellWidth: 35, fontStyle: 'italic' },
+            2: { cellWidth: 25, fontStyle: 'italic' },
             3: { cellWidth: 'auto' },
-            4: { cellWidth: 25, halign: 'center' },
-            5: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
+            4: { cellWidth: 20 },
+            5: { cellWidth: 20 },
+            6: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
         },
         margin: { left: MARGIN, right: MARGIN }
     });
+
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // --- 6. Table of Audit / Justification of Refunds ---
+    const auditRows: any[] = [];
+    const seenCodes = new Set();
+    
+    payments.forEach((p: any) => {
+        if ((p.payment_type === 'REFUND' || Number(p.amount) < 0) && !seenCodes.has(p.reservation_code)) {
+            seenCodes.add(p.reservation_code);
+            const cleanMotive = p.checkout_notes.includes('] Motivo: ') 
+                ? p.checkout_notes.split('] Motivo: ')[1] 
+                : p.checkout_notes;
+            auditRows.push([
+                `Hab ${p.room_number}`,
+                p.reservation_code,
+                p.guest_name,
+                p.checked_in_by || 'Sistema',
+                p.checked_out_by || 'Sistema',
+                cleanMotive || 'Sin motivo detallado'
+            ]);
+        }
+    });
+
+    if (auditRows.length > 0) {
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text('Auditoría y Justificación de Devoluciones', MARGIN, y);
+        y += 6;
+
+        (doc as any).autoTable({
+            startY: y,
+            head: [['Hab.', 'Código', 'Huésped', 'Registrado Por', 'Devuelto Por', 'Motivo / Justificación']],
+            body: auditRows,
+            theme: 'striped',
+            styles: { fontSize: 8, cellPadding: 3 },
+            headStyles: { fillColor: [225, 29, 72], textColor: [255, 255, 255], fontStyle: 'bold' }, // rose-600 for refund table header
+            columnStyles: {
+                0: { cellWidth: 20 },
+                1: { cellWidth: 25 },
+                2: { cellWidth: 35 },
+                3: { cellWidth: 25 },
+                4: { cellWidth: 25 },
+                5: { cellWidth: 'auto' }
+            },
+            margin: { left: MARGIN, right: MARGIN }
+        });
+    }
 
     // Save report PDF
     const filename = `Reporte_Turno_${info.shift_number}.pdf`;
