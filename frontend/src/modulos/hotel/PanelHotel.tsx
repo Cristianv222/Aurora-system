@@ -88,6 +88,7 @@ interface Reservation {
     nights_count: number;
     total_estimated: number;
     payments?: Payment[];
+    price_per_night?: number | null;
 }
 
 interface HotelSettings {
@@ -1619,7 +1620,7 @@ const PanelHotel: React.FC = () => {
                     return reservations.filter(res => {
                         if (res.status === 'cancelled') return false;
                         
-                        if (calendarFloorFilter !== 'all' && res.room_details?.floor !== calendarFloorFilter) return false;
+                        if (calendarFloorFilter !== 'all' && String(res.room_details?.floor) !== calendarFloorFilter) return false;
                         if (calendarRoomTypeFilter !== 'all' && String(res.room_details?.room_type) !== calendarRoomTypeFilter) return false;
                         if (calendarRoomSearch.trim() !== '' && !res.room_details?.room_number.toLowerCase().includes(calendarRoomSearch.toLowerCase())) return false;
                         if (calendarGuestSearch.trim() !== '' && !res.guest_details?.name.toLowerCase().includes(calendarGuestSearch.toLowerCase()) && !res.reservation_code.toLowerCase().includes(calendarGuestSearch.toLowerCase())) return false;
@@ -3513,7 +3514,7 @@ const PanelHotel: React.FC = () => {
                                     return reservations.filter(res => {
                                         if (res.status === 'cancelled') return false;
                                         
-                                        if (calendarFloorFilter !== 'all' && res.room_details?.floor !== calendarFloorFilter) return false;
+                                        if (calendarFloorFilter !== 'all' && String(res.room_details?.floor) !== calendarFloorFilter) return false;
                                         if (calendarRoomTypeFilter !== 'all' && String(res.room_details?.room_type) !== calendarRoomTypeFilter) return false;
                                         if (calendarRoomSearch.trim() !== '' && !res.room_details?.room_number.toLowerCase().includes(calendarRoomSearch.toLowerCase())) return false;
                                         if (calendarGuestSearch.trim() !== '' && !res.guest_details?.name.toLowerCase().includes(calendarGuestSearch.toLowerCase()) && !res.reservation_code.toLowerCase().includes(calendarGuestSearch.toLowerCase())) return false;
