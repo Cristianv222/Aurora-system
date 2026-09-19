@@ -570,13 +570,14 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 
                 summary, created = DailySummary.objects.get_or_create(
                     date=data['date'],
-                    defaults={'generated_by': 'system'}  # ← MODIFICADO
+                    defaults={'generated_by': 'system'}
                 )
                 
-                if not summary.top_products or not summary.sales_by_hour:
+                # Para días abiertos o si faltan datos detallados, regenerar con los datos más recientes
+                if not summary.is_closed or not summary.top_products or not summary.sales_by_hour:
                     summary = DailySummary.generate_for_date(
                         date=data['date'],
-                        generated_by='system',  # ← MODIFICADO
+                        generated_by='system',
                         detailed=True
                     )
                 
@@ -591,7 +592,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                     'data': summary_data
                 })
             
-            elif report_type == 'weekly' or report_type == 'monthly' or report_type == 'range': 
+            elif report_type in ['weekly', 'monthly', 'range']: 
                 
                 if report_type == 'weekly':
                     start_date = data['start_date']
@@ -605,13 +606,18 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                     start_date = date(year, month, 1)
                     end_date = date(year, month, last_day)
                     period_name = f'{calendar.month_name[month]} {year}'
+
+                elif report_type == 'range':
+                    start_date = data['start_date']
+                    end_date = data['end_date']
+                    period_name = f'Rango {start_date.strftime("%d/%m/%Y")} - {end_date.strftime("%d/%m/%Y")}'
                 
                 current_date = start_date
                 while current_date <= end_date:
                     DailySummary.generate_for_date(
                         date=current_date,
-                        generated_by='system',  # ← MODIFICADO
-                        detailed=False
+                        generated_by='system',
+                        detailed=True
                     )
                     current_date += timedelta(days=1)
                 
@@ -619,14 +625,67 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                     date__gte=start_date,
                     date__lte=end_date
                 ).order_by('date')
+
+                # Consolidar top_products de todos los resúmenes del rango
+                aggregated_products = {}
+                for s in summaries:
+                    for p in (s.top_products or []):
+                        pid = p.get('product_id')
+                        if not pid:
+                            continue
+                        if pid not in aggregated_products:
+                            aggregated_products[pid] = {
+                                'product_id': pid,
+                                'product_name': p.get('product_name', ''),
+                                'category': p.get('category', 'Sin categoría'),
+                                'quantity': 0,
+                                'total_amount': 0.0,
+                                'average_price': p.get('average_price', 0.0)
+                            }
+                        aggregated_products[pid]['quantity'] += p.get('quantity', 0)
+                        aggregated_products[pid]['total_amount'] += p.get('total_amount', 0.0)
+
+                top_products_list = list(aggregated_products.values())
+                top_products_list.sort(key=lambda x: x['total_amount'], reverse=True)
+                for idx, p in enumerate(top_products_list, 1):
+                    p['rank'] = idx
+
+                # Consolidar sales_by_hour de todos los resúmenes del rango
+                hourly_map = {h: {'hour': h, 'hour_label': f'{h:02d}:00', 'total_sales': 0.0, 'total_orders': 0, 'total_items': 0, 'average_order_value': 0.0} for h in range(24)}
+                for s in summaries:
+                    for h_item in (s.sales_by_hour or []):
+                        h = h_item.get('hour')
+                        if h is not None and h in hourly_map:
+                            hourly_map[h]['total_sales'] += h_item.get('total_sales', 0.0)
+                            hourly_map[h]['total_orders'] += h_item.get('total_orders', 0)
+                            hourly_map[h]['total_items'] += h_item.get('total_items', 0)
+
+                for h, data_h in hourly_map.items():
+                    if data_h['total_orders'] > 0:
+                        data_h['average_order_value'] = data_h['total_sales'] / data_h['total_orders']
                 
                 consolidated = {
                     'total_sales': sum(float(s.total_sales) for s in summaries),
                     'total_orders': sum(s.total_orders for s in summaries),
+                    'total_customers': sum(s.total_customers for s in summaries),
                     'total_items_sold': sum(s.total_items_sold for s in summaries),
                     'total_discounts': sum(float(s.total_discounts) for s in summaries),
                     'total_tips': sum(float(s.total_tips) for s in summaries),
-                    'average_order_value': 0,
+                    'cash_sales': sum(float(s.cash_sales) for s in summaries),
+                    'cash_count': sum(s.cash_count for s in summaries),
+                    'card_sales': sum(float(s.card_sales) for s in summaries),
+                    'transfer_sales': sum(float(s.transfer_sales) for s in summaries),
+                    'transfer_count': sum(s.transfer_count for s in summaries),
+                    'other_sales': sum(float(s.other_sales) for s in summaries),
+                    'cop_sales': sum(float(s.cop_sales) for s in summaries),
+                    'cop_count': sum(s.cop_count for s in summaries),
+                    'dine_in_sales': sum(float(s.dine_in_sales) for s in summaries),
+                    'takeout_sales': sum(float(s.takeout_sales) for s in summaries),
+                    'delivery_sales': sum(float(s.delivery_sales) for s in summaries),
+                    'average_order_value': 0.0,
+                    'average_items_per_order': 0.0,
+                    'top_products': top_products_list,
+                    'sales_by_hour': list(hourly_map.values()),
                     'daily_summaries': DailySummarySerializer(summaries, many=True).data,
                     'start_date': start_date,
                     'end_date': end_date,
@@ -635,6 +694,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 
                 if consolidated['total_orders'] > 0:
                     consolidated['average_order_value'] = consolidated['total_sales'] / consolidated['total_orders']
+                    consolidated['average_items_per_order'] = consolidated['total_items_sold'] / consolidated['total_orders']
                 
                 if include_orders_detail:
                     consolidated['orders_detail'] = self._get_orders_detail(start_date, end_date)
@@ -724,53 +784,20 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
-        # Usar hora local para que 'today' coincida con el negocio (America/Guayaquil -5)
         now_local = timezone.localtime(timezone.now())
         today = now_local.date()
         yesterday = today - timedelta(days=1)
         
-        from apps.orders.models import Order
-        from apps.payments.models import Payment
-        from .models import Shift 
-        from decimal import Decimal
-        COP_RATE = Decimal('4000')
+        from .models import Shift, DailySummary
         
-        # --- Cálculo para HOY basado en PAGOS ---
-        payments_today = Payment.objects.filter(
-            created_at__date=today,
-            status='completed'
-        )
+        summary_today = DailySummary.generate_for_date(today, generated_by='system', detailed=False)
+        summary_yesterday = DailySummary.generate_for_date(yesterday, generated_by='system', detailed=False)
         
-        cash_today = payments_today.filter(payment_method__method_type='cash').exclude(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        card_today = payments_today.filter(payment_method__method_type__in=['credit_card', 'debit_card']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        transfer_today = payments_today.filter(payment_method__method_type__icontains='transfer').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        other_today = payments_today.exclude(payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        cop_today = payments_today.filter(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
+        sales_today = summary_today.total_sales
+        sales_yesterday = summary_yesterday.total_sales
         
-        sales_today = cash_today + card_today + transfer_today + other_today + (cop_today / COP_RATE)
-        
-        # --- Cálculo para AYER basado en PAGOS ---
-        payments_yesterday = Payment.objects.filter(
-            created_at__date=yesterday,
-            status='completed'
-        )
-        cash_yest = payments_yesterday.filter(payment_method__method_type='cash').exclude(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        card_yest = payments_yesterday.filter(payment_method__method_type__in=['credit_card', 'debit_card']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        transfer_yest = payments_yesterday.filter(payment_method__method_type__icontains='transfer').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        other_yest = payments_yesterday.exclude(payment_method__method_type__in=['cash', 'credit_card', 'debit_card', 'bank_transfer', 'transfer']).aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        cop_yest = payments_yesterday.filter(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-        
-        sales_yesterday = cash_yest + card_yest + transfer_yest + other_yest + (cop_yest / COP_RATE)
-        
-        orders_today_count = Order.objects.filter(
-            created_at__date=today,
-            status__in=['delivered', 'completed']
-        ).count()
-        
-        orders_yesterday_count = Order.objects.filter(
-            created_at__date=yesterday,
-            status__in=['delivered', 'completed']
-        ).count()
+        orders_today_count = summary_today.total_orders
+        orders_yesterday_count = summary_yesterday.total_orders
         
         active_shifts = Shift.objects.filter(status='open').count()
         
@@ -778,30 +805,16 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
             change_percentage = ((sales_today - sales_yesterday) / sales_yesterday) * 100
         else:
             change_percentage = 100 if sales_today > 0 else 0
-        
+            
         sales_last_7_days = []
         for i in range(7):
             day = today - timedelta(days=i)
-            
-            day_p = Payment.objects.filter(
-                created_at__date=day,
-                status='completed'
-            )
-            
-            day_usd = day_p.exclude(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-            day_cop = day_p.filter(currency__code='COP').aggregate(s=Sum('amount'))['s'] or Decimal('0')
-            day_total = day_usd + (day_cop / COP_RATE)
-            
-            orders_count = Order.objects.filter(
-                created_at__date=day,
-                status__in=['delivered', 'completed']
-            ).count()
-            
+            s_day = DailySummary.generate_for_date(day, generated_by='system', detailed=False)
             sales_last_7_days.insert(0, {
                 'date': day.strftime('%Y-%m-%d'),
                 'day_name': day.strftime('%a'),
-                'total_sales': float(day_total),
-                'total_orders': orders_count,
+                'total_sales': float(s_day.total_sales),
+                'total_orders': s_day.total_orders,
             })
         
         return Response({
@@ -809,7 +822,7 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
             'sales': {
                 'today': float(sales_today),
                 'yesterday': float(sales_yesterday),
-                'change_percentage': round(change_percentage, 2),
+                'change_percentage': round(float(change_percentage), 2),
                 'trend': 'up' if change_percentage > 0 else 'down' if change_percentage < 0 else 'stable'
             },
             'orders': {

@@ -21,7 +21,7 @@ import { formatCurrency, formatDate, getValidDate, generateDetailedPDF } from '.
 const COLORS = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'];
 
 const getFastFoodBaseURL = () => {
-    return import.meta.env.VITE_FAST_FOOD_SERVICE || 'http://localhost:8002';
+    return import.meta.env.VITE_FAST_FOOD_SERVICE || '/api/fast-food';
 };
 
 // Reemplaza la función isSameLocalDate con esta versión corregida:
@@ -972,7 +972,7 @@ const Reportes = () => {
                 {metrics.map((metric, index) => (
                     <div key={index} className="metric-card">
                         <div className="metric-header">
-                            <span className="material-icons" style={{ color: metric.color }}>{metric.icon}</span>
+                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: metric.color, display: 'inline-block' }}></span>
                             <p className="metric-title">{metric.title}</p>
                         </div>
                         <h3 className="metric-value" style={{ color: metric.color }}>
@@ -1004,7 +1004,7 @@ const Reportes = () => {
 
         return (
             <div className="chart-container">
-                <h4 className="chart-title">Ventas por Hora (MXN)</h4>
+                <h4 className="chart-title">Ventas por Hora ($ USD)</h4>
                 <ResponsiveContainer width="100%" height={300}>
                     <AreaChart data={hourData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
@@ -1191,7 +1191,9 @@ const Reportes = () => {
                                     display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                 }}
                             >
-                                <span className="material-icons">lock_clock</span>
+                                <svg style={{ width: '18px', height: '18px', fill: 'none', stroke: 'currentColor' }} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
                                 {processingShift ? 'Procesando...' : 'Cerrar Turno y Reporte'}
                             </button>
                         ) : (
@@ -1203,7 +1205,9 @@ const Reportes = () => {
                                     display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                                 }}
                             >
-                                <span className="material-icons">access_time</span>
+                                <svg style={{ width: '18px', height: '18px', fill: 'none', stroke: 'currentColor' }} viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
                                 Abrir Nuevo Turno
                             </button>
                         )}
@@ -1429,7 +1433,9 @@ const Reportes = () => {
                                     onClick={handlePrintPDF}
                                     style={{ fontSize: '0.9rem', padding: '8px 15px' }}
                                 >
-                                    <span className="material-icons" style={{ fontSize: '1.1rem', marginRight: '5px' }}>print</span>
+                                    <svg style={{ width: '18px', height: '18px', fill: 'none', stroke: 'currentColor', marginRight: '6px' }} viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
                                     Imprimir Reporte del Día
                                 </button>
                             </h3>
@@ -1452,7 +1458,9 @@ const Reportes = () => {
                                                     className="action-button secondary"
                                                     style={{ padding: '5px 10px', fontSize: '0.8rem' }}
                                                 >
-                                                    <span className="material-icons" style={{ fontSize: '1rem', marginRight: '5px' }}>picture_as_pdf</span>
+                                                    <svg style={{ width: '16px', height: '16px', fill: 'none', stroke: 'currentColor', marginRight: '4px' }} viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                    </svg>
                                                     PDF
                                                 </button>
                                             </div>
@@ -1487,7 +1495,9 @@ const Reportes = () => {
                         </>
                     ) : (
                         <div className="empty-state">
-                            <span className="material-icons" style={{ fontSize: '4rem', color: '#ccc' }}>assessment</span>
+                            <svg style={{ width: '64px', height: '64px', fill: 'none', stroke: '#ccc' }} viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
                             <h3 className="empty-title">
                                 {noReportMessage || 'Selecciona un reporte'}
                             </h3>
@@ -1532,7 +1542,9 @@ const Reportes = () => {
                                             <strong>{currentReport?.total_orders}</strong>
                                         </div>
                                         <div className="info-item">
-                                            <span className="material-icons">paid</span>
+                                            <svg style={{ width: '20px', height: '20px', fill: 'none', stroke: 'currentColor' }} viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
                                             <span>Ventas: <strong>{formatCurrency(currentShift?.total_sales || 0)}</strong></span>
                                         </div>
                                         <div className="modal-stat">
@@ -1562,7 +1574,9 @@ const Reportes = () => {
                                                             className="action-button secondary"
                                                             style={{ padding: '5px 10px', fontSize: '0.8rem' }}
                                                         >
-                                                            <span className="material-icons" style={{ fontSize: '1rem', marginRight: '5px' }}>picture_as_pdf</span>
+                                                            <svg style={{ width: '16px', height: '16px', fill: 'none', stroke: 'currentColor', marginRight: '4px' }} viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                            </svg>
                                                             PDF
                                                         </button>
                                                     </div>

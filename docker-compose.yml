@@ -54,8 +54,8 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_service_db
       - REDIS_URL=redis://redis:6379/0
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000
-      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,0.0.0.0,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000,*
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000,http://localhost:8090,http://localhost,http://127.0.0.1:8090,http://127.0.0.1
       - DEBUG=False
     expose:
       - "8000"
@@ -91,8 +91,8 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/fast_food_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000/auth
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000
-      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,0.0.0.0,auth-service,auth-service:8000,fast-food-service,fast-food-service:8000,*
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000,http://localhost:8090,http://localhost,http://127.0.0.1:8090,http://127.0.0.1
       - DEBUG=False
     expose:
       - "8000"
@@ -128,14 +128,15 @@ services:
         daphne -b 0.0.0.0 -p 8000 restaurant_service.asgi:application
       "
     volumes:
+      - ./restaurant-service:/app
       - restaurant-static:/app/staticfiles
       - restaurant-media:/app/media
     environment:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/restaurant_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000/auth
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,auth-service,auth-service:8000
-      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,0.0.0.0,auth-service,auth-service:8000,restaurant-service,restaurant-service:8000,*
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000,http://localhost:8090,http://localhost,http://127.0.0.1:8090,http://127.0.0.1
       - DEBUG=False
     expose:
       - "8000"
@@ -171,8 +172,8 @@ services:
       - SECRET_KEY=aurora-production-secret-key-2025-ultra-secure-change-this
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/hotel_service_db
       - AUTH_SERVICE_URL=http://auth-service:8000/auth
-      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,auth-service,auth-service:8000
-      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000
+      - ALLOWED_HOSTS=aurora.fronteratech.ec,146.190.217.68,localhost,127.0.0.1,0.0.0.0,hotel-service,hotel-service:8000,*
+      - CORS_ALLOWED_ORIGINS=https://aurora.fronteratech.ec,http://146.190.217.68,http://localhost:3000,http://localhost:8090,http://localhost,http://127.0.0.1:8090,http://127.0.0.1
       - DEBUG=False
     expose:
       - "8000"
@@ -192,19 +193,19 @@ services:
     build:
       context: ./frontend
       args:
-        - VITE_API_BASE_URL=https://aurora.fronteratech.ec
-        - VITE_AUTH_SERVICE=https://aurora.fronteratech.ec
-        - VITE_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
-        - VITE_RESTAURANT_SERVICE=https://aurora.fronteratech.ec
+        - VITE_API_BASE_URL=
+        - VITE_AUTH_SERVICE=
+        - VITE_FAST_FOOD_SERVICE=/api/fast-food
+        - VITE_RESTAURANT_SERVICE=
     container_name: aurora_frontend
     volumes:
       - /app/node_modules
     environment:
       - NODE_ENV=production
-      - VITE_API_BASE_URL=https://aurora.fronteratech.ec
-      - VITE_AUTH_SERVICE=https://aurora.fronteratech.ec
-      - VITE_FAST_FOOD_SERVICE=https://aurora.fronteratech.ec/api/fast-food
-      - VITE_RESTAURANT_SERVICE=https://aurora.fronteratech.ec
+      - VITE_API_BASE_URL=
+      - VITE_AUTH_SERVICE=
+      - VITE_FAST_FOOD_SERVICE=/api/fast-food
+      - VITE_RESTAURANT_SERVICE=
     expose:
       - "3000"
     networks:

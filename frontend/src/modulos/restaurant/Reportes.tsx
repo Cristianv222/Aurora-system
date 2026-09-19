@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import api from '../../services/api';
 import {
     BarChart, Bar,
@@ -125,7 +125,7 @@ interface DashboardStats {
 const COLORS = ['#4f46e5', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#b45309', '#ec4899', '#6b7280'];
 
 const getFastFoodBaseURL = (): string => {
-    return import.meta.env.VITE_RESTAURANT_SERVICE || 'http://localhost:8002';
+    return import.meta.env.VITE_RESTAURANT_SERVICE || '';
 };
 
 const isSameLocalDate = (date1: string | Date | undefined, date2: string | Date | undefined): boolean => {
@@ -173,6 +173,79 @@ const Reportes: React.FC = () => {
     const [connectionError, setConnectionError] = useState<boolean>(false);
     const [debugInfo, setDebugInfo] = useState<string>('');
     const [noReportMessage, setNoReportMessage] = useState<string>('');
+    const [isWsConnected, setIsWsConnected] = useState<boolean>(false);
+
+    // WebSocket en tiempo real para reportes
+    useEffect(() => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const hostname = window.location.hostname || 'localhost';
+        const port = window.location.port === '3000' ? '8090' : (window.location.port || '');
+        const hostWithPort = port ? `${hostname}:${port}` : hostname;
+        const wsUrl = `${protocol}//${hostWithPort}/ws/restaurant/reports/`;
+
+        let socket: WebSocket | null = null;
+        let reconnectTimeout: any = null;
+
+        const connect = () => {
+            try {
+                socket = new WebSocket(wsUrl);
+
+                socket.onopen = () => {
+                    console.log('⚡ WebSocket de Reportes conectado');
+                    setIsWsConnected(true);
+                };
+
+                socket.onmessage = (event) => {
+                    try {
+                        const parsed = JSON.parse(event.data);
+                        if (parsed.type === 'report_update' && parsed.data) {
+                            console.log('⚡ Actualización de reporte en vivo vía WebSocket:', parsed.data);
+                            const updatedData = parsed.data;
+                            setCurrentReport((prevReport: any) => {
+                                if (!prevReport) return updatedData;
+                                if (!prevReport.date || updatedData.date === prevReport.date) {
+                                    return { ...prevReport, ...updatedData };
+                                }
+                                return prevReport;
+                            });
+
+                            setReports((prev: any[]) => {
+                                if (!Array.isArray(prev)) return [updatedData];
+                                const index = prev.findIndex(r => r.date === updatedData.date);
+                                if (index >= 0) {
+                                    const next = [...prev];
+                                    next[index] = { ...next[index], ...updatedData };
+                                    return next;
+                                }
+                                return [updatedData, ...prev];
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Error procesando mensaje WebSocket:', err);
+                    }
+                };
+
+                socket.onerror = (err) => {
+                    console.warn('WebSocket error in Reportes:', err);
+                    setIsWsConnected(false);
+                };
+
+                socket.onclose = () => {
+                    setIsWsConnected(false);
+                    reconnectTimeout = setTimeout(connect, 4000);
+                };
+            } catch (e) {
+                console.error('Error creando WebSocket:', e);
+            }
+        };
+
+        connect();
+
+        return () => {
+            if (socket) socket.close();
+            if (reconnectTimeout) clearTimeout(reconnectTimeout);
+        };
+    }, []);
 
     // ========== ESTADOS PARA EL MODAL ==========
     const [showModal, setShowModal] = useState<boolean>(false);
@@ -766,6 +839,15 @@ const Reportes: React.FC = () => {
         }
     };
 
+    const isInitialMountFilter = useRef(true);
+    useEffect(() => {
+        if (isInitialMountFilter.current) {
+            isInitialMountFilter.current = false;
+            return;
+        }
+        forceGenerateReport();
+    }, [reportType, dateRange.startDate, dateRange.endDate]);
+
     // ========== SILENT POLL REFRESH ==========
     const refreshCurrentData = useCallback(async () => {
         if (!currentReport) return;
@@ -1066,7 +1148,7 @@ const Reportes: React.FC = () => {
 
         return (
             <div className="bg-slate-50/50 border border-slate-250/70 p-5 rounded-2xl">
-                <h4 className="text-slate-800 font-bold text-xs uppercase tracking-wider mb-4">Ventas por Hora (MXN)</h4>
+                <h4 className="text-slate-800 font-bold text-xs uppercase tracking-wider mb-4">Ventas por Hora ($ USD)</h4>
                 <div className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <AreaChart data={hourData}>
@@ -1136,10 +1218,15 @@ const Reportes: React.FC = () => {
     return (
         <div className="p-4 sm:p-8 font-sans bg-slate-50 min-h-screen text-slate-800">
             {/* Título principal */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Reportes del Sistema</h1>
-                    <p className="text-xs text-slate-500 mt-1">Datos en tiempo real desde la base de datos.</p>
+                    <div className="flex items-center gap-2.5">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900">Reportes del Sistema</h1>
+                        <span className="flex items-center gap-1.5" title={isWsConnected ? "En línea" : "Desconectado"}>
+                            <span className={`w-3.5 h-3.5 rounded-full transition-all ${isWsConnected ? 'bg-emerald-500 shadow-sm shadow-emerald-200 animate-pulse' : 'bg-rose-500 shadow-sm shadow-rose-200'}`}></span>
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Información y métricas del sistema en tiempo real.</p>
                 </div>
                 <div>
                     <Btn variant="danger" size="lg" onClick={closeDay}>
@@ -1171,8 +1258,10 @@ const Reportes: React.FC = () => {
                                 disabled={processingShift}
                                 className="flex items-center gap-1.5 font-bold shadow-md shadow-indigo-100"
                             >
-                                <span className="material-icons text-base">lock_clock</span>
-                                {processingShift ? 'Procesando...' : 'Cerrar Turno y Reporte'}
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                <span>{processingShift ? 'Procesando...' : 'Cerrar Turno y Reporte'}</span>
                             </Btn>
                         ) : (
                             <Btn
@@ -1181,8 +1270,10 @@ const Reportes: React.FC = () => {
                                 disabled={processingShift}
                                 className="flex items-center gap-1.5 font-bold shadow-md shadow-emerald-100"
                             >
-                                <span className="material-icons text-base">access_time</span>
-                                Abrir Nuevo Turno
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Abrir Nuevo Turno</span>
                             </Btn>
                         )}
                     </div>
@@ -1237,12 +1328,6 @@ const Reportes: React.FC = () => {
                                 </>
                             )}
                         </div>
-                    </div>
-
-                    <div className="flex-1 min-w-[150px] flex gap-2 justify-start sm:justify-end">
-                        <Btn variant="primary" onClick={forceGenerateReport} disabled={loadingData || !dateRange.startDate}>
-                            {loadingData ? 'Procesando...' : 'Generar / Buscar'}
-                        </Btn>
                     </div>
                 </div>
 
@@ -1407,9 +1492,11 @@ const Reportes: React.FC = () => {
                                     <Btn
                                         variant="outline"
                                         onClick={handlePrintPDF}
-                                        className="flex items-center gap-1 font-bold text-xs"
+                                        className="flex items-center gap-1.5 font-bold text-xs"
                                     >
-                                        <span className="material-icons text-base">print</span>
+                                        <svg className="w-4 h-4 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                        </svg>
                                         Imprimir Reporte del Día
                                     </Btn>
                                 </div>
@@ -1432,9 +1519,11 @@ const Reportes: React.FC = () => {
                                                         onClick={() => handlePrintShiftReport(shift.id)}
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="flex items-center gap-0.5 font-bold"
+                                                        className="flex items-center gap-1 font-bold"
                                                     >
-                                                        <span className="material-icons text-xs">picture_as_pdf</span>
+                                                        <svg className="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                        </svg>
                                                         PDF
                                                     </Btn>
                                                 </div>
@@ -1477,7 +1566,9 @@ const Reportes: React.FC = () => {
                         </div>
                     ) : (
                         <div className="flex flex-col items-center justify-center py-20 text-center">
-                            <span className="material-icons text-slate-300 text-5xl mb-4">assessment</span>
+                            <svg className="w-12 h-12 text-slate-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
                             <h3 className="text-slate-700 font-bold text-base mb-1.5">
                                 {noReportMessage || 'Selecciona un reporte'}
                             </h3>
@@ -1554,9 +1645,11 @@ const Reportes: React.FC = () => {
                                                             onClick={() => handlePrintShiftReport(shift.id)}
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="flex items-center gap-0.5 font-bold"
+                                                            className="flex items-center gap-1 font-bold"
                                                         >
-                                                            <span className="material-icons text-xs">picture_as_pdf</span>
+                                                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                                            </svg>
                                                             PDF
                                                         </Btn>
                                                     </div>

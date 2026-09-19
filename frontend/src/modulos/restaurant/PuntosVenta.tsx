@@ -1084,75 +1084,75 @@ const PuntosVenta: React.FC = () => {
             </div>
 
             {/* Calculadora de Vuelto */}
-            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4.5 space-y-3.5">
-                <h4 className="font-extrabold text-xs text-indigo-805 uppercase tracking-wider flex items-center gap-1.5">
-                    <i className="bi bi-calculator"></i> Calculadora de Vuelto
-                </h4>
-                
-                <div className="flex gap-2">
-                    <input
-                        type="number"
-                        value={inputCash}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            setInputCash(val);
-                            setCashGiven(val ? parseFloat(val) : null);
-                        }}
-                        placeholder="Monto recibido"
-                        className="flex-1 px-3.5 py-2 text-sm text-slate-800 border border-slate-200 rounded-xl outline-none focus:border-slate-800 transition bg-white"
-                    />
+            <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                    <h4 className="font-extrabold text-xs text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <i className="bi bi-calculator text-base text-indigo-600"></i> Calculadora de Cambio / Vuelto
+                    </h4>
                     <button
                         type="button"
-                        onClick={() => { setCashGiven(null); setInputCash(''); }}
-                        className="px-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 font-bold text-xs uppercase tracking-wider transition hover:bg-rose-100"
+                        onClick={() => {
+                            const totalVal = selectedCurrency === 'COP' ? Math.round(calculateTotalInCurrency) : Math.round(calculateTotal * 100) / 100;
+                            setCashGiven(totalVal);
+                            setInputCash(totalVal.toString());
+                        }}
+                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-white border border-indigo-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
                     >
-                        Borrar
+                        Monto Exacto ({formatCurrency(calculateTotalInCurrency, selectedCurrency)})
                     </button>
                 </div>
 
-                <div className="grid grid-cols-4 gap-1.5">
-                    {(selectedCurrency === 'COP'
-                        ? [1000, 2000, 5000, 10000, 20000, 50000, 100000]
-                        : [1, 2, 5, 10, 20, 50, 100]
-                    ).map(bill => (
-                        <button
-                            key={bill}
-                            type="button"
-                            onClick={() => {
-                                const newVal = (cashGiven || 0) + bill;
-                                setCashGiven(newVal);
-                                setInputCash(newVal.toString());
+                <div className="flex gap-2">
+                    <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-sm">$</span>
+                        <input
+                            type="number"
+                            step="any"
+                            value={inputCash}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setInputCash(val);
+                                setCashGiven(val ? parseFloat(val) : null);
                             }}
-                            className="bg-white border border-indigo-200 text-indigo-700 font-bold text-[10px] p-2 rounded-lg transition hover:bg-indigo-50/50"
+                            placeholder="Monto recibido en físico (ej: 20.00)"
+                            className="w-full pl-7 pr-3 py-2 text-sm text-slate-900 font-extrabold border border-slate-300 rounded-xl outline-none focus:border-indigo-600 bg-white"
+                        />
+                    </div>
+                    {inputCash && (
+                        <button
+                            type="button"
+                            onClick={() => { setCashGiven(null); setInputCash(''); }}
+                            className="px-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-600 font-bold text-xs transition hover:bg-rose-100 cursor-pointer"
                         >
-                            +{selectedCurrency === 'COP' ? formatCurrency(bill, 'COP') : `$${bill}`}
+                            Borrar
                         </button>
-                    ))}
+                    )}
                 </div>
 
-                {cashGiven !== null && (
-                    <div className="bg-white border border-indigo-150 p-3.5 rounded-xl text-xs space-y-1.5">
-                        <div className="flex justify-between text-slate-400 font-medium">
+                {cashGiven !== null && cashGiven > 0 && (
+                    <div className={`p-3.5 rounded-xl border text-xs space-y-1.5 animate-fade-in ${
+                        cashGiven >= calculateTotalInCurrency - 0.01
+                            ? 'bg-white border-emerald-300 text-emerald-950'
+                            : 'bg-white border-amber-300 text-amber-950'
+                    }`}>
+                        <div className="flex justify-between text-slate-500 font-medium">
                             <span>Total a Pagar:</span>
                             <span className="font-bold text-slate-800">{formatCurrency(calculateTotalInCurrency, selectedCurrency)}</span>
                         </div>
-                        <div className="flex justify-between text-slate-400 font-medium">
+                        <div className="flex justify-between text-slate-500 font-medium">
                             <span>Efectivo Recibido:</span>
-                            <span className="font-bold text-indigo-600">{formatCurrency(cashGiven, selectedCurrency)}</span>
+                            <span className="font-bold text-indigo-700">{formatCurrency(cashGiven, selectedCurrency)}</span>
                         </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-dashed border-indigo-200 text-sm font-extrabold">
-                            <span className="text-indigo-805">VUELTO:</span>
+                        <div className="flex justify-between items-center pt-2 border-t border-dashed border-slate-200 text-sm font-extrabold">
+                            <span className="text-slate-800 uppercase tracking-wider text-xs">
+                                {cashGiven >= calculateTotalInCurrency - 0.01 ? 'CAMBIO / VUELTO:' : 'FALTA POR CUBRIR:'}
+                            </span>
                             <div className="text-right">
-                                <span className={cashGiven - calculateTotalInCurrency < 0 ? 'text-rose-600' : 'text-emerald-600'}>
-                                    {formatCurrency(cashGiven - calculateTotalInCurrency, selectedCurrency)}
+                                <span className={cashGiven >= calculateTotalInCurrency - 0.01 ? 'text-2xl font-black text-emerald-600' : 'text-xl font-black text-amber-600'}>
+                                    {formatCurrency(Math.abs(cashGiven - calculateTotalInCurrency), selectedCurrency)}
                                 </span>
                             </div>
                         </div>
-                        {cashGiven - calculateTotalInCurrency < 0 && (
-                            <p className="text-rose-600 text-[10px] font-bold text-center mt-1 flex items-center justify-center gap-1">
-                                <i className="bi bi-exclamation-triangle-fill text-rose-500"></i> Monto insuficiente
-                            </p>
-                        )}
                     </div>
                 )}
             </div>

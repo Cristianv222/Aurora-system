@@ -83,6 +83,8 @@ const PanelRestaurant: React.FC = () => {
 
     const [inputCash, setInputCash] = useState<string>('');
     const [cashGiven, setCashGiven] = useState<number | null>(null);
+    const [lastChangeGiven, setLastChangeGiven] = useState<number | null>(null);
+    const [lastCashReceived, setLastCashReceived] = useState<number | null>(null);
 
     const [paymentSplits, setPaymentSplits] = useState<PaymentSplit[]>([]);
 
@@ -90,6 +92,8 @@ const PanelRestaurant: React.FC = () => {
     const [splitPaymentSplits, setSplitPaymentSplits] = useState<PaymentSplit[]>([]);
     const [splitInputCash, setSplitInputCash] = useState<string>('');
     const [splitCashGiven, setSplitCashGiven] = useState<number | null>(null);
+    const [lastSplitChangeGiven, setLastSplitChangeGiven] = useState<number | null>(null);
+    const [lastSplitCashReceived, setLastSplitCashReceived] = useState<number | null>(null);
     const [splitPaymentMethod, setSplitPaymentMethod] = useState<string>('');
     const [splitCurrency, setSplitCurrency] = useState<string>('USD');
     const [isDrawerExpanded, setIsDrawerExpanded] = useState<boolean>(false);
@@ -252,10 +256,14 @@ const PanelRestaurant: React.FC = () => {
         setSplitItemsSelection({});
         setCashGiven(null);
         setInputCash('');
+        setLastChangeGiven(null);
+        setLastCashReceived(null);
         setPaymentSplits([]);
         setSplitPaymentSplits([]);
         setSplitInputCash('');
         setSplitCashGiven(null);
+        setLastSplitChangeGiven(null);
+        setLastSplitCashReceived(null);
         setSplitCurrency('USD');
     };
 
@@ -293,11 +301,10 @@ const PanelRestaurant: React.FC = () => {
 
     const calculateTotalToPay = () => {
         return tableOrders.reduce((sum, o) => {
-            const itemsTotal = (o.items || [])
+            const unpaidItemsTotal = (o.items || [])
                 .filter((i: any) => !i.is_paid)
-                .reduce((acc: number, i: any) => acc + parseFloat(i.line_total || 0), 0);
-            const paid = parseFloat(o.amount_paid || 0);
-            return sum + Math.max(0, itemsTotal - paid);
+                .reduce((acc: number, i: any) => acc + parseFloat(i.line_total || (parseFloat(i.unit_price || 0) * (i.quantity || 1))), 0);
+            return sum + unpaidItemsTotal;
         }, 0);
     };
 
@@ -348,33 +355,43 @@ const PanelRestaurant: React.FC = () => {
     const groupedItemsForSplit = getGroupedItems(true);
 
     const renderPaymentForm = () => {
+        const totalToPay = calculateTotalToPay();
+        const alreadyPaidUSD = paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0);
+        const saldoPendienteUSD = Math.max(0, totalToPay - alreadyPaidUSD);
+
+        const rate = selectedCurrency === 'COP' ? parseFloat(exchangeRate || '4000') : 1;
+        const saldoPendienteCur = selectedCurrency === 'COP' ? saldoPendienteUSD * rate : saldoPendienteUSD;
+
+        const cashEntered = cashGiven || 0;
+        const cashEnteredUSD = selectedCurrency === 'COP' ? cashEntered / rate : cashEntered;
+
         return (
             <>
-                {/* SECCIÓN: PAGOS MÚLTIPLES */}
-                <div className="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
-                    <h4 className="m-0 mb-3 text-slate-800 text-sm font-bold border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
-                        <i className="bi bi-credit-card-2-front-fill text-slate-500"></i> Agregar Pago
+                {/* SECCIÓN: REGISTRO DE PAGO Y CAMBIO */}
+                <div className="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <h4 className="m-0 mb-3 text-slate-800 text-xs font-bold uppercase tracking-wider border-b border-slate-200 pb-2 flex items-center gap-2">
+                        <i className="bi bi-wallet2 text-indigo-600 text-base"></i> Registrar Pago y Cambio
                     </h4>
 
-                    <div className="flex gap-2.5 mb-3">
-                        <div className="flex-1">
-                            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Método</label>
+                    <div className="grid grid-cols-2 gap-2.5 mb-3">
+                        <div>
+                            <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Método de Pago</label>
                             <select
                                 value={selectedPaymentMethod}
                                 onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                                className="w-full p-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs outline-none focus:border-blue-500"
+                                className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-xs font-semibold outline-none focus:border-indigo-500"
                             >
                                 {paymentMethods.map(m => (
                                     <option key={m.id} value={m.id}>{m.name}</option>
                                 ))}
                             </select>
                         </div>
-                        <div className="flex-1">
+                        <div>
                             <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Moneda</label>
                             <select
                                 value={selectedCurrency}
                                 onChange={(e) => setSelectedCurrency(e.target.value)}
-                                className="w-full p-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs outline-none focus:border-blue-500"
+                                className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-800 text-xs font-semibold outline-none focus:border-indigo-500"
                             >
                                 <option value="USD">USD ($)</option>
                                 <option value="COP">COP ($)</option>
@@ -382,95 +399,169 @@ const PanelRestaurant: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Ingreso de monto sugerido */}
+                    {/* INGRESO MANUAL DE DINERO RECIBIDO EN FÍSICO */}
                     <div className="mb-3">
-                        <label className="block text-[10px] uppercase font-bold text-slate-500 mb-1">Monto Entregado ({selectedCurrency})</label>
-                        <div className="flex gap-2">
-                            <input
-                                type="number"
-                                value={inputCash}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setInputCash(val);
-                                    setCashGiven(val ? parseFloat(val) : null);
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="block text-[10px] uppercase font-bold text-slate-600">
+                                Dinero Recibido en Físico ({selectedCurrency})
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const exact = selectedCurrency === 'COP'
+                                        ? Math.round(saldoPendienteUSD * rate)
+                                        : Math.round(saldoPendienteUSD * 100) / 100;
+                                    setCashGiven(exact);
+                                    setInputCash(exact.toString());
                                 }}
-                                placeholder={`Monto en ${selectedCurrency}`}
-                                className="flex-1 p-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-sm outline-none focus:border-blue-500"
-                            />
+                                className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
+                            >
+                                Monto Exacto ({formatCurrency(saldoPendienteUSD, 'USD')})
+                            </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-base">
+                                    $
+                                </span>
+                                <input
+                                    type="number"
+                                    step="any"
+                                    value={inputCash}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setInputCash(val);
+                                        setCashGiven(val ? parseFloat(val) : null);
+                                    }}
+                                    placeholder={selectedCurrency === 'COP' ? "Ej: 20000" : "Ej: 20.00"}
+                                    className="w-full pl-8 pr-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 text-lg font-black outline-none focus:border-indigo-600 shadow-inner"
+                                />
+                            </div>
+                            {inputCash && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInputCash('');
+                                        setCashGiven(null);
+                                    }}
+                                    className="px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                                    title="Limpiar"
+                                >
+                                    ✕
+                                </button>
+                            )}
                             <button
                                 onClick={() => {
-                                    if (!cashGiven || cashGiven <= 0) return alert('Ingreso de monto inválido');
+                                    if (!cashGiven || cashGiven <= 0) return alert('Por favor ingresa un monto válido recibido en físico');
 
-                                    let appliedUSD = 0;
-                                    if (selectedCurrency === 'COP') {
-                                        appliedUSD = cashGiven / parseFloat(exchangeRate || '4000');
-                                    } else {
-                                        appliedUSD = cashGiven;
-                                    }
-
-                                    const totalPendiente = calculateTotalToPay() - paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0);
-
-                                    let finalAppliedUSD = appliedUSD;
-                                    let methodChange = 0;
-
-                                    if (appliedUSD > totalPendiente) {
-                                        finalAppliedUSD = totalPendiente;
-                                        if (selectedCurrency === 'COP') {
-                                            methodChange = cashGiven - (totalPendiente * parseFloat(exchangeRate || '4000'));
-                                        } else {
-                                            methodChange = cashGiven - totalPendiente;
-                                        }
+                                    const appliedUSD = Math.min(cashEnteredUSD, saldoPendienteUSD);
+                                    let changeForMethod = 0;
+                                    if (cashEnteredUSD > saldoPendienteUSD) {
+                                        changeForMethod = selectedCurrency === 'COP'
+                                            ? cashGiven - (appliedUSD * rate)
+                                            : cashGiven - appliedUSD;
                                     }
 
                                     const methodObj = paymentMethods.find(m => String(m.id) === selectedPaymentMethod);
 
                                     setPaymentSplits([...paymentSplits, {
                                         payment_method_id: selectedPaymentMethod,
-                                        method_name: methodObj ? methodObj.name : 'Unknown',
-                                        amount_applied: finalAppliedUSD,
+                                        method_name: methodObj ? methodObj.name : 'Efectivo',
+                                        amount_applied: appliedUSD,
                                         amount_received: cashGiven,
                                         currency_code: selectedCurrency,
-                                        change_amount: methodChange
+                                        change_amount: changeForMethod
                                     }]);
 
+                                    setLastChangeGiven(changeForMethod);
+                                    setLastCashReceived(cashGiven);
                                     setCashGiven(null);
                                     setInputCash('');
                                 }}
-                                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 border-none rounded-lg text-white font-bold text-xs cursor-pointer transition-colors shadow-sm"
+                                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer flex items-center gap-1 shrink-0"
                             >
-                                Añadir
+                                <i className="bi bi-plus-lg"></i> Añadir
                             </button>
                         </div>
                     </div>
 
-                    {/* Atajos de billetes */}
-                    <div className="grid grid-cols-3 gap-1.5 mb-2">
-                        {(selectedCurrency === 'COP' ? [2000, 5000, 10000, 20000, 50000, 100000] : [1, 5, 10, 20, 50, 100]).map(bill => (
-                            <button
-                                key={bill}
-                                onClick={() => {
-                                    const newVal = (cashGiven || 0) + bill;
-                                    setCashGiven(newVal);
-                                    setInputCash(newVal.toString());
-                                }}
-                                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 text-[10px] font-bold cursor-pointer transition-colors shadow-sm"
-                            >
-                                + {bill}
-                            </button>
-                        ))}
-                    </div>
+                    {/* TARJETA DE CAMBIO EN VIVO / VUELTO (VISIBILIDAD MÁXIMA) */}
+                    {cashGiven !== null && cashGiven > 0 ? (
+                        <div className={`p-4 rounded-xl border transition-all animate-fade-in ${
+                            cashGiven >= saldoPendienteCur - 0.01
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-950 shadow-sm'
+                                : 'bg-amber-50 border-amber-300 text-amber-950 shadow-sm'
+                        }`}>
+                            <div className="grid grid-cols-2 gap-2 text-xs border-b border-black/10 pb-2 mb-2">
+                                <div>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Monto A Cobrar:</span>
+                                    <span className="font-extrabold text-sm text-slate-800">
+                                        {formatCurrency(saldoPendienteCur, selectedCurrency)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Dinero Recibido:</span>
+                                    <span className="font-extrabold text-sm text-indigo-700">
+                                        {formatCurrency(cashGiven, selectedCurrency)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {cashGiven >= saldoPendienteCur - 0.01 ? (
+                                <div className="flex justify-between items-center">
+                                    <span className="font-extrabold text-xs uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                        <i className="bi bi-cash-stack text-lg text-emerald-600"></i> CAMBIO / VUELTO:
+                                    </span>
+                                    <span className="text-2xl font-black text-emerald-600 tracking-tight">
+                                        {formatCurrency(cashGiven - saldoPendienteCur, selectedCurrency)}
+                                    </span>
+                                </div>
+                            ) : (
+                                <div className="flex justify-between items-center">
+                                    <span className="font-extrabold text-xs uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
+                                        <i className="bi bi-exclamation-triangle-fill text-amber-600"></i> FALTA POR CUBRIR:
+                                    </span>
+                                    <span className="text-xl font-black text-amber-600 tracking-tight">
+                                        {formatCurrency(saldoPendienteCur - cashGiven, selectedCurrency)}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    ) : lastChangeGiven !== null && lastChangeGiven > 0 ? (
+                        <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-300 flex justify-between items-center text-emerald-900 animate-fade-in">
+                            <div className="flex items-center gap-2">
+                                <i className="bi bi-check-circle-fill text-emerald-600 text-xl"></i>
+                                <div>
+                                    <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-800">Último Cambio Entregado</span>
+                                    <span className="text-xs font-semibold text-slate-600">De pago recibido de {formatCurrency(lastCashReceived || 0, selectedCurrency)}</span>
+                                </div>
+                            </div>
+                            <span className="text-xl font-black text-emerald-600">
+                                {formatCurrency(lastChangeGiven, selectedCurrency)}
+                            </span>
+                        </div>
+                    ) : null}
                 </div>
 
-                {/* RESUMEN DE PAGOS */}
-                <div className="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                {/* RESUMEN DE PAGOS REGISTRADOS */}
+                <div className="mb-4 bg-slate-50 border border-slate-200 rounded-xl p-4 shadow-sm">
                     <h4 className="m-0 mb-2 text-slate-500 text-xs font-semibold">Pagos Registrados</h4>
                     {paymentSplits.length === 0 ? (
                         <div className="text-slate-400 text-xs italic">Sin pagos añadidos aún...</div>
                     ) : (
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                             {paymentSplits.map((p, idx) => (
-                                <div key={idx} className="flex justify-between items-center border-b border-slate-200 border-dashed pb-1.5 text-xs">
-                                    <span className="text-slate-600">{p.method_name} ({p.currency_code})</span>
+                                <div key={idx} className="flex justify-between items-center border-b border-slate-200 border-dashed pb-2 text-xs">
+                                    <div>
+                                        <span className="text-slate-800 font-bold">{p.method_name} ({p.currency_code})</span>
+                                        {p.amount_received && p.amount_received > p.amount_applied && (
+                                            <div className="text-[10px] text-slate-500">
+                                                Recibido: {formatCurrency(p.amount_received, p.currency_code)} &nbsp;➔&nbsp;
+                                                <strong className="text-emerald-700">Vuelto: {formatCurrency(p.change_amount || 0, p.currency_code)}</strong>
+                                            </div>
+                                        )}
+                                    </div>
                                     <div className="flex gap-2 items-center">
                                         <span className="text-emerald-600 font-bold">+{formatCurrency(p.amount_applied, 'USD')}</span>
                                         <button
@@ -487,12 +578,8 @@ const PanelRestaurant: React.FC = () => {
 
                     <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-200">
                         <span className="text-slate-700 font-bold text-xs">SALDO PENDIENTE:</span>
-                        <span className={`font-bold text-sm ${
-                            (calculateTotalToPay() - paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0)) <= 0.01
-                                ? 'text-emerald-600'
-                                : 'text-rose-600'
-                        }`}>
-                            {formatCurrency(Math.max(0, calculateTotalToPay() - paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0)), 'USD')}
+                        <span className={`font-bold text-sm ${saldoPendienteUSD <= 0.01 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {formatCurrency(saldoPendienteUSD, 'USD')}
                         </span>
                     </div>
                 </div>
@@ -529,31 +616,53 @@ const PanelRestaurant: React.FC = () => {
                             if (!lastOrder) return alert('No hay orden activa');
 
                             const totalToPay = calculateTotalToPay();
-                            const totalPaidNow = paymentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0);
+                            let currentSplits = [...paymentSplits];
+                            const currentPaidNow = currentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0);
+                            const pendingToCover = totalToPay - currentPaidNow;
 
-                            if (totalToPay > 0.01) {
-                                if (paymentSplits.length === 0) {
-                                    paymentSplits.push({
-                                        payment_method_id: selectedPaymentMethod,
-                                        method_name: paymentMethods.find(m => String(m.id) === selectedPaymentMethod)?.name || 'Default',
-                                        amount_applied: totalToPay,
-                                        amount_received: selectedCurrency === 'COP' ? totalToPay * parseFloat(exchangeRate) : totalToPay,
-                                        currency_code: selectedCurrency,
-                                        change_amount: 0
-                                    });
-                                } else if (totalPaidNow < totalToPay - 0.01) {
-                                    return alert(`El pago total (${formatCurrency(totalPaidNow, 'USD')}) no cubre la cuenta (${formatCurrency(totalToPay, 'USD')})`);
+                            if (pendingToCover > 0.01) {
+                                let rawCash = cashGiven || 0;
+                                let appliedUSD = 0;
+                                let changeAmount = 0;
+
+                                if (rawCash > 0) {
+                                    const rawCashUSD = selectedCurrency === 'COP' ? rawCash / rate : rawCash;
+                                    appliedUSD = Math.min(rawCashUSD, pendingToCover);
+                                    if (selectedCurrency === 'COP') {
+                                        changeAmount = Math.max(0, rawCash - (appliedUSD * rate));
+                                    } else {
+                                        changeAmount = Math.max(0, rawCash - appliedUSD);
+                                    }
+                                } else {
+                                    appliedUSD = pendingToCover;
+                                    rawCash = selectedCurrency === 'COP' ? pendingToCover * rate : pendingToCover;
+                                    changeAmount = 0;
                                 }
+
+                                const methodObj = paymentMethods.find(m => String(m.id) === selectedPaymentMethod);
+                                currentSplits.push({
+                                    payment_method_id: selectedPaymentMethod,
+                                    method_name: methodObj ? methodObj.name : 'Efectivo',
+                                    amount_applied: appliedUSD,
+                                    amount_received: rawCash,
+                                    currency_code: selectedCurrency,
+                                    change_amount: changeAmount
+                                });
+                            }
+
+                            const finalTotalPaid = currentSplits.reduce((acc, curr) => acc + curr.amount_applied, 0);
+                            if (totalToPay > 0.01 && finalTotalPaid < totalToPay - 0.01) {
+                                return alert(`El pago total (${formatCurrency(finalTotalPaid, 'USD')}) no cubre la cuenta (${formatCurrency(totalToPay, 'USD')})`);
                             }
 
                             try {
                                 await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/checkout/`, {
-                                    payments_list: paymentSplits
+                                    payments_list: currentSplits
                                 });
 
                                 await printerServiceRestaurant.printReceipt({
                                     ...lastOrder,
-                                    payments_list: paymentSplits
+                                    payments_list: currentSplits
                                 });
 
                                 closeModal();
@@ -961,39 +1070,45 @@ const PanelRestaurant: React.FC = () => {
                                     const splitPaid = splitPaymentSplits.reduce((a, b) => a + b.amount_applied, 0);
                                     const splitPending = Math.max(0, splitTotal - splitPaid);
 
+                                    const splitRate = splitCurrency === 'COP' ? parseFloat(exchangeRate || '4000') : 1;
+                                    const splitPendingCur = splitCurrency === 'COP' ? splitPending * splitRate : splitPending;
+
+                                    const splitCashEntered = splitCashGiven || 0;
+                                    const splitCashEnteredUSD = splitCurrency === 'COP' ? splitCashEntered / splitRate : splitCashEntered;
+
                                     return (
                                         <div className="p-4 px-5 border-t border-slate-200 bg-white">
                                             <div className="flex justify-between mb-3 text-xs">
-                                                <span className="text-slate-500">Subtotal selección:</span>
-                                                <span className="text-amber-600 font-bold text-sm">{formatCurrency(splitTotal, 'USD')}</span>
+                                                <span className="text-slate-500 font-bold">Subtotal Selección:</span>
+                                                <span className="text-amber-600 font-extrabold text-sm">{formatCurrency(splitTotal, 'USD')}</span>
                                             </div>
 
                                             {/* Widget de pagos múltiples dentro de Separar Cuenta */}
-                                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4">
-                                                <h4 className="m-0 mb-3 text-slate-800 text-xs font-bold border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
-                                                    <i className="bi bi-credit-card-2-front-fill text-slate-500"></i> Forma de Pago
+                                            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 mb-4 shadow-sm">
+                                                <h4 className="m-0 mb-3 text-slate-800 text-xs font-bold uppercase tracking-wider border-b border-slate-200 pb-1.5 flex items-center gap-1.5">
+                                                    <i className="bi bi-wallet2 text-purple-600 text-base"></i> Forma de Pago (Separación)
                                                 </h4>
 
                                                 {/* Método + Moneda */}
-                                                <div className="flex gap-2.5 mb-3">
-                                                    <div className="flex-1">
-                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Método</label>
+                                                <div className="grid grid-cols-2 gap-2.5 mb-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Método</label>
                                                         <select
                                                             value={splitPaymentMethod}
                                                             onChange={(e) => setSplitPaymentMethod(e.target.value)}
-                                                            className="w-full p-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs outline-none focus:border-blue-500"
+                                                            className="w-full p-2 rounded-xl border border-slate-300 bg-white text-slate-800 text-xs outline-none focus:border-purple-500"
                                                         >
                                                             {paymentMethods.map(m => (
                                                                 <option key={m.id} value={m.id}>{m.name}</option>
                                                             ))}
                                                         </select>
                                                     </div>
-                                                    <div className="flex-1">
-                                                        <label className="block text-[10px] font-bold text-slate-500 mb-1">Moneda</label>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold uppercase text-slate-500 mb-1">Moneda</label>
                                                         <select
                                                             value={splitCurrency}
                                                             onChange={(e) => setSplitCurrency(e.target.value)}
-                                                            className="w-full p-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-xs outline-none focus:border-blue-500"
+                                                            className="w-full p-2 rounded-xl border border-slate-300 bg-white text-slate-800 text-xs outline-none focus:border-purple-500"
                                                         >
                                                             <option value="USD">USD ($)</option>
                                                             <option value="COP">COP ($)</option>
@@ -1001,77 +1116,158 @@ const PanelRestaurant: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Monto + Botón */}
-                                                <div className="flex gap-2 mb-3">
-                                                    <input
-                                                        type="number"
-                                                        value={splitInputCash}
-                                                        onChange={(e) => {
-                                                            setSplitInputCash(e.target.value);
-                                                            setSplitCashGiven(e.target.value ? parseFloat(e.target.value) : null);
-                                                        }}
-                                                        placeholder={`Monto en ${splitCurrency}`}
-                                                        className="flex-1 p-2 rounded-lg border border-slate-300 bg-white text-slate-800 text-sm outline-none focus:border-blue-500"
-                                                    />
-                                                    <button
-                                                        onClick={() => {
-                                                            if (!splitCashGiven || splitCashGiven <= 0) return alert('Ingresa un monto válido');
-
-                                                            let appliedUSD = splitCurrency === 'COP'
-                                                                ? splitCashGiven / parseFloat(exchangeRate || '4000')
-                                                                : splitCashGiven;
-
-                                                            const pendiente = Math.max(0, splitTotal - splitPaymentSplits.reduce((a, b) => a + b.amount_applied, 0));
-                                                            let finalApplied = appliedUSD;
-                                                            let change = 0;
-                                                            if (appliedUSD > pendiente) {
-                                                                finalApplied = pendiente;
-                                                                change = splitCurrency === 'COP'
-                                                                    ? splitCashGiven - (pendiente * parseFloat(exchangeRate || '4000'))
-                                                                    : splitCashGiven - pendiente;
-                                                            }
-
-                                                            const methodObj = paymentMethods.find(m => String(m.id) === splitPaymentMethod);
-                                                            setSplitPaymentSplits([...splitPaymentSplits, {
-                                                                payment_method_id: splitPaymentMethod,
-                                                                method_name: methodObj ? methodObj.name : 'Unknown',
-                                                                amount_applied: finalApplied,
-                                                                amount_received: splitCashGiven,
-                                                                currency_code: splitCurrency,
-                                                                change_amount: change
-                                                            }]);
-                                                            setSplitInputCash('');
-                                                            setSplitCashGiven(null);
-                                                        }}
-                                                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 border-none rounded-lg text-white font-bold text-xs cursor-pointer transition-colors"
-                                                    >
-                                                        Añadir
-                                                    </button>
-                                                </div>
-
-                                                {/* Atajos de billetes */}
-                                                <div className="grid grid-cols-3 gap-1.5 mb-3">
-                                                    {(splitCurrency === 'COP' ? [2000, 5000, 10000, 20000, 50000, 100000] : [1, 5, 10, 20, 50, 100]).map(bill => (
+                                                {/* INGRESO DE MONTO EN FÍSICO */}
+                                                <div className="mb-3">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <label className="block text-[10px] uppercase font-bold text-slate-600">
+                                                            Dinero Recibido en Físico ({splitCurrency})
+                                                        </label>
                                                         <button
-                                                            key={bill}
+                                                            type="button"
                                                             onClick={() => {
-                                                                const newVal = (splitCashGiven || 0) + bill;
-                                                                setSplitCashGiven(newVal);
-                                                                setSplitInputCash(newVal.toString());
+                                                                const exact = splitCurrency === 'COP'
+                                                                    ? Math.round(splitPending * splitRate)
+                                                                    : Math.round(splitPending * 100) / 100;
+                                                                setSplitCashGiven(exact);
+                                                                setSplitInputCash(exact.toString());
                                                             }}
-                                                            className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded text-slate-700 text-[10px] font-bold cursor-pointer transition-colors shadow-sm"
+                                                            className="text-[10px] font-bold text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-md transition-colors cursor-pointer"
                                                         >
-                                                            +{bill}
+                                                            Monto Exacto ({formatCurrency(splitPending, 'USD')})
                                                         </button>
-                                                    ))}
+                                                    </div>
+
+                                                    <div className="flex gap-2">
+                                                        <div className="relative flex-1">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-base">$</span>
+                                                            <input
+                                                                type="number"
+                                                                step="any"
+                                                                value={splitInputCash}
+                                                                onChange={(e) => {
+                                                                    const val = e.target.value;
+                                                                    setSplitInputCash(val);
+                                                                    setSplitCashGiven(val ? parseFloat(val) : null);
+                                                                }}
+                                                                placeholder={splitCurrency === 'COP' ? "Ej: 20000" : "Ej: 20.00"}
+                                                                className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 text-base font-black outline-none focus:border-purple-600 shadow-inner"
+                                                            />
+                                                        </div>
+                                                        {splitInputCash && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setSplitInputCash('');
+                                                                    setSplitCashGiven(null);
+                                                                }}
+                                                                className="px-3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                                                                title="Limpiar"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!splitCashGiven || splitCashGiven <= 0) return alert('Por favor ingresa un monto válido recibido en físico');
+
+                                                                const appliedUSD = Math.min(splitCashEnteredUSD, splitPending);
+                                                                let changeForMethod = 0;
+                                                                if (splitCashEnteredUSD > splitPending) {
+                                                                    changeForMethod = splitCurrency === 'COP'
+                                                                        ? splitCashGiven - (appliedUSD * splitRate)
+                                                                        : splitCashGiven - appliedUSD;
+                                                                }
+
+                                                                const methodObj = paymentMethods.find(m => String(m.id) === splitPaymentMethod);
+                                                                setSplitPaymentSplits([...splitPaymentSplits, {
+                                                                    payment_method_id: splitPaymentMethod,
+                                                                    method_name: methodObj ? methodObj.name : 'Efectivo',
+                                                                    amount_applied: appliedUSD,
+                                                                    amount_received: splitCashGiven,
+                                                                    currency_code: splitCurrency,
+                                                                    change_amount: changeForMethod
+                                                                }]);
+
+                                                                setLastSplitChangeGiven(changeForMethod);
+                                                                setLastSplitCashReceived(splitCashGiven);
+                                                                setSplitInputCash('');
+                                                                setSplitCashGiven(null);
+                                                            }}
+                                                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 border-none text-white font-bold text-xs rounded-xl shadow-md transition-colors cursor-pointer shrink-0 flex items-center gap-1"
+                                                        >
+                                                            <i className="bi bi-plus-lg"></i> Añadir
+                                                        </button>
+                                                    </div>
                                                 </div>
+
+                                                {/* TARJETA DE CAMBIO EN VIVO EN SEPARACIÓN DE CUENTA */}
+                                                {splitCashGiven !== null && splitCashGiven > 0 ? (
+                                                    <div className={`p-3.5 rounded-xl border text-xs mb-3 animate-fade-in ${
+                                                        splitCashGiven >= splitPendingCur - 0.01
+                                                            ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                                                            : 'bg-amber-50 border-amber-300 text-amber-950'
+                                                    }`}>
+                                                        <div className="grid grid-cols-2 gap-2 border-b border-black/10 pb-1.5 mb-1.5">
+                                                            <div>
+                                                                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Subtotal A Cobrar:</span>
+                                                                <span className="font-extrabold text-xs text-slate-800">
+                                                                    {formatCurrency(splitPendingCur, splitCurrency)}
+                                                                </span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Dinero Recibido:</span>
+                                                                <span className="font-extrabold text-xs text-purple-700">
+                                                                    {formatCurrency(splitCashGiven, splitCurrency)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        {splitCashGiven >= splitPendingCur - 0.01 ? (
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-extrabold text-[11px] uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+                                                                    <i className="bi bi-cash-stack text-base text-emerald-600"></i> CAMBIO / VUELTO:
+                                                                </span>
+                                                                <span className="text-xl font-black text-emerald-600">
+                                                                    {formatCurrency(splitCashGiven - splitPendingCur, splitCurrency)}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex justify-between items-center">
+                                                                <span className="font-extrabold text-[11px] uppercase tracking-wider text-amber-800 flex items-center gap-1">
+                                                                    <i className="bi bi-exclamation-triangle-fill text-amber-600"></i> FALTA POR CUBRIR:
+                                                                </span>
+                                                                <span className="text-lg font-black text-amber-600">
+                                                                    {formatCurrency(splitPendingCur - splitCashGiven, splitCurrency)}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : lastSplitChangeGiven !== null && lastSplitChangeGiven > 0 ? (
+                                                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 flex justify-between items-center text-emerald-900 mb-3 animate-fade-in text-xs">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <i className="bi bi-check-circle-fill text-emerald-600 text-lg"></i>
+                                                            <span className="font-bold text-[10px] uppercase text-emerald-800">Último Cambio:</span>
+                                                        </div>
+                                                        <span className="text-lg font-black text-emerald-600">
+                                                            {formatCurrency(lastSplitChangeGiven, splitCurrency)}
+                                                        </span>
+                                                    </div>
+                                                ) : null}
 
                                                 {/* Lista de pagos añadidos */}
                                                 {splitPaymentSplits.length > 0 && (
-                                                    <div className="space-y-1">
+                                                    <div className="space-y-1.5 mb-2">
                                                         {splitPaymentSplits.map((p, idx) => (
-                                                            <div key={idx} className="flex justify-between items-center border-b border-slate-200 border-dashed pb-1 text-[11px]">
-                                                                <span className="text-slate-600">{p.method_name} ({p.currency_code})</span>
+                                                            <div key={idx} className="flex justify-between items-center border-b border-slate-200 border-dashed pb-1.5 text-[11px]">
+                                                                <div>
+                                                                    <span className="text-slate-800 font-bold">{p.method_name} ({p.currency_code})</span>
+                                                                    {p.amount_received && p.amount_received > p.amount_applied && (
+                                                                        <div className="text-[9px] text-slate-500">
+                                                                            Recibido: {formatCurrency(p.amount_received, p.currency_code)} &nbsp;➔&nbsp;
+                                                                            <strong className="text-emerald-700">Vuelto: {formatCurrency(p.change_amount || 0, p.currency_code)}</strong>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                                 <div className="flex gap-2 items-center">
                                                                     <span className="text-emerald-600 font-bold">+{formatCurrency(p.amount_applied, 'USD')}</span>
                                                                     <button
@@ -1103,6 +1299,8 @@ const PanelRestaurant: React.FC = () => {
                                                         setSplitPaymentSplits([]);
                                                         setSplitInputCash('');
                                                         setSplitCashGiven(null);
+                                                        setLastSplitChangeGiven(null);
+                                                        setLastSplitCashReceived(null);
                                                         setSplitItemsSelection({});
                                                     }}
                                                     className="flex-1 py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-semibold text-xs cursor-pointer hover:bg-slate-50 transition-colors"
@@ -1117,27 +1315,50 @@ const PanelRestaurant: React.FC = () => {
 
                                                         if (itemsToSplit.length === 0) return alert('Debes seleccionar al menos un producto para cobrar');
 
-                                                        if (splitTotal > 0.01) {
-                                                            const splitPaidNow = splitPaymentSplits.reduce((a, b) => a + b.amount_applied, 0);
-                                                            if (splitPaymentSplits.length === 0) {
-                                                                splitPaymentSplits.push({
-                                                                    payment_method_id: splitPaymentMethod,
-                                                                    method_name: paymentMethods.find(m => String(m.id) === splitPaymentMethod)?.name || 'Default',
-                                                                    amount_applied: splitTotal,
-                                                                    amount_received: splitTotal,
-                                                                    currency_code: splitCurrency,
-                                                                    change_amount: 0
-                                                                });
-                                                            } else if (splitPaidNow < splitTotal - 0.01) {
-                                                                return alert(`El pago (${formatCurrency(splitPaidNow, 'USD')}) no cubre el subtotal (${formatCurrency(splitTotal, 'USD')}). Añade más pagos.`);
+                                                        let currentSplits = [...splitPaymentSplits];
+                                                        const splitPaidNow = currentSplits.reduce((a, b) => a + b.amount_applied, 0);
+                                                        const pendingSplitToCover = splitTotal - splitPaidNow;
+
+                                                        if (pendingSplitToCover > 0.01) {
+                                                            let rawCash = splitCashGiven || 0;
+                                                            let appliedUSD = 0;
+                                                            let changeAmount = 0;
+
+                                                            if (rawCash > 0) {
+                                                                const rawCashUSD = splitCurrency === 'COP' ? rawCash / splitRate : rawCash;
+                                                                appliedUSD = Math.min(rawCashUSD, pendingSplitToCover);
+                                                                if (splitCurrency === 'COP') {
+                                                                    changeAmount = Math.max(0, rawCash - (appliedUSD * splitRate));
+                                                                } else {
+                                                                    changeAmount = Math.max(0, rawCash - appliedUSD);
+                                                                }
+                                                            } else {
+                                                                appliedUSD = pendingSplitToCover;
+                                                                rawCash = splitCurrency === 'COP' ? pendingSplitToCover * splitRate : pendingSplitToCover;
+                                                                changeAmount = 0;
                                                             }
+
+                                                            const methodObj = paymentMethods.find(m => String(m.id) === splitPaymentMethod);
+                                                            currentSplits.push({
+                                                                payment_method_id: splitPaymentMethod,
+                                                                method_name: methodObj ? methodObj.name : 'Efectivo',
+                                                                amount_applied: appliedUSD,
+                                                                amount_received: rawCash,
+                                                                currency_code: splitCurrency,
+                                                                change_amount: changeAmount
+                                                            });
+                                                        }
+
+                                                        const finalPaidTotal = currentSplits.reduce((a, b) => a + b.amount_applied, 0);
+                                                        if (splitTotal > 0.01 && finalPaidTotal < splitTotal - 0.01) {
+                                                            return alert(`El pago (${formatCurrency(finalPaidTotal, 'USD')}) no cubre el subtotal (${formatCurrency(splitTotal, 'USD')}). Añade más pagos.`);
                                                         }
 
                                                         try {
                                                             const lastOrder = tableOrders[tableOrders.length - 1];
                                                             const res = await api.post(`/api/restaurant/orders/orders/${lastOrder.order_number || lastOrder.id}/split_checkout/`, {
                                                                 items: itemsToSplit,
-                                                                payments_list: splitPaymentSplits,
+                                                                payments_list: currentSplits,
                                                                 payment_method: splitPaymentMethod,
                                                                 currency_code: splitCurrency
                                                             });
@@ -1170,6 +1391,8 @@ const PanelRestaurant: React.FC = () => {
                                                             setSplitPaymentSplits([]);
                                                             setSplitInputCash('');
                                                             setSplitCashGiven(null);
+                                                            setLastSplitChangeGiven(null);
+                                                            setLastSplitCashReceived(null);
                                                             setShowSplitItems(false);
                                                             setSplitItemsSelection({});
 
@@ -1192,7 +1415,7 @@ const PanelRestaurant: React.FC = () => {
                                                             alert('Error al separar cuenta: ' + (e.response?.data?.error || e.message || e));
                                                         }
                                                     }}
-                                                    className="flex-[2] py-2.5 bg-purple-600 hover:bg-purple-700 border-none text-white rounded-lg font-semibold text-xs cursor-pointer transition-colors"
+                                                    className="flex-[2] py-2.5 bg-purple-600 hover:bg-purple-700 border-none text-white rounded-lg font-semibold text-xs cursor-pointer transition-colors flex items-center justify-center gap-1.5"
                                                 >
                                                     <i className="bi bi-scissors"></i> Separar y Cobrar
                                                 </button>

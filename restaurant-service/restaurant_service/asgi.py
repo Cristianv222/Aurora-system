@@ -8,14 +8,18 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'restaurant_service.settings')
 django_asgi_app = get_asgi_application()
 
 import apps.inventory.routing
+import apps.pos.routing
+
+combined_websocket_urlpatterns = (
+    apps.inventory.routing.websocket_urlpatterns +
+    apps.pos.routing.websocket_urlpatterns
+)
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,
-    "websocket": AllowedHostsOriginValidator(
-        AuthMiddlewareStack(
-            URLRouter(
-                apps.inventory.routing.websocket_urlpatterns
-            )
+    "websocket": AuthMiddlewareStack(
+        URLRouter(
+            combined_websocket_urlpatterns
         )
     ),
 })

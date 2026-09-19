@@ -8,10 +8,9 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-# Eliminar usuario admin si existe
-if User.objects.filter(username='admin').exists():
-    User.objects.filter(username='admin').delete()
-    print('Usuario admin anterior eliminado')
+# Eliminar usuario admin si existe por email o username
+User.objects.filter(email='admin@aurora.com').delete()
+User.objects.filter(username='admin').delete()
 
 # Crear nuevo superusuario
 user = User.objects.create_superuser(

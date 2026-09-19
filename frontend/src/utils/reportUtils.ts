@@ -19,11 +19,10 @@ export const formatDate = (dateString: any): string => {
     try {
         if (!dateString) return 'Fecha no disponible';
 
-        // Fix para strings "YYYY-MM-DD" que JS interpreta como UTC
         let date: Date;
         if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
             const [y, m, d] = dateString.split('-').map(Number);
-            date = new Date(y, m - 1, d); // Constructor local
+            date = new Date(y, m - 1, d);
         } else {
             date = new Date(dateString);
         }
@@ -31,7 +30,7 @@ export const formatDate = (dateString: any): string => {
         if (isNaN(date.getTime())) return dateString;
 
         return date.toLocaleDateString('es-EC', {
-            weekday: 'long', // "lunes", "martes"...
+            weekday: 'long',
             year: 'numeric',
             month: 'long',
             day: 'numeric',
@@ -46,7 +45,6 @@ export const formatDate = (dateString: any): string => {
 export const getValidDate = (dateValue: any): Date | null => {
     if (!dateValue) return null;
 
-    // Fix para strings "YYYY-MM-DD"
     if (typeof dateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
         const [y, m, d] = dateValue.split('-').map(Number);
         return new Date(y, m - 1, d);
@@ -56,8 +54,7 @@ export const getValidDate = (dateValue: any): Date | null => {
     return isNaN(date.getTime()) ? null : date;
 };
 
-// Generar PDF Detallado
-// Generar PDF Simplificado (Estilo Recibo/Reporte Simple)
+// Generar PDF Detallado Profesional
 export const generateDetailedPDF = (report: any, reportType: string, dateRangeStr: string): void => {
     if (!report) {
         alert('No hay reporte seleccionado para imprimir.');
@@ -66,187 +63,222 @@ export const generateDetailedPDF = (report: any, reportType: string, dateRangeSt
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    let y = 20;
-    const MARGIN = 15;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let y = 0;
+    const MARGIN = 14;
 
-    // --- 1. Encabezado Simple ---
-    doc.setFontSize(10);
-    doc.setTextColor(50);
+    // --- 1. BANNER ENCABEZADO MODERNO ---
+    doc.setFillColor(15, 23, 42); // #0f172a (Dark Slate)
+    doc.rect(0, 0, pageWidth, 36, 'F');
 
-    // Fecha y hora de impresión
-    const printDate = format(new Date(), 'dd/MM/yyyy HH:mm');
-    doc.text(printDate, MARGIN, y);
-
-    // Nombre del Negocio / Usuario (Derecha)
-    const businessName = "KROKY Carlos"; // Nombre fijo o configurar si hay
-    const userName = report.shift_info?.user || "Guacalés Carvajal"; // O nombre del usuario actual
-
-    doc.text(businessName, pageWidth - MARGIN, y, { align: 'right' });
-    y += 5;
-    doc.text(userName, pageWidth - MARGIN, y, { align: 'right' });
-
-    y += 20;
-
-    // --- 2. Título Central ---
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
-    doc.setTextColor(0);
-    doc.text('Detalles de ventas', pageWidth / 2, y, { align: 'center' });
-    y += 10;
+    doc.text('AURORA POS SYSTEM', MARGIN, 16);
 
-    // Rango de fechas / Fechas del turno
     doc.setFontSize(10);
-    doc.setTextColor(0);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184); // #94a3b8
+    const titleSub = report.is_shift_report ? 'REPORTE DETALLADO DE TURNO' : 'REPORTE DE VENTAS Y OPERACIONES';
+    doc.text(titleSub, MARGIN, 24);
 
-    let dateInfo = '';
+    // Información del reporte (Derecha del Banner)
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    const printDate = format(new Date(), 'dd/MM/yyyy HH:mm');
+    doc.text(`Generado: ${printDate}`, pageWidth - MARGIN, 14, { align: 'right' });
+
+    let periodLabel = dateRangeStr || report.date_formatted || report.date || 'Actual';
     if (report.is_shift_report && report.shift_info) {
-        // Usar fechas reales del turno si existen
-        const open = report.shift_info.opened_at ? format(new Date(report.shift_info.opened_at), 'dd/MM/yyyy HH:mm:ss') : '';
-        const close = report.shift_info.closed_at ? format(new Date(report.shift_info.closed_at), 'dd/MM/yyyy HH:mm:ss') : '';
-        dateInfo = `${open} - ${close}`;
-    } else {
-        dateInfo = dateRangeStr;
+        periodLabel = `Turno #${report.shift_info.number || report.shift_number || ''}`;
+    }
+    doc.text(`Periodo: ${periodLabel}`, pageWidth - MARGIN, 22, { align: 'right' });
+
+    y = 44;
+
+    // --- 2. TARJETAS KPI RESUMEN ---
+    // Determinar Total de Ventas REAL del reporte
+    const totalSalesVal = parseFloat(
+        report.total_sales ?? report.summary?.total_sales ?? report.total_sales_amount ?? 0
+    );
+    const totalOrdersVal = report.total_orders ?? report.summary?.total_orders ?? report.total_transactions ?? 0;
+    const totalItemsVal = report.total_items_sold ?? report.summary?.total_items_sold ?? 0;
+    const avgOrderVal = totalOrdersVal > 0 ? (totalSalesVal / totalOrdersVal) : (report.average_order_value || 0);
+
+    const cardWidth = (pageWidth - (MARGIN * 2) - 9) / 4;
+    const cardHeight = 18;
+
+    const kpis = [
+        { label: 'VENTAS TOTALES', val: formatCurrency(totalSalesVal), color: [16, 185, 129] },
+        { label: 'TOTAL ÓRDENES', val: `${totalOrdersVal}`, color: [59, 130, 246] },
+        { label: 'PRODUCTOS', val: `${totalItemsVal}`, color: [245, 158, 11] },
+        { label: 'PROMEDIO / ORDEN', val: formatCurrency(avgOrderVal), color: [139, 92, 246] },
+    ];
+
+    kpis.forEach((kpi, idx) => {
+        const xPos = MARGIN + (idx * (cardWidth + 3));
+        
+        // Card Background
+        doc.setFillColor(248, 250, 252); // #f8fafc
+        doc.setDrawColor(226, 232, 240); // #e2e8f0
+        doc.roundedRect(xPos, y, cardWidth, cardHeight, 2, 2, 'FD');
+
+        // Top Color Bar
+        doc.setFillColor(kpi.color[0], kpi.color[1], kpi.color[2]);
+        doc.rect(xPos, y, cardWidth, 2, 'F');
+
+        // Text
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(100, 116, 139);
+        doc.text(kpi.label, xPos + 4, y + 7);
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text(kpi.val, xPos + 4, y + 14);
+    });
+
+    y += cardHeight + 10;
+
+    // --- 3. TABLA DE DESGLOSE DE PAGOS ---
+    const cashSales    = parseFloat(report.cash_sales ?? report.summary?.cash_sales ?? 0);
+    const cashCount    = report.cash_count ?? report.summary?.cash_count ?? 0;
+    const transferSales= parseFloat(report.transfer_sales ?? report.summary?.transfer_sales ?? 0);
+    const transferCount= report.transfer_count ?? report.summary?.transfer_count ?? 0;
+    const cardSales    = parseFloat(report.card_sales ?? report.summary?.card_sales ?? 0);
+    const copSales     = parseFloat(report.cop_sales ?? report.summary?.cop_sales ?? 0);
+    const copCount     = report.cop_count ?? report.summary?.cop_count ?? 0;
+    const otherSales   = parseFloat(report.other_sales ?? report.summary?.other_sales ?? 0);
+
+    const paymentRows: any[] = [];
+    paymentRows.push(['Efectivo (USD)', `${cashCount} transacción(es)`, formatCurrency(cashSales)]);
+    paymentRows.push(['Transferencia', `${transferCount} transacción(es)`, formatCurrency(transferSales)]);
+    paymentRows.push(['Tarjetas (TDD/TDC)', '—', formatCurrency(cardSales)]);
+    if (copSales > 0 || copCount > 0) {
+        paymentRows.push(['Pesos (COP)', `${copCount} transacción(es)`, `$${Math.round(copSales).toLocaleString('es-CO')} COP`]);
+    }
+    if (otherSales > 0) {
+        paymentRows.push(['Otros métodos', '—', formatCurrency(otherSales)]);
     }
 
-    doc.text(dateInfo, pageWidth / 2, y, { align: 'center' });
-    y += 15;
-
-    // --- 3. Tabla de Productos (Productos) ---
-    doc.setFontSize(14);
-    doc.text('Productos', MARGIN, y);
-    y += 5;
-
-    const topProducts = (report.top_products || [])
-        .map((p: any) => {
-            // Calcular precio unitario aproximado si no viene
-            const qty = p.quantity || p.quantity_sold || 0;
-            const total = p.total_amount || 0;
-            const unitPrice = qty > 0 ? (total / qty) : 0;
-
-            // Backend puede devolver product__name o product_name
-            const pName = p.product_name || p.product__name || 'Desconocido';
-
-            return [
-                pName,
-                `${qty.toFixed(1)} Unidades`,
-                unitPrice.toFixed(1) // Mostrar con 1 decimal o 2 según imagen
-            ];
-        });
-
-    if (topProducts.length === 0) {
-        topProducts.push(['Sin ventas registradas', '-', '-']);
-    }
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Desglose de Pagos Registrados', MARGIN, y);
+    y += 4;
 
     (doc as any).autoTable({
         startY: y,
-        head: [['Producto', 'Cantidad', 'Unidad de precio']],
-        body: topProducts,
-        theme: 'plain', // Estilo simple sin stripes
-        styles: {
-            fontSize: 10,
-            cellPadding: 3,
-            lineColor: [200, 200, 200],
-            lineWidth: { bottom: 0.1 }
-        },
+        head: [['Método de Pago', 'Transacciones', 'Monto Registrado']],
+        body: paymentRows,
+        theme: 'striped',
         headStyles: {
-            fillColor: [255, 255, 255],
-            textColor: [0, 0, 0],
+            fillColor: [30, 41, 59], // #1e293b
+            textColor: [255, 255, 255],
             fontStyle: 'bold',
-            lineWidth: { bottom: 1 }, // Línea negra bajo header
-            lineColor: [0, 0, 0]
+            fontSize: 8.5
+        },
+        bodyStyles: {
+            fontSize: 8.5,
+            cellPadding: 2.5
         },
         columnStyles: {
             0: { cellWidth: 'auto' },
-            1: { cellWidth: 40, halign: 'right' },
-            2: { cellWidth: 40, halign: 'right' }
+            1: { cellWidth: 45, halign: 'center' },
+            2: { cellWidth: 45, halign: 'right', fontStyle: 'bold' }
         },
-        margin: { left: MARGIN, right: MARGIN },
+        margin: { left: MARGIN, right: MARGIN }
     });
 
-    y = (doc as any).lastAutoTable.finalY + 15;
+    y = (doc as any).lastAutoTable.finalY + 10;
 
-    // --- 4. Desglose de Pagos ---
-    const cashSales    = report.summary?.cash_sales     ?? report.cash_sales     ?? 0;
-    const cashCount    = report.summary?.cash_count     ?? report.cash_count     ?? 0;
-    const transferSales= report.summary?.transfer_sales ?? report.transfer_sales ?? 0;
-    const transferCount= report.summary?.transfer_count ?? report.transfer_count ?? 0;
-    const cardSales    = report.summary?.card_sales     ?? report.card_sales     ?? 0;
-    const copSales     = report.summary?.cop_sales      ?? report.cop_sales      ?? 0;
-    const copCount     = report.summary?.cop_count      ?? report.cop_count      ?? 0;
-    const otherSales   = report.summary?.other_sales    ?? report.other_sales    ?? 0;
+    // --- 4. TABLA DE PRODUCTOS MÁS VENDIDOS ---
+    const topProductsRaw = report.top_products || [];
+    const topProductsRows = topProductsRaw.map((p: any) => {
+        const qty = p.quantity || p.quantity_sold || 0;
+        const total = p.total_amount || 0;
+        const avgPrice = p.average_price || (qty > 0 ? total / qty : 0);
+        const pName = p.product_name || p.product__name || 'Producto';
+        const category = p.category || p.product__category__name || 'Sin Categoría';
 
-    const hasPaymentData = cashSales || transferSales || cardSales || copSales || otherSales;
+        return [
+            p.rank || '-',
+            pName,
+            category,
+            `${qty}`,
+            formatCurrency(avgPrice),
+            formatCurrency(total)
+        ];
+    });
 
-    if (hasPaymentData) {
-        doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text('Desglose de Pagos', MARGIN, y);
-        y += 5;
-
-        const paymentRows: any[] = [];
-        if (cashSales > 0 || cashCount > 0)
-            paymentRows.push(['Efectivo (USD)', `${cashCount} pago(s)`, `$${parseFloat(cashSales).toFixed(2)}`]);
-        if (transferSales > 0 || transferCount > 0)
-            paymentRows.push(['Transferencia', `${transferCount} pago(s)`, `$${parseFloat(transferSales).toFixed(2)}`]);
-        if (cardSales > 0)
-            paymentRows.push(['Tarjetas (TDD/TDC)', '—', `$${parseFloat(cardSales).toFixed(2)}`]);
-        if (copSales > 0 || copCount > 0)
-            paymentRows.push(['Pesos (COP)', `${copCount} pago(s)`, `$${Math.round(parseFloat(copSales)).toLocaleString('es-CO')} COP`]);
-        if (otherSales > 0)
-            paymentRows.push(['Otros métodos', '—', `$${parseFloat(otherSales).toFixed(2)}`]);
-
-        if (paymentRows.length === 0)
-            paymentRows.push(['Sin pagos registrados', '—', '—']);
+    if (topProductsRows.length > 0) {
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text('Productos Vendidos', MARGIN, y);
+        y += 4;
 
         (doc as any).autoTable({
             startY: y,
-            head: [['Método de Pago', 'Transacciones', 'Monto']],
-            body: paymentRows,
-            theme: 'plain',
-            styles: { fontSize: 10, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: { bottom: 0.1 } },
-            headStyles: { fillColor: [255, 255, 255], textColor: [0, 0, 0], fontStyle: 'bold', lineWidth: { bottom: 1 }, lineColor: [0, 0, 0] },
-            columnStyles: {
-                0: { cellWidth: 'auto' },
-                1: { cellWidth: 40, halign: 'center' },
-                2: { cellWidth: 45, halign: 'right' }
+            head: [['#', 'Producto', 'Categoría', 'Cantidad', 'Precio Prom.', 'Monto Total']],
+            body: topProductsRows,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [30, 41, 59],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 8.5
             },
-            margin: { left: MARGIN, right: MARGIN },
+            bodyStyles: {
+                fontSize: 8,
+                cellPadding: 2.5
+            },
+            columnStyles: {
+                0: { cellWidth: 12, halign: 'center' },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 35 },
+                3: { cellWidth: 20, halign: 'center' },
+                4: { cellWidth: 30, halign: 'right' },
+                5: { cellWidth: 32, halign: 'right', fontStyle: 'bold' }
+            },
+            margin: { left: MARGIN, right: MARGIN }
         });
 
-        y = (doc as any).lastAutoTable.finalY + 15;
+        y = (doc as any).lastAutoTable.finalY + 10;
     }
 
-    // --- 5. Total Final ---
-    doc.setFontSize(16);
-    doc.setFont(undefined, 'bold');
+    // --- 5. CUADRO RESUMEN DE VENTAS FINAL ---
+    if (y + 25 > pageHeight - 15) {
+        doc.addPage();
+        y = 20;
+    }
 
-    // Total USD = suma de pagos NO-COP (efectivo + transferencia + tarjeta + otros)
-    const totalUSD = parseFloat(cashSales || 0) + parseFloat(transferSales || 0) +
-                     parseFloat(cardSales || 0) + parseFloat(otherSales || 0);
+    doc.setFillColor(15, 23, 42); // #0f172a
+    doc.roundedRect(MARGIN, y, pageWidth - (MARGIN * 2), 16, 2, 2, 'F');
 
-    // Total COP en pesos
-    const totalCOPVal = parseFloat(copSales || 0);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL DE VENTAS (ÓRDENES COMPLETADAS):', MARGIN + 6, y + 10.5);
 
-    // Fallback: si no hay pagos registrados, usar el total de las ordenes
-    const fallbackTotal = parseFloat(
-        report.summary?.total_sales ?? report.total_sales ?? 0
-    );
-    const displayTotalUSD = (totalUSD === 0 && totalCOPVal === 0 && fallbackTotal > 0)
-        ? fallbackTotal
-        : totalUSD;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(52, 211, 153); // #34d399 (Emerald Green)
+    doc.text(formatCurrency(totalSalesVal), pageWidth - MARGIN - 6, y + 10.5, { align: 'right' });
 
-    if (totalCOPVal > 0) {
-        // Mostrar dos totales separados
-        doc.text(`Total USD: $${displayTotalUSD.toFixed(2)}`, MARGIN + 10, y);
-        y += 8;
-        doc.setFontSize(13);
-        doc.text(`Total COP: $${Math.round(totalCOPVal).toLocaleString('es-CO')} COP  (aprox. $${(totalCOPVal / 4000).toFixed(2)} USD)`, MARGIN + 10, y);
-    } else {
-        // Solo USD (o fallback de ordenes si no hay pagos)
-        doc.text(`Total: $${displayTotalUSD.toFixed(2)}`, MARGIN + 10, y);
+    // Pie de página
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(148, 163, 184);
+        doc.text(`Aurora System POS • Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
     }
 
     const reportFileName = report.is_shift_report && report.shift_info
-        ? `Reporte_Turno_${report.shift_info.number}.pdf`
+        ? `Reporte_Turno_${report.shift_info.number || ''}.pdf`
         : `Reporte_Ventas_${format(new Date(), 'yyyyMMdd_HHmm')}.pdf`;
 
     doc.save(reportFileName);
