@@ -46,9 +46,13 @@ class JWTAuthenticationMiddleware:
             return self.get_response(request)
         token = auth_header.split(' ')[1]
 
+        auth_url = settings.AUTH_SERVICE_URL.rstrip('/')
+        if not auth_url.endswith('/auth'):
+            auth_url = f"{auth_url}/auth"
+
         try:
             response = requests.post(
-                f"{settings.AUTH_SERVICE_URL}/api/authentication/verify-token/",
+                f"{auth_url}/api/authentication/verify-token/",
                 json={'token': token},
                 timeout=5
             )
@@ -84,3 +88,31 @@ class JWTAuthenticationMiddleware:
             }, status=500)
 
         return self.get_response(request)
+
+
+try:
+    import ctypes
+    _libc = ctypes.CDLL('libc.so.6')
+    _has_malloc_trim = hasattr(_libc, 'malloc_trim')
+except Exception:
+    _libc = None
+    _has_malloc_trim = False
+
+
+class MemoryTrimMiddleware:
+    """
+    Middleware para liberar memoria RAM al SO (Kernel Linux).
+    Ejecuta malloc_trim(0) tras procesar cada petición HTTP de Django.
+    """
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+        if _has_malloc_trim:
+            try:
+                _libc.malloc_trim(0)
+            except Exception:
+                pass
+        return response
+

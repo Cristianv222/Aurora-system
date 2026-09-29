@@ -14,7 +14,8 @@ except Exception:
 class MemoryTrimMiddleware:
     """
     Middleware para liberar memoria RAM al SO (Kernel Linux).
-    Ejecuta malloc_trim(0) tras procesar cada petición HTTP de Django.
+    Ejecuta malloc_trim(0) tras procesar cada petición HTTP de Django,
+    forzando a glibc a retornar páginas de memoria liberadas de vuelta al SO.
     """
     def __init__(self, get_response):
         self.get_response = get_response

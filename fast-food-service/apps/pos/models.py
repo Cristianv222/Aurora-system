@@ -1024,6 +1024,8 @@ class DailySummary(models.Model):
                 status__in=['delivered', 'completed']
             )
             
+            total_orders = orders_in_hour.count()
+
             total_sales = orders_in_hour.aggregate(
                 total=Sum('total')
             )['total'] or Decimal('0')

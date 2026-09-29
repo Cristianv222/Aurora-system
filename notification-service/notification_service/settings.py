@@ -31,6 +31,7 @@ INSTALLED_APPS.append('apps.push')
 
 
 MIDDLEWARE = [
+    'core.middleware.MemoryTrimMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -99,7 +100,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.CappedPageNumberPagination',
     'PAGE_SIZE': 20
 }
 

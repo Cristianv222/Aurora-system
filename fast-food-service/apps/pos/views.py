@@ -529,17 +529,11 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
                 start_date = data['date']
                 end_date = data['date']
                 
-                summary, created = DailySummary.objects.get_or_create(
+                summary = DailySummary.generate_for_date(
                     date=data['date'],
-                    defaults={'generated_by': 'system'}  # ← MODIFICADO
+                    generated_by='system',
+                    detailed=True
                 )
-                
-                if not summary.top_products or not summary.sales_by_hour:
-                    summary = DailySummary.generate_for_date(
-                        date=data['date'],
-                        generated_by='system',  # ← MODIFICADO
-                        detailed=True
-                    )
                 
                 summary_data = DailySummarySerializer(summary).data
                 
@@ -617,14 +611,11 @@ class DailySummaryViewSet(viewsets.ReadOnlyModelViewSet):
     def today(self, request):
         today = timezone.now().date()
         
-        try:
-            summary = DailySummary.objects.get(date=today)
-        except DailySummary.DoesNotExist:
-            summary = DailySummary.generate_for_date(
-                date=today,
-                generated_by='system',
-                detailed=True
-            )
+        summary = DailySummary.generate_for_date(
+            date=today,
+            generated_by='system',
+            detailed=True
+        )
         
         return Response(DailySummarySerializer(summary).data)
     

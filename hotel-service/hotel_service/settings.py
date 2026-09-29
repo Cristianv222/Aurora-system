@@ -34,6 +34,7 @@ INSTALLED_APPS.append('apps.reports')
 
 
 MIDDLEWARE = [
+    'core.middleware.MemoryTrimMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -43,6 +44,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
 
 ROOT_URLCONF = 'hotel_service.urls'
 
@@ -102,9 +104,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    # Sin paginación — el croquis del hotel necesita todos los pisos/habitaciones de una vez
-    'DEFAULT_PAGINATION_CLASS': None,
-    'PAGE_SIZE': None,
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.CappedPageNumberPagination',
+    'PAGE_SIZE': 20,
 }
 
 # CORS
